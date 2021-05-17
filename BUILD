@@ -9,11 +9,15 @@ iml_module(
     test_srcs = ["test/src"],
     visibility = ["//visibility:public"],
     # do not sort: must match IML order
-    deps = ["//prebuilts/studio/intellij-sdk:studio-sdk"],
+    deps = [
+        "//prebuilts/studio/intellij-sdk:studio-sdk",
+        "//tools/base/fakeadbserver:studio.android.sdktools.fakeadbserver[module, test]",
+    ],
 )
 
 # Build adblib as a standalone library, with side effect of ensuring that adblib does not
 # use unwanted dependencies from "studio-sdk" in the iml_module rule above
+# Build with: bazel build //tools/base/adblib:tools.adblib
 kotlin_library(
     name = "tools.adblib",
     srcs = glob([
@@ -23,7 +27,8 @@ kotlin_library(
     resource_strip_prefix = "tools/base/adblib",
     visibility = ["//visibility:public"],
     deps = [
-        "//tools/base/third_party:org.jetbrains.kotlin_kotlin-stdlib",
+        "//tools/base/third_party:org.jetbrains.kotlin_kotlin-stdlib-jdk8",
+        "//tools/base/third_party:org.jetbrains.kotlinx_kotlinx-coroutines-core",
     ],
 )
 
@@ -44,5 +49,7 @@ kotlin_test(
         "//tools/base/testutils:tools.testutils",
         # For JUnit4 support
         "//tools/base/third_party:junit_junit",
+        # FakeAdbServer
+        "//tools/base/fakeadbserver:tools.fakeadbserver",
     ],
 )
