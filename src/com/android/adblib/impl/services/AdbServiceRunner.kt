@@ -136,4 +136,9 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
             )
         }
     }
+
+    fun newResizableBuffer() : ResizableBuffer {
+        //TODO: Consider acquiring ResizableBuffer from a pool to allow re-using instances
+        return ResizableBuffer()
+    }
 }

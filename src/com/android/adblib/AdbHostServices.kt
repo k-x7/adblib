@@ -16,4 +16,12 @@ interface AdbHostServices {
      * public consumers, but this API is provided for completeness.
      */
     suspend fun version(): Int
+
+    /**
+     * Returns the list of features supported by the ADB server ("host:host-features" query).
+     *
+     * Note that these features may not be supported by the ADB daemon running on a device.
+     * TODO: Add link to method to use to retrieve device features
+     */
+    suspend fun hostFeatures(): List<String>
 }

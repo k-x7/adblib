@@ -90,4 +90,22 @@ class AdbHostServicesTest {
         // Assert (should not reach this point)
         Assert.fail()
     }
+
+    @Test
+    fun testHostFeaturesWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+
+        // Act
+        val featureList = runBlocking { hostServices.hostFeatures() }
+
+        // Assert
+        Assert.assertTrue(featureList.contains("shell_v2"))
+        Assert.assertTrue(featureList.contains("fixed_push_mkdir"))
+        Assert.assertTrue(featureList.contains("push_sync"))
+        Assert.assertTrue(featureList.contains("abb_exec"))
+    }
 }

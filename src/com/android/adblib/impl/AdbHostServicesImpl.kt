@@ -6,7 +6,6 @@ import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TimeoutTracker
 import java.util.concurrent.TimeUnit
 
@@ -21,11 +20,10 @@ class AdbHostServicesImpl(
 
     override suspend fun version(): Int {
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
-        //TODO: Consider acquiring ResizableBuffer from a pool to allow re-using instances
-        val workBuffer = ResizableBuffer()
+        val workBuffer = serviceRunner.newResizableBuffer()
         serviceRunner.startHostQuery(workBuffer, "host:version", tracker).use { channel ->
-            val data = serviceRunner.readLengthPrefixedData(channel, workBuffer, tracker)
-            val versionString = AdbProtocolUtils.byteBufferToString(data)
+            val buffer = serviceRunner.readLengthPrefixedData(channel, workBuffer, tracker)
+            val versionString = AdbProtocolUtils.byteBufferToString(buffer)
             try {
                 return@version versionString.toInt(16)
             } catch (e: NumberFormatException) {
@@ -37,6 +35,19 @@ class AdbHostServicesImpl(
                 host.logger.warn(error, "ADB protocol error")
                 throw error
             }
+        }
+    }
+
+    override suspend fun hostFeatures(): List<String> {
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        // ADB Host implementation:
+        // https://cs.android.com/android/platform/superproject/+/827f4dd859829655a03a50ebfd4dafd0d7df4421:packages/modules/adb/adb.cpp;l=1243
+        val service = "host:host-features"
+        val workBuffer = serviceRunner.newResizableBuffer()
+        serviceRunner.startHostQuery(workBuffer, service, tracker).use { channel ->
+            val buffer = serviceRunner.readLengthPrefixedData(channel, workBuffer, tracker)
+            val featuresString = AdbProtocolUtils.byteBufferToString(buffer)
+            return@hostFeatures featuresString.split(",")
         }
     }
 }

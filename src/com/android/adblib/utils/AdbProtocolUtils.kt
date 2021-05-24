@@ -22,7 +22,7 @@ object AdbProtocolUtils {
     fun byteBufferToString(buffer: ByteBuffer): String {
         val position = buffer.position()
         val bytes = ByteArray(buffer.remaining())
-        buffer[bytes]
+        buffer.get(bytes)
         buffer.position(position)
         return String(bytes, ADB_CHARSET)
     }
