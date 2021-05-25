@@ -18,8 +18,11 @@ package com.android.adblib.testingutils
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbLibHost
 import com.android.adblib.impl.AdbChannelProviderOpenLocalHost
+import com.android.fakeadbserver.DeviceState
+import com.android.fakeadbserver.DeviceState.HostConnectionType
 import com.android.fakeadbserver.FakeAdbServer
 import com.android.fakeadbserver.hostcommandhandlers.HostCommandHandler
+import java.util.concurrent.TimeUnit
 import java.util.function.Supplier
 
 class FakeAdbServerProvider : AutoCloseable {
@@ -48,6 +51,24 @@ class FakeAdbServerProvider : AutoCloseable {
     fun build(): FakeAdbServerProvider {
         server = builder.build()
         return this
+    }
+
+    fun connectDevice(
+        deviceId: String,
+        manufacturer: String,
+        deviceModel: String,
+        release: String,
+        sdk: String,
+        hostConnectionType: HostConnectionType
+    ): DeviceState {
+        return server?.connectDevice(
+            deviceId,
+            manufacturer,
+            deviceModel,
+            release,
+            sdk,
+            hostConnectionType
+        )?.get(1, TimeUnit.SECONDS) ?: throw IllegalArgumentException()
     }
 
     fun start(): FakeAdbServerProvider {

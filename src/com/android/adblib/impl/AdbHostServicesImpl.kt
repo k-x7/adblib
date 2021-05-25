@@ -2,8 +2,10 @@ package com.android.adblib.impl
 
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbHostServices
+import com.android.adblib.AdbHostServices.DeviceInfoFormat
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbProtocolErrorException
+import com.android.adblib.DeviceList
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.TimeoutTracker
@@ -17,6 +19,7 @@ class AdbHostServicesImpl(
 ) : AdbHostServices {
 
     private val serviceRunner = AdbServiceRunner(host, channelProvider)
+    private val deviceParser = DeviceListParser()
 
     override suspend fun version(): Int {
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
@@ -48,6 +51,20 @@ class AdbHostServicesImpl(
             val buffer = serviceRunner.readLengthPrefixedData(channel, workBuffer, tracker)
             val featuresString = AdbProtocolUtils.byteBufferToString(buffer)
             return@hostFeatures featuresString.split(",")
+        }
+    }
+
+    override suspend fun devices(format: DeviceInfoFormat): DeviceList {
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = when (format) {
+            DeviceInfoFormat.SHORT_FORMAT -> "host:devices"
+            DeviceInfoFormat.LONG_FORMAT -> "host:devices-l"
+        }
+        val workBuffer = serviceRunner.newResizableBuffer()
+        serviceRunner.startHostQuery(workBuffer, service, tracker).use { channel ->
+            val buffer = serviceRunner.readLengthPrefixedData(channel, workBuffer, tracker)
+            val deviceListString = AdbProtocolUtils.byteBufferToString(buffer)
+            return@devices deviceParser.parse(format, deviceListString)
         }
     }
 }
