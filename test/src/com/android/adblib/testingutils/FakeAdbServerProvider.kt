@@ -83,4 +83,8 @@ class FakeAdbServerProvider : AutoCloseable {
     override fun close() {
         server?.close()
     }
+
+    fun awaitTermination() {
+        server?.awaitServerTermination()
+    }
 }

@@ -47,4 +47,9 @@ interface AdbHostServices {
          */
         LONG_FORMAT
     }
+
+    /**
+     * Kills the running instance of the ADB server ("host:kill" query).
+     */
+    suspend fun kill()
 }

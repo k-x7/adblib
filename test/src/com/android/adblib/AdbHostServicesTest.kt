@@ -177,4 +177,28 @@ class AdbHostServicesTest {
             Assert.assertEquals(fakeDevice.transportId.toString(), device.transportId)
         }
     }
+
+    @Test
+    fun testKillServer() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+
+        // Act
+        runBlocking { hostServices.kill() }
+
+        // Note: We need to for the server to terminate before verifying sending another
+        //       command fails, because the current implementation of "kill" in fakeAdbServer
+        //       does not wait for the server to be fully shutdown before sending and
+        //       'OKAY response.
+        fakeAdb.awaitTermination()
+
+        exceptionRule.expect(IOException::class.java)
+        runBlocking { hostServices.version() }
+
+        // Assert (should not reach this point)
+        Assert.fail()
+    }
 }

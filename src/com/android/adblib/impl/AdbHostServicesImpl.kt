@@ -9,6 +9,7 @@ import com.android.adblib.DeviceList
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.TimeoutTracker
+import java.io.EOFException
 import java.util.concurrent.TimeUnit
 
 class AdbHostServicesImpl(
@@ -65,6 +66,23 @@ class AdbHostServicesImpl(
             val buffer = serviceRunner.readLengthPrefixedData(channel, workBuffer, tracker)
             val deviceListString = AdbProtocolUtils.byteBufferToString(buffer)
             return@devices deviceParser.parse(format, deviceListString)
+        }
+    }
+
+    override suspend fun kill() {
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+
+        // ADB host implementation:
+        // https://cs.android.com/android/platform/superproject/+/fbcbf2500b2887952f862fa882741f80464bdbca:packages/modules/adb/adb.cpp;l=1128
+        try {
+            val workBuffer = serviceRunner.newResizableBuffer()
+            serviceRunner.startHostQuery(workBuffer, "host:kill", tracker).use {
+                host.logger.info("ADB server was killed, timeout left is $tracker")
+            }
+        } catch (e: EOFException) {
+            host.logger
+                .info("Received EOF instead of OKAY response. This can happen, as server was killed just after " +
+                              "sending OKAY")
         }
     }
 }
