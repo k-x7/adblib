@@ -21,6 +21,7 @@ import com.android.adblib.impl.AdbChannelProviderOpenLocalHost
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.DeviceState.HostConnectionType
 import com.android.fakeadbserver.FakeAdbServer
+import com.android.fakeadbserver.MdnsService
 import com.android.fakeadbserver.hostcommandhandlers.HostCommandHandler
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -84,6 +85,10 @@ class FakeAdbServerProvider : AutoCloseable {
             sdk,
             hostConnectionType
         )?.get(FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS, TimeUnit.MILLISECONDS) ?: throw IllegalArgumentException()
+    }
+
+    fun addMdnsService(service: MdnsService) {
+        server?.addMdnsService(service)?.get(FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS, TimeUnit.MILLISECONDS)
     }
 
     fun start(): FakeAdbServerProvider {

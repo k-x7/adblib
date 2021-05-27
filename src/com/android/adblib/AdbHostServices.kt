@@ -52,4 +52,14 @@ interface AdbHostServices {
      * Kills the running instance of the ADB server ("host:kill" query).
      */
     suspend fun kill()
+
+    /**
+     * Checks mDNS is supported on this version of ADB ("host:mdns:check" query).
+     */
+    suspend fun mdnsCheck(): MdnsCheckResult
+
+    /**
+     * Returns a list of mDNS services known to the ADB server ("host:mdns:services" query).
+     */
+    suspend fun mdnsServices(): MdnsServiceList
 }
