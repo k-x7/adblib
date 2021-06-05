@@ -1,5 +1,7 @@
 package com.android.adblib
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * Exposes services specific to the ADB Server (or "host") as `suspend` functions
  *
@@ -35,6 +37,13 @@ interface AdbHostServices {
      * format supported).
      */
     suspend fun devices(format: DeviceInfoFormat): DeviceList
+
+    /**
+     * Returns a [Flow] that emits a new [DeviceList] everytime a device state change is
+     * detected by the ADB Host ("host:track-devices" query). The flow is active until
+     * an exception is thrown or cancellation is requested by the flow consumer.
+     */
+    fun trackDevices(format: DeviceInfoFormat): Flow<DeviceList>
 
     enum class DeviceInfoFormat {
         /**

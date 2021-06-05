@@ -20,7 +20,7 @@ import com.android.adblib.AdbLogger
 class TestingAdbLogger(private val minLevel: Level = Level.VERBOSE) : AdbLogger() {
     override fun log(level: Level, message: String) {
         if (level >= minLevel) {
-            println(String.format("[adblib] %s: %s", level, message))
+            println(String.format("[adblib] [%-40s] %s: %s",Thread.currentThread().name, level, message))
         }
     }
 

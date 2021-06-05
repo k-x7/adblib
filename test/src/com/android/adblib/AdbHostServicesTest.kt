@@ -15,13 +15,18 @@
  */
 package com.android.adblib
 
+import com.android.adblib.AdbHostServices.DeviceInfoFormat.LONG_FORMAT
+import com.android.adblib.AdbHostServices.DeviceInfoFormat.SHORT_FORMAT
 import com.android.adblib.impl.AdbHostServicesImpl
+import com.android.adblib.impl.channels.AdbSocketChannelImpl
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.MdnsService
 import com.android.fakeadbserver.hostcommandhandlers.FaultyVersionCommandHandler
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
 import org.junit.Rule
@@ -140,7 +145,7 @@ class AdbHostServicesTest {
         val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act
-        val deviceList = runBlocking { hostServices.devices(AdbHostServices.DeviceInfoFormat.SHORT_FORMAT) }
+        val deviceList = runBlocking { hostServices.devices(SHORT_FORMAT) }
 
         // Assert
         Assert.assertEquals(1, deviceList.devices.size)
@@ -174,7 +179,7 @@ class AdbHostServicesTest {
         val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act
-        val deviceList = runBlocking { hostServices.devices(AdbHostServices.DeviceInfoFormat.LONG_FORMAT) }
+        val deviceList = runBlocking { hostServices.devices(LONG_FORMAT) }
 
         // Assert
         Assert.assertEquals(1, deviceList.devices.size)
@@ -187,6 +192,91 @@ class AdbHostServicesTest {
             Assert.assertEquals("model", device.device)
             Assert.assertEquals(fakeDevice.transportId.toString(), device.transportId)
         }
+    }
+
+    @Test
+    fun testTrackDevicesWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+
+        // Act
+        val deviceList = runBlocking {
+            val flow = hostServices.trackDevices(LONG_FORMAT)
+
+            // Wait for the first list of devices (and terminate the flow, since `first` is a
+            // flow termination operator)
+            flow.first()
+        }
+
+        // Assert
+        Assert.assertEquals(1, deviceList.devices.size)
+        Assert.assertEquals(0, deviceList.errors.size)
+        deviceList.devices[0].let { device ->
+            Assert.assertEquals("1234", device.serialNumber)
+            Assert.assertEquals(com.android.adblib.DeviceState.ONLINE, device.deviceState)
+            Assert.assertEquals("test1", device.product)
+            Assert.assertEquals("test2", device.model)
+            Assert.assertEquals("model", device.device)
+            Assert.assertEquals(fakeDevice.transportId.toString(), device.transportId)
+        }
+
+        // Check SocketChannel has been closed
+        Assert.assertNotNull(channelProvider.lastCreatedChannel)
+        Assert.assertFalse(channelProvider.lastCreatedChannel!!.isOpen)
+    }
+
+    @Test
+    fun testTrackDevicesPropagatesExceptions() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+
+        // Act
+        var exception: Throwable? = null
+        try {
+            /*val deviceList = */runBlocking {
+                val flow = hostServices.trackDevices(LONG_FORMAT)
+
+                flow.collect {
+                    throw IllegalStateException()
+                }
+            }
+        } catch(t: Throwable) {
+            exception = t
+        }
+
+        // Assert
+        Assert.assertNotNull(exception)
+        Assert.assertTrue(exception is IllegalStateException)
+
+        // Check SocketChannel has been closed
+        Assert.assertNotNull(channelProvider.lastCreatedChannel)
+        Assert.assertFalse(channelProvider.lastCreatedChannel!!.isOpen)
     }
 
     @Test

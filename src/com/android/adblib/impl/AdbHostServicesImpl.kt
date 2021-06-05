@@ -9,8 +9,10 @@ import com.android.adblib.DeviceList
 import com.android.adblib.MdnsCheckResult
 import com.android.adblib.MdnsServiceList
 import com.android.adblib.impl.services.AdbServiceRunner
+import com.android.adblib.impl.services.TrackDevicesService
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.TimeoutTracker
+import kotlinx.coroutines.flow.Flow
 import java.io.EOFException
 import java.util.concurrent.TimeUnit
 
@@ -25,6 +27,7 @@ class AdbHostServicesImpl(
     private val deviceParser = DeviceListParser()
     private val mdnsCheckParser = MdnsCheckParser()
     private val mdnsServicesParser = MdnsServiceListParser()
+    private val trackDevicesService = TrackDevicesService(serviceRunner)
 
     override suspend fun version(): Int {
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
@@ -116,5 +119,9 @@ class AdbHostServicesImpl(
             val outputString = AdbProtocolUtils.byteBufferToString(buffer)
             return@mdnsServices mdnsServicesParser.parse(outputString)
         }
+    }
+
+    override fun trackDevices(format: DeviceInfoFormat): Flow<DeviceList> {
+        return trackDevicesService.invoke(format, timeout, unit)
     }
 }

@@ -27,7 +27,9 @@ class CloseablesRule : ExternalResource() {
 
     override fun after() {
         try {
-            list.forEach { it.close() }
+            // Close list in reverse order of registration to match intuitive behavior that
+            // items registered first are closed last.
+            list.asReversed().forEach { it.close() }
         } finally {
             super.after()
         }

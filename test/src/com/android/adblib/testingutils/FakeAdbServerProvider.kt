@@ -15,9 +15,12 @@
  */
 package com.android.adblib.testingutils
 
+import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbLibHost
 import com.android.adblib.impl.AdbChannelProviderOpenLocalHost
+import com.android.adblib.impl.channels.AdbSocketChannelImpl
+import com.android.adblib.utils.TimeoutTracker
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.DeviceState.HostConnectionType
 import com.android.fakeadbserver.FakeAdbServer
@@ -35,7 +38,7 @@ import java.util.function.Supplier
  */
 val FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(2)
 
-class FakeAdbServerProvider : AutoCloseable {
+internal class FakeAdbServerProvider : AutoCloseable {
 
     val inetAddress: InetAddress
         get() = server?.inetAddress ?: throw IllegalStateException("Server not started")
@@ -96,8 +99,8 @@ class FakeAdbServerProvider : AutoCloseable {
         return this
     }
 
-    fun createChannelProvider(host: AdbLibHost): AdbChannelProvider {
-        return AdbChannelProviderOpenLocalHost(host, portSupplier = { port })
+    fun createChannelProvider(host: AdbLibHost): TestingChannelProvider {
+        return TestingChannelProvider(host, portSupplier = { port })
     }
 
     override fun close() {
@@ -106,5 +109,26 @@ class FakeAdbServerProvider : AutoCloseable {
 
     fun awaitTermination() {
         server?.awaitServerTermination()
+    }
+
+    internal class TestingChannelProvider(host: AdbLibHost, portSupplier: () -> Int) :
+        AdbChannelProvider {
+
+        private val provider = AdbChannelProviderOpenLocalHost(host, portSupplier)
+
+        var lastCreatedChannel: TestingAdbChannel? = null
+
+        override suspend fun createChannel(timeout: TimeoutTracker): AdbChannel {
+            val channel = provider.createChannel(timeout)
+            return TestingAdbChannel(channel).apply {
+                lastCreatedChannel = this
+            }
+        }
+    }
+
+    internal class TestingAdbChannel(private val channel: AdbChannel) : AdbChannel by channel {
+
+        val isOpen: Boolean
+            get() = (channel as AdbSocketChannelImpl).isOpen
     }
 }
