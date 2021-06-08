@@ -3,24 +3,27 @@ package com.android.adblib.impl.channels
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.utils.TimeoutTracker
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.IOException
 import java.nio.channels.CompletionHandler
-import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
 
 /**
  * Helper class for implementors of [AdbOutputChannel.write]
  */
 abstract class AsynchronousChannelWriteOperation(
-    private val host: AdbLibHost,
+    protected val host: AdbLibHost,
     private val timeout: TimeoutTracker
-) : CompletionHandler<Int, Continuation<Int>> {
+) : CompletionHandler<Int, CancellableContinuation<Int>> {
 
     protected abstract val hasRemaining: Boolean
 
-    protected abstract fun writeChannel(timeout: TimeoutTracker, continuation: Continuation<Int>)
+    protected abstract fun writeChannel(
+        timeout: TimeoutTracker,
+        continuation: CancellableContinuation<Int>
+    )
 
     suspend fun execute(): Int {
         // Special case of 0 bytes
@@ -28,12 +31,12 @@ abstract class AsynchronousChannelWriteOperation(
             return 0
         }
 
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
             writeAsync(continuation)
         }
     }
 
-    private fun writeAsync(continuation: Continuation<Int>) {
+    private fun writeAsync(continuation: CancellableContinuation<Int>) {
         // Note: This function is *not* a `suspend`, so we need to handle exceptions and forward them to the
         // continuation to ensure to calling coroutine always completes.
         try {
@@ -44,7 +47,7 @@ abstract class AsynchronousChannelWriteOperation(
         }
     }
 
-    override fun completed(result: Int, continuation: Continuation<Int>) {
+    override fun completed(result: Int, continuation: CancellableContinuation<Int>) {
         host.logger.debug(
             "${this::class.java.simpleName}.writeAsync completed successfully (%d bytes)",
             result
@@ -52,7 +55,7 @@ abstract class AsynchronousChannelWriteOperation(
         continuation.resume(result)
     }
 
-    override fun failed(exc: Throwable, continuation: Continuation<Int>) {
+    override fun failed(exc: Throwable, continuation: CancellableContinuation<Int>) {
         val error = IOException("Error writing data to asynchronous channel", exc)
         continuation.resumeWithException(error)
     }

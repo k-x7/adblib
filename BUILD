@@ -41,6 +41,8 @@ kotlin_test(
         "test/src/**/*.kt",
         "test/src/**/*.java",
     ]),
+    # So that we can use adblib "internal" classes/functions from Unit Tests
+    friends = [":tools.adblib"],
     jvm_flags = ["-Dtest.suite.jar=tools.adblib.tests.jar"],
     test_class = "com.android.testutils.JarTestSuite",
     deps = [

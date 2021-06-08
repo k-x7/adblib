@@ -22,6 +22,8 @@ import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.DeviceState.HostConnectionType
 import com.android.fakeadbserver.FakeAdbServer
 import com.android.fakeadbserver.hostcommandhandlers.HostCommandHandler
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 import java.util.function.Supplier
 
@@ -34,8 +36,14 @@ val FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(2)
 
 class FakeAdbServerProvider : AutoCloseable {
 
+    val inetAddress: InetAddress
+        get() = server?.inetAddress ?: throw IllegalStateException("Server not started")
+
     val port: Int
         get() = server?.port ?: 0
+
+    val socketAddress: InetSocketAddress
+        get() = InetSocketAddress(inetAddress, port)
 
     private val builder = FakeAdbServer.Builder()
     private var server: FakeAdbServer? = null

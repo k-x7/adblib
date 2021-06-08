@@ -17,6 +17,8 @@ package com.android.adblib.testingutils
 
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbLogger
+import com.android.adblib.utils.TimeoutTracker
+import java.util.concurrent.TimeUnit
 
 class TestingAdbLibHost : AdbLibHost() {
     override val logger: AdbLogger by lazy {
@@ -25,5 +27,9 @@ class TestingAdbLibHost : AdbLibHost() {
 
     override fun close() {
         logger.debug("Testing AbbListHost closed")
+    }
+
+    fun newTimeout(timeout: Long, unit: TimeUnit) : TimeoutTracker {
+        return TimeoutTracker(timeProvider, timeout, unit)
     }
 }
