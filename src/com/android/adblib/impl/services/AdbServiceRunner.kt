@@ -5,6 +5,7 @@ import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbFailResponseException
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbProtocolErrorException
+import com.android.adblib.DeviceSelector
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TimeoutTracker
@@ -34,7 +35,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
         service: String,
         timeout: TimeoutTracker
     ): AdbChannel {
-        val logPrefix = String.format("Running ADB server query \"%s\" -", service)
+        val logPrefix = "Running ADB server query \"${service}\" -"
         host.logger.info("$logPrefix opening connection to ADB server, timeout=$timeout")
         channelProvider.createChannel(timeout).closeOnException { channel ->
             host.logger.info("$logPrefix sending request to ADB server, timeout=$timeout")
@@ -43,6 +44,19 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
             consumeOkayFailResponse(channel, workBuffer, timeout)
             workBuffer.clear()
             return channel
+        }
+    }
+
+    /**
+     * Executes a query on the ADB host that relates to a single [device][DeviceSelector]
+     */
+    suspend fun runHostDeviceQuery(deviceSelector: DeviceSelector, query: String, timeout: TimeoutTracker): String {
+        val service = deviceSelector.hostPrefix + ":" + query
+        val workBuffer = newResizableBuffer()
+        startHostQuery(workBuffer, service, timeout).use { channel ->
+            val buffer = readLengthPrefixedData(channel, workBuffer, timeout)
+            host.logger.info("\"${service}\" - read ${buffer.remaining()} byte(s), timeout=$timeout")
+            return AdbProtocolUtils.byteBufferToString(buffer)
         }
     }
 
@@ -86,11 +100,8 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
             }
             else -> {
                 val error = AdbProtocolErrorException(
-                    String.format(
-                        "Expected \"OKAY\" or \"FAIL\" response header, got \"%s\" instead",
-                        AdbProtocolUtils.bufferToByteDumpString(data)
-                    )
-                )
+                    "Expected \"OKAY\" or \"FAIL\" response header, " +
+                            "got \"${AdbProtocolUtils.bufferToByteDumpString(data)}\" instead")
                 throw error
             }
         }

@@ -6,6 +6,8 @@ import com.android.adblib.AdbHostServices.DeviceInfoFormat
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.DeviceList
+import com.android.adblib.DeviceSelector
+import com.android.adblib.DeviceState
 import com.android.adblib.MdnsCheckResult
 import com.android.adblib.MdnsServiceList
 import com.android.adblib.impl.services.AdbServiceRunner
@@ -123,5 +125,11 @@ class AdbHostServicesImpl(
 
     override fun trackDevices(format: DeviceInfoFormat): Flow<DeviceList> {
         return trackDevicesService.invoke(format, timeout, unit)
+    }
+
+    override suspend fun getState(device: DeviceSelector): DeviceState {
+        val tracker = TimeoutTracker(timeout, unit)
+        val stateString = serviceRunner.runHostDeviceQuery(device, "get-state", tracker)
+        return DeviceState.parseState(stateString)
     }
 }

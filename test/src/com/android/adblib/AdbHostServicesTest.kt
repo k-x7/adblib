@@ -17,6 +17,7 @@ package com.android.adblib
 
 import com.android.adblib.AdbHostServices.DeviceInfoFormat.LONG_FORMAT
 import com.android.adblib.AdbHostServices.DeviceInfoFormat.SHORT_FORMAT
+import com.android.adblib.DeviceState.ONLINE
 import com.android.adblib.impl.AdbHostServicesImpl
 import com.android.adblib.impl.channels.AdbSocketChannelImpl
 import com.android.adblib.testingutils.CloseablesRule
@@ -152,7 +153,7 @@ class AdbHostServicesTest {
         Assert.assertEquals(0, deviceList.errors.size)
         deviceList.devices[0].let { device ->
             Assert.assertEquals("1234", device.serialNumber)
-            Assert.assertEquals(com.android.adblib.DeviceState.ONLINE, device.deviceState)
+            Assert.assertEquals(ONLINE, device.deviceState)
             Assert.assertNull(device.product)
             Assert.assertNull(device.model)
             Assert.assertNull(device.device)
@@ -186,7 +187,7 @@ class AdbHostServicesTest {
         Assert.assertEquals(0, deviceList.errors.size)
         deviceList.devices[0].let { device ->
             Assert.assertEquals("1234", device.serialNumber)
-            Assert.assertEquals(com.android.adblib.DeviceState.ONLINE, device.deviceState)
+            Assert.assertEquals(ONLINE, device.deviceState)
             Assert.assertEquals("test1", device.product)
             Assert.assertEquals("test2", device.model)
             Assert.assertEquals("model", device.device)
@@ -226,7 +227,7 @@ class AdbHostServicesTest {
         Assert.assertEquals(0, deviceList.errors.size)
         deviceList.devices[0].let { device ->
             Assert.assertEquals("1234", device.serialNumber)
-            Assert.assertEquals(com.android.adblib.DeviceState.ONLINE, device.deviceState)
+            Assert.assertEquals(ONLINE, device.deviceState)
             Assert.assertEquals("test1", device.product)
             Assert.assertEquals("test2", device.model)
             Assert.assertEquals("model", device.device)
@@ -363,5 +364,32 @@ class AdbHostServicesTest {
 
         }
         Assert.assertEquals(0, result.errors.size)
+    }
+
+    @Test
+    fun testGetState() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+
+        // Act
+        val state = runBlocking {
+            deviceServices.getState(DeviceSelector.fromSerialNumber("1234"))
+        }
+
+        // Assert
+        Assert.assertEquals(ONLINE, state)
     }
 }
