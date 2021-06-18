@@ -29,6 +29,15 @@ import org.junit.rules.ExpectedException
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/**
+ * Timeout for opening a socket connection to the local fake adb server.
+ *
+ * In most cases, socket connections are established within a few milliseconds,
+ * but the time can dramatically increase under stress testing. This behavior was
+ * observed on the Windows platform specifically.
+ */
+val SOCKET_CONNECT_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(2)
+
 class AdbHostServicesTest {
 
     @JvmField
@@ -49,7 +58,7 @@ class AdbHostServicesTest {
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act
         val internalVersion = runBlocking { hostServices.version() }
@@ -64,7 +73,7 @@ class AdbHostServicesTest {
         val fakeAdb = registerCloseable(FakeAdbServerProvider())
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act (should throw)
         exceptionRule.expect(IOException::class.java)
@@ -82,7 +91,7 @@ class AdbHostServicesTest {
         fakeAdb.build().start()
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act (should throw)
         exceptionRule.expect(AdbProtocolErrorException::class.java)
@@ -98,7 +107,7 @@ class AdbHostServicesTest {
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act
         val featureList = runBlocking { hostServices.hostFeatures() }
@@ -126,7 +135,7 @@ class AdbHostServicesTest {
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act
         val deviceList = runBlocking { hostServices.devices(AdbHostServices.DeviceInfoFormat.SHORT_FORMAT) }
@@ -160,7 +169,7 @@ class AdbHostServicesTest {
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act
         val deviceList = runBlocking { hostServices.devices(AdbHostServices.DeviceInfoFormat.LONG_FORMAT) }
@@ -184,7 +193,7 @@ class AdbHostServicesTest {
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val hostServices = AdbHostServicesImpl(host, channelProvider, 5_000, TimeUnit.MILLISECONDS)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
         // Act
         runBlocking { hostServices.kill() }

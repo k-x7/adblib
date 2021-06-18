@@ -25,6 +25,13 @@ import com.android.fakeadbserver.hostcommandhandlers.HostCommandHandler
 import java.util.concurrent.TimeUnit
 import java.util.function.Supplier
 
+/**
+ * Timeout for fake adb server APIs that go through the server's internal
+ * sequential executor. In most cases, API calls take only a few milliseconds,
+ * but the time can dramatically increase under stress testing.
+ */
+val FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(2)
+
 class FakeAdbServerProvider : AutoCloseable {
 
     val port: Int
@@ -68,7 +75,7 @@ class FakeAdbServerProvider : AutoCloseable {
             release,
             sdk,
             hostConnectionType
-        )?.get(1, TimeUnit.SECONDS) ?: throw IllegalArgumentException()
+        )?.get(FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS, TimeUnit.MILLISECONDS) ?: throw IllegalArgumentException()
     }
 
     fun start(): FakeAdbServerProvider {
