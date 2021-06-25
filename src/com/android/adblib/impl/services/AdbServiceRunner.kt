@@ -10,10 +10,14 @@ import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TimeoutTracker
 import com.android.adblib.utils.closeOnException
+import com.android.adblib.utils.withOrder
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 private const val OKAY_FAIL_BYTE_COUNT = 4
 private const val LENGTH_PREFIX_BYTE_COUNT = 4
+
+private const val TRANSPORT_ID_BYTE_COUNT = 8
 
 /**
  * Helper class used to perform service requests with the ADB host
@@ -60,7 +64,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
         }
     }
 
-    private suspend fun sendAbdServiceRequest(
+    suspend fun sendAbdServiceRequest(
         channel: AdbChannel,
         workBuffer: ResizableBuffer,
         service: String,
@@ -81,7 +85,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
      * * If OKAY, returns the channel
      * * If FAIL, throws an [AdbProtocolErrorException] exception (with the error message)
      */
-    private suspend fun consumeOkayFailResponse(
+    suspend fun consumeOkayFailResponse(
         channel: AdbChannel,
         workBuffer: ResizableBuffer,
         timeout: TimeoutTracker
@@ -148,8 +152,38 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
         }
     }
 
-    fun newResizableBuffer() : ResizableBuffer {
+    fun newResizableBuffer(): ResizableBuffer {
         //TODO: Consider acquiring ResizableBuffer from a pool to allow re-using instances
         return ResizableBuffer()
+    }
+
+    suspend fun switchToTransport(
+        deviceSelector: DeviceSelector,
+        workBuffer: ResizableBuffer,
+        timeout: TimeoutTracker
+    ): Pair<AdbChannel, Long?> {
+        val transportPrefix = deviceSelector.transportPrefix
+        var transportId: Long? = null
+        startHostQuery(workBuffer, transportPrefix, timeout).closeOnException { channel ->
+            if (deviceSelector.responseContainsTransportId) {
+                transportId = consumeTransportId(channel, workBuffer, timeout)
+            }
+            host.logger.info("ADB transport was switched to \"${transportPrefix}\", timeout left is $timeout")
+            return Pair(channel, transportId)
+        }
+    }
+
+    private suspend fun consumeTransportId(
+        channel: AdbChannel,
+        workBuffer: ResizableBuffer,
+        timeout: TimeoutTracker
+    ): Long {
+        // Transport ID is a 64-bit integer, little endian ordering
+        workBuffer.clear()
+        channel.readExactly(workBuffer.forChannelRead(TRANSPORT_ID_BYTE_COUNT), timeout)
+        val buffer = workBuffer.afterChannelRead()
+        val transportId = buffer.withOrder(ByteOrder.LITTLE_ENDIAN) { buffer.long }
+        host.logger.info("Read transport id value of '${transportId}' from response")
+        return transportId
     }
 }

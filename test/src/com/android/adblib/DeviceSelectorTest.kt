@@ -38,4 +38,40 @@ class DeviceSelectorTest {
         Assert.assertEquals("host-usb", device4.hostPrefix)
         Assert.assertEquals("host", device5.hostPrefix)
     }
+
+    @Test
+    fun transportPrefixWorks() {
+        // Prepare
+        val device1 = DeviceSelector.fromSerialNumber("12345")
+        val device2 = DeviceSelector.fromTransportId("2")
+        val device3 = DeviceSelector.local()
+        val device4 = DeviceSelector.usb()
+        val device5 = DeviceSelector.any()
+
+        // Act
+
+        // Assert
+        Assert.assertEquals("host:transport:12345", device1.transportPrefix)
+        Assert.assertEquals("host:transport-id:2", device2.transportPrefix)
+        Assert.assertEquals("host:transport-local", device3.transportPrefix)
+        Assert.assertEquals("host:transport-usb", device4.transportPrefix)
+        Assert.assertEquals("host:transport-any", device5.transportPrefix)
+    }
+
+    @Test
+    fun transportPrefixWithTransportIdWorks() {
+        // Prepare
+        val device1 = DeviceSelector.withTransportId.fromSerialNumber("12345")
+        val device3 = DeviceSelector.withTransportId.local()
+        val device4 = DeviceSelector.withTransportId.usb()
+        val device5 = DeviceSelector.withTransportId.any()
+
+        // Act
+
+        // Assert
+        Assert.assertEquals("host:tport:serial:12345", device1.transportPrefix)
+        Assert.assertEquals("host:tport:local", device3.transportPrefix)
+        Assert.assertEquals("host:tport:usb", device4.transportPrefix)
+        Assert.assertEquals("host:tport:any", device5.transportPrefix)
+    }
 }

@@ -19,7 +19,6 @@ import com.android.adblib.AdbHostServices.DeviceInfoFormat.LONG_FORMAT
 import com.android.adblib.AdbHostServices.DeviceInfoFormat.SHORT_FORMAT
 import com.android.adblib.DeviceState.ONLINE
 import com.android.adblib.impl.AdbHostServicesImpl
-import com.android.adblib.impl.channels.AdbSocketChannelImpl
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost

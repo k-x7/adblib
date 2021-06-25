@@ -2,6 +2,7 @@ package com.android.adblib.utils
 
 import com.android.adblib.AdbChannel
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.InvalidMarkException
 import java.nio.charset.Charset
 
@@ -141,6 +142,11 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
         buffer = growBuffer(buffer, length, maxCapacity)
     }
 
+    fun order(bo: ByteOrder): ResizableBuffer {
+        buffer.order(bo)
+        return this
+    }
+
     companion object {
 
         /**
@@ -191,4 +197,12 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
             return capacity.coerceAtMost(maxCapacity)
         }
     }
+}
+
+fun <T> ByteBuffer.withOrder(bo: ByteOrder, block: () -> T): T {
+    val saved = this.order()
+    this.order(bo)
+    val result = block()
+    this.order(saved)
+    return result
 }

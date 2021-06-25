@@ -17,10 +17,10 @@ package com.android.adblib.testingutils
 
 import com.android.adblib.AdbLogger
 
-class TestingAdbLogger(private val minLevel: Level = Level.VERBOSE) : AdbLogger() {
+class TestingAdbLogger(var minLevel: Level = Level.VERBOSE) : AdbLogger() {
     override fun log(level: Level, message: String) {
         if (level >= minLevel) {
-            println(String.format("[adblib] [%-40s] %s: %s",Thread.currentThread().name, level, message))
+            println(String.format("[adblib] [%-40s] %s: %s", Thread.currentThread().name, level, message))
         }
     }
 

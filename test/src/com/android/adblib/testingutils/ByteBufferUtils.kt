@@ -15,21 +15,16 @@
  */
 package com.android.adblib.testingutils
 
-import com.android.adblib.AdbLibHost
-import com.android.adblib.AdbLogger
-import com.android.adblib.utils.TimeoutTracker
-import java.util.concurrent.TimeUnit
+import com.android.adblib.utils.AdbProtocolUtils
+import java.nio.ByteBuffer
 
-class TestingAdbLibHost : AdbLibHost() {
-    override val logger: TestingAdbLogger by lazy {
-        TestingAdbLogger()
+object ByteBufferUtils {
+
+    fun stringToByteBuffer(value: String): ByteBuffer {
+        return ByteBuffer.wrap(stringToBytes(value))
     }
 
-    override fun close() {
-        logger.debug("Testing AbbListHost closed")
-    }
-
-    fun newTimeout(timeout: Long, unit: TimeUnit) : TimeoutTracker {
-        return TimeoutTracker(timeProvider, timeout, unit)
+    fun stringToBytes(value: String): ByteArray {
+        return value.toByteArray(AdbProtocolUtils.ADB_CHARSET)
     }
 }
