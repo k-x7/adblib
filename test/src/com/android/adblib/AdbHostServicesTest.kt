@@ -392,4 +392,88 @@ class AdbHostServicesTest {
         // Assert
         Assert.assertEquals(ONLINE, state)
     }
+
+    @Test
+    fun testGetSerialNo() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+
+        // Act
+        val serialNumber = runBlocking {
+            hostServices.getSerialNo(DeviceSelector.fromSerialNumber("1234"))
+        }
+
+        // Assert
+        Assert.assertEquals("1234", serialNumber)
+    }
+
+    @Test
+    fun testGetDevPath() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+
+        // Act
+        val devPath = runBlocking {
+            hostServices.getDevPath(DeviceSelector.fromSerialNumber("1234"))
+        }
+
+        // Assert
+        Assert.assertEquals("dev-path-reply", devPath)
+    }
+
+    @Test
+    fun testFeatures() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val hostServices = AdbHostServicesImpl(host, channelProvider, SOCKET_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+
+        // Act
+        val featureList = runBlocking {
+            hostServices.features(DeviceSelector.fromSerialNumber("1234"))
+        }
+
+        // Assert
+        Assert.assertTrue(featureList.contains("shell_v2"))
+        Assert.assertTrue(featureList.contains("fixed_push_mkdir"))
+        Assert.assertTrue(featureList.contains("push_sync"))
+        Assert.assertTrue(featureList.contains("abb_exec"))
+    }
 }

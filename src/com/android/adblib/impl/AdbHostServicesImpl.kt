@@ -132,4 +132,20 @@ class AdbHostServicesImpl(
         val stateString = serviceRunner.runHostDeviceQuery(device, "get-state", tracker)
         return DeviceState.parseState(stateString)
     }
+
+    override suspend fun getSerialNo(device: DeviceSelector): String {
+        val tracker = TimeoutTracker(timeout, unit)
+        return serviceRunner.runHostDeviceQuery(device, "get-serialno", tracker)
+    }
+
+    override suspend fun getDevPath(device: DeviceSelector): String {
+        val tracker = TimeoutTracker(timeout, unit)
+        return serviceRunner.runHostDeviceQuery(device, "get-devpath", tracker)
+    }
+
+    override suspend fun features(device: DeviceSelector): List<String> {
+        val tracker = TimeoutTracker(timeout, unit)
+        val featuresString = serviceRunner.runHostDeviceQuery(device, "features", tracker)
+        return featuresString.split(",")
+    }
 }
