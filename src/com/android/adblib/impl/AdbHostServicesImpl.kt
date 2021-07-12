@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.Flow
 import java.io.EOFException
 import java.util.concurrent.TimeUnit
 
-class AdbHostServicesImpl(
+internal class AdbHostServicesImpl(
     private val host: AdbLibHost,
     channelProvider: AdbChannelProvider,
     private val timeout: Long,
