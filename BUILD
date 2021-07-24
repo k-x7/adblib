@@ -1,5 +1,5 @@
 load("//tools/base/bazel:bazel.bzl", "iml_module")
-load("//tools/base/bazel:kotlin.bzl", "kotlin_library", "kotlin_test")
+load("//tools/base/bazel:kotlin.bzl", "kotlin_library_legacy", "kotlin_test")
 
 # managed by go/iml_to_build
 iml_module(
@@ -18,7 +18,7 @@ iml_module(
 # Build adblib as a standalone library, with side effect of ensuring that adblib does not
 # use unwanted dependencies from "studio-sdk" in the iml_module rule above
 # Build with: bazel build //tools/base/adblib:tools.adblib
-kotlin_library(
+kotlin_library_legacy(
     name = "tools.adblib",
     srcs = glob([
         "src/**/*.kt",
