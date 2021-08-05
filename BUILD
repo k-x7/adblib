@@ -27,8 +27,8 @@ kotlin_library(
     resource_strip_prefix = "tools/base/adblib",
     visibility = ["//visibility:public"],
     deps = [
-        "//tools/base/third_party:org.jetbrains.kotlin_kotlin-stdlib-jdk8",
-        "//tools/base/third_party:org.jetbrains.kotlinx_kotlinx-coroutines-core",
+        "@maven//:org.jetbrains.kotlin.kotlin-stdlib-jdk8",
+        "@maven//:org.jetbrains.kotlinx.kotlinx-coroutines-core",
     ],
 )
 
@@ -50,7 +50,7 @@ kotlin_test(
         # For "JarTestSuite"
         "//tools/base/testutils:tools.testutils",
         # For JUnit4 support
-        "//tools/base/third_party:junit_junit",
+        "@maven//:junit.junit",
         # FakeAdbServer
         "//tools/base/fakeadbserver:tools.fakeadbserver",
     ],
