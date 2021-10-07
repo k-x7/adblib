@@ -3,9 +3,11 @@ package com.android.adblib.impl
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbDeviceServices
+import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ShellCollector
+import com.android.adblib.forwardTo
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TimeoutTracker
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
@@ -30,6 +33,7 @@ internal class AdbDeviceServicesImpl(
         device: DeviceSelector,
         command: String,
         shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
     ): Flow<T> = flow {
@@ -47,6 +51,14 @@ internal class AdbDeviceServicesImpl(
             serviceRunner.consumeOkayFailResponse(channel, workBuffer, tracker)
 
             host.timeProvider.withErrorTimeout(commandTimeout) {
+                // Forward `stdin` from channel to adb (in a new coroutine so that we
+                // can also collect `stdout` concurrently)
+                stdinChannel?.let {
+                    launch {
+                        forwardStdInput(channel, stdinChannel, bufferSize)
+                    }
+                }
+
                 // Forward `stdout` from adb to flow
                 collectShellCommandOutput(
                     channel,
@@ -100,5 +112,15 @@ internal class AdbDeviceServicesImpl(
         // We don't escape here, just like ssh(1). http://b/20564385.
         // See https://cs.android.com/android/platform/superproject/+/fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f:packages/modules/adb/client/commandline.cpp;l=776
         return "shell:$command"
+    }
+
+    private suspend fun forwardStdInput(
+        shellCommandChannel: AdbChannel,
+        stdInput: AdbInputChannel,
+        bufferSize: Int
+    ) {
+        stdInput.forwardTo(host, shellCommandChannel, bufferSize)
+        host.logger.info("forwardStdInput - input channel has reached EOF, sending EOF to shell host")
+        shellCommandChannel.shutdownOutput()
     }
 }

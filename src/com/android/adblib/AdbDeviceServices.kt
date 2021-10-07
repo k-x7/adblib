@@ -38,6 +38,8 @@ interface AdbDeviceServices {
      * @param [command] the shell command to execute
      * @param [shellCollector] The [ShellCollector] invoked to collect the shell command output
      *   and emit elements to the resulting [Flow]
+     * @param [stdinChannel] is an optional [AdbChannel] providing bytes to send to the `stdin`
+     *   of the shell command
      * @param [commandTimeout] timeout tracking the command execution, tracking starts *after* the
      *   device connection has been successfully established. If the command takes more time than
      *   the timeout, a [TimeoutException] is thrown and the underlying [AdbChannel] is closed.
@@ -47,6 +49,7 @@ interface AdbDeviceServices {
         device: DeviceSelector,
         command: String,
         shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
     ): Flow<T>
@@ -62,11 +65,12 @@ interface AdbDeviceServices {
 suspend fun AdbDeviceServices.shellAsText(
     device: DeviceSelector,
     command: String,
+    stdinChannel: AdbInputChannel? = null,
     commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): String {
     val collector = TextShellCollector()
-    return shell(device, command, collector, commandTimeout, bufferSize).first()
+    return shell(device, command, collector, stdinChannel, commandTimeout, bufferSize).first()
 }
 
 /**
@@ -83,9 +87,10 @@ suspend fun AdbDeviceServices.shellAsText(
 fun AdbDeviceServices.shellAsLines(
     device: DeviceSelector,
     command: String,
+    stdinChannel: AdbInputChannel? = null,
     commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): Flow<String> {
     val collector = MultiLineShellCollector()
-    return shell(device, command, collector, commandTimeout, bufferSize)
+    return shell(device, command, collector, stdinChannel, commandTimeout, bufferSize)
 }

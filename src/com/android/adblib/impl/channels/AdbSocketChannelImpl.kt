@@ -5,6 +5,7 @@ import com.android.adblib.AdbLibHost
 import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -46,6 +47,22 @@ class AdbSocketChannelImpl(
 
     override suspend fun writeExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
         return WriteExactlyOperation(host, timeout, socketChannel, buffer).execute()
+    }
+
+    override suspend fun shutdownInput() {
+        withContext(host.ioDispatcher) {
+            host.logger.debug("Shutting down input channel of ${this::class.java.simpleName}")
+            @Suppress("BlockingMethodInNonBlockingContext")
+            socketChannel.shutdownInput()
+        }
+    }
+
+    override suspend fun shutdownOutput() {
+        withContext(host.ioDispatcher) {
+            host.logger.debug("Shutting down output channel of ${this::class.java.simpleName}")
+            @Suppress("BlockingMethodInNonBlockingContext")
+            socketChannel.shutdownOutput()
+        }
     }
 
     override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {

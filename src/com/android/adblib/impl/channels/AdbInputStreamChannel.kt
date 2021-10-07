@@ -1,0 +1,47 @@
+package com.android.adblib.impl.channels
+
+import com.android.adblib.AdbInputChannel
+import com.android.adblib.AdbLibHost
+import com.android.adblib.utils.TimeoutTracker
+import kotlinx.coroutines.withContext
+import java.io.InputStream
+import java.nio.ByteBuffer
+import kotlin.math.min
+
+const val DEFAULT_CHANNEL_BUFFER_SIZE = 8_192
+
+/**
+ * Implementation of [AdbInputChannel] over an arbitrary [InputStream]
+ */
+internal open class AdbInputStreamChannel(
+    private val host: AdbLibHost,
+    private val stream: InputStream,
+    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
+) : AdbInputChannel {
+
+    private val loggerPrefix: String
+        get() = this::class.java.simpleName
+
+    private val bytes = ByteArray(bufferSize)
+
+    @Throws(Exception::class)
+    override fun close() {
+        host.logger.debug("${loggerPrefix}: Closing")
+        stream.close()
+    }
+
+    override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+        // Note: Since InputStream.read is a blocking I/O operation, we use the IO dispatcher
+        return withContext(host.ioDispatcher) {
+            // Suppress: IJ marks the "read" call as inappropriate, but we are running this code
+            //           within the context of the IO dispatcher, so we are ok.
+            @Suppress("BlockingMethodInNonBlockingContext")
+            val count = stream.read(bytes, 0, min(bytes.size, buffer.remaining()))
+            host.logger.debug("${loggerPrefix}: Read $count bytes from input stream")
+            if (count > 0) {
+                buffer.put(bytes, 0, count)
+            }
+            count
+        }
+    }
+}

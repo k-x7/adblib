@@ -5,4 +5,18 @@ package com.android.adblib
  * i.e. a [java.nio.channels.AsynchronousSocketChannel] or [java.nio.channels.SocketChannel]
  */
 interface AdbChannel : AdbInputChannel, AdbOutputChannel, AutoCloseable {
+
+    /**
+     * Shutdown the channel for reading, so that the peer receives EOF when writing.
+     *
+     * See [java.nio.channels.AsynchronousSocketChannel.shutdownInput]
+     */
+    suspend fun shutdownInput()
+
+    /**
+     * Shutdown the channel for writing, so that the peer receives EOF when reading.
+     *
+     * See [java.nio.channels.AsynchronousSocketChannel.shutdownOutput]
+     */
+    suspend fun shutdownOutput()
 }
