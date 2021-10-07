@@ -16,14 +16,19 @@
 package com.android.adblib
 
 import com.android.adblib.impl.AdbDeviceServicesImpl
+import com.android.adblib.impl.channels.AdbInputStreamChannel
+import com.android.adblib.impl.channels.AdbOutputStreamChannel
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TimeoutTracker
+import com.android.fakeadbserver.DeviceFileState
 import com.android.fakeadbserver.DeviceState
+import com.android.fakeadbserver.devicecommandhandlers.SyncCommandHandler
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collectIndexed
@@ -34,8 +39,12 @@ import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExpectedException
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.nio.file.attribute.FileTime
+import java.nio.file.attribute.PosixFilePermission.OWNER_READ
+import java.nio.file.attribute.PosixFilePermission.OWNER_WRITE
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -383,9 +392,623 @@ class AdbDeviceServicesTest {
         }
     }
 
+    @Test
+    fun testSyncSendFileWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(128_000)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        val progress = TestSyncProgress()
+
+        // Act
+        runBlocking {
+            deviceServices.syncSend(
+                deviceSelector,
+                AdbInputStreamChannel(host, fileBytes.inputStream()),
+                filePath,
+                fileMode,
+                fileDate,
+                progress,
+                bufferSize = 1_024
+            )
+        }
+
+        // Assert
+        Assert.assertTrue(progress.started)
+        Assert.assertTrue(progress.progress)
+        Assert.assertTrue(progress.done)
+
+        Assert.assertNotNull(fakeDevice.getFile(filePath))
+        fakeDevice.getFile(filePath)?.run {
+            Assert.assertEquals(filePath, path)
+            Assert.assertEquals(fileMode.modeBits, permission.toInt())
+            Assert.assertEquals(fileDate.toMillis() / 1_000, modifiedDate.toLong())
+            Assert.assertEquals(fileBytes.size, bytes.size)
+        }
+    }
+
+    @Test
+    fun testSyncSendEmptyFileWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(0)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        val progress = TestSyncProgress()
+
+        // Act
+        runBlocking {
+            deviceServices.syncSend(
+                deviceSelector,
+                AdbInputStreamChannel(host, fileBytes.inputStream()),
+                filePath,
+                fileMode,
+                fileDate,
+                progress,
+                bufferSize = 1_024
+            )
+        }
+
+        // Assert
+        Assert.assertTrue(progress.started)
+        Assert.assertFalse(progress.progress)
+        Assert.assertTrue(progress.done)
+
+        Assert.assertNotNull(fakeDevice.getFile(filePath))
+        fakeDevice.getFile(filePath)?.run {
+            Assert.assertEquals(filePath, path)
+            Assert.assertEquals(fileMode.modeBits, permission.toInt())
+            Assert.assertEquals(fileDate.toMillis() / 1_000, modifiedDate.toLong())
+            Assert.assertEquals(fileBytes.size, bytes.size)
+        }
+    }
+
+    @Test
+    fun testSyncSendWithTimeoutWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        val progress = TestSyncProgress()
+        val slowInputChannel = object : AdbInputChannel {
+            var firstCall = true
+            override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+                return if (firstCall) {
+                    firstCall = false
+                    buffer.putInt(5)
+                    4
+                } else {
+                    delay(200)
+                    -1
+                }
+            }
+
+            override fun close() {
+            }
+        }
+
+        // Act
+        exceptionRule.expect(TimeoutException::class.java)
+        runBlocking {
+            host.timeProvider.withErrorTimeout(Duration.ofMillis(100)) {
+                deviceServices.syncSend(
+                    deviceSelector,
+                    slowInputChannel,
+                    filePath,
+                    fileMode,
+                    fileDate,
+                    progress,
+                    bufferSize = 1_024
+                )
+            }
+        }
+
+        // Assert
+        Assert.fail() // Should not be reached
+    }
+
+    @Test
+    fun testSyncSendRethrowsProgressException() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(1_024)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        val progress = object : TestSyncProgress() {
+            override suspend fun transferProgress(remotePath: String, totalBytesSoFar: Long) {
+                throw MyTestException("An error in progress callback")
+            }
+        }
+
+        // Act
+        exceptionRule.expect(MyTestException::class.java)
+        runBlocking {
+            deviceServices.syncSend(
+                deviceSelector,
+                AdbInputStreamChannel(host, fileBytes.inputStream()),
+                filePath,
+                fileMode,
+                fileDate,
+                progress,
+                bufferSize = 1_024
+            )
+        }
+
+        // Assert
+        Assert.fail() // Should not be reached
+    }
+
+    @Test
+    fun testSyncSendTwoFilesInSameSessionWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(128_000)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        val fileProgress = TestSyncProgress()
+
+        val filePath2 = "/sdcard/foo/bar2.bin"
+        val fileBytes2 = createFileBytes(96_000)
+        val fileMode2 = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate2 = FileTime.from(2_000_000, TimeUnit.SECONDS)
+        val fileProgress2 = TestSyncProgress()
+
+        // Act
+        runBlocking {
+            deviceServices.sync(deviceSelector).use {
+                it.send(
+                    AdbInputStreamChannel(host, fileBytes.inputStream()),
+                    filePath,
+                    fileMode,
+                    fileDate,
+                    fileProgress,
+                    bufferSize = 1_024
+                )
+
+                it.send(
+                    AdbInputStreamChannel(host, fileBytes2.inputStream()),
+                    filePath2,
+                    fileMode2,
+                    fileDate2,
+                    fileProgress2,
+                    bufferSize = 1_024
+                )
+            }
+        }
+
+        // Assert
+        Assert.assertTrue(fileProgress.started)
+        Assert.assertTrue(fileProgress.progress)
+        Assert.assertTrue(fileProgress.done)
+
+        Assert.assertNotNull(fakeDevice.getFile(filePath))
+        fakeDevice.getFile(filePath)?.run {
+            Assert.assertEquals(filePath, path)
+            Assert.assertEquals(fileMode.modeBits, permission.toInt())
+            Assert.assertEquals(fileDate.toMillis() / 1_000, modifiedDate.toLong())
+            Assert.assertArrayEquals(fileBytes, bytes)
+        }
+
+        Assert.assertTrue(fileProgress2.started)
+        Assert.assertTrue(fileProgress2.progress)
+        Assert.assertTrue(fileProgress2.done)
+
+        Assert.assertNotNull(fakeDevice.getFile(filePath2))
+        fakeDevice.getFile(filePath2)?.run {
+            Assert.assertEquals(filePath2, path)
+            Assert.assertEquals(fileMode2.modeBits, permission.toInt())
+            Assert.assertEquals(fileDate2.toMillis() / 1_000, modifiedDate.toLong())
+            Assert.assertArrayEquals(fileBytes2, bytes)
+        }
+    }
+
+    @Test
+    fun testSyncRecvFileWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(128_000)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        fakeDevice.createFile(
+            DeviceFileState(
+                filePath,
+                fileMode.modeBits.toString(),
+                (fileDate.toMillis() / 1_000).toInt(),
+                fileBytes
+            )
+        )
+        val progress = TestSyncProgress()
+        val outputStream = ByteArrayOutputStream()
+        val outputChannel = AdbOutputStreamChannel(host, outputStream)
+
+        // Act
+        runBlocking {
+            deviceServices.syncRecv(
+                deviceSelector,
+                filePath,
+                outputChannel,
+                progress,
+                bufferSize = 1_024
+            )
+        }
+
+        // Assert
+        Assert.assertTrue(progress.started)
+        Assert.assertTrue(progress.progress)
+        Assert.assertTrue(progress.done)
+
+        Assert.assertArrayEquals(fileBytes, outputStream.toByteArray())
+    }
+
+    @Test
+    fun testSyncRecvTwoFileInSameSessionWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(10)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        fakeDevice.createFile(
+            DeviceFileState(
+                filePath,
+                fileMode.modeBits.toString(),
+                (fileDate.toMillis() / 1_000).toInt(),
+                fileBytes
+            )
+        )
+        val progress = TestSyncProgress()
+        val outputStream = ByteArrayOutputStream()
+        val outputChannel = AdbOutputStreamChannel(host, outputStream)
+
+        val filePath2 = "/sdcard/foo/bar2.bin"
+        val fileBytes2 = createFileBytes(12)
+        val fileMode2 = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate2 = FileTime.from(2_000_000, TimeUnit.SECONDS)
+        fakeDevice.createFile(
+            DeviceFileState(
+                filePath2,
+                fileMode2.modeBits.toString(),
+                (fileDate2.toMillis() / 1_000).toInt(),
+                fileBytes2
+            )
+        )
+        val progress2 = TestSyncProgress()
+        val outputStream2 = ByteArrayOutputStream()
+        val outputChannel2 = AdbOutputStreamChannel(host, outputStream2)
+
+        // Act
+        runBlocking {
+            deviceServices.sync(deviceSelector).use {
+                it.recv(
+                    filePath,
+                    outputChannel,
+                    progress,
+                    bufferSize = 1_024
+                )
+
+                it.recv(
+                    filePath2,
+                    outputChannel2,
+                    progress2,
+                    bufferSize = 1_024
+                )
+            }
+        }
+
+        // Assert
+        Assert.assertTrue(progress.started)
+        Assert.assertTrue(progress.progress)
+        Assert.assertTrue(progress.done)
+
+        Assert.assertArrayEquals(fileBytes, outputStream.toByteArray())
+
+        Assert.assertTrue(progress2.started)
+        Assert.assertTrue(progress2.progress)
+        Assert.assertTrue(progress2.done)
+
+        Assert.assertArrayEquals(fileBytes2, outputStream2.toByteArray())
+    }
+
+    @Test
+    fun testSyncSendThenRecvFileInSameSessionWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(10_000)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        val sendProgress = TestSyncProgress()
+
+        val recvProgress = TestSyncProgress()
+        val outputStream = ByteArrayOutputStream()
+        val outputChannel = AdbOutputStreamChannel(host, outputStream)
+
+        // Act
+        runBlocking {
+            deviceServices.sync(deviceSelector).use {
+                it.send(
+                    AdbInputStreamChannel(host, fileBytes.inputStream()),
+                    filePath,
+                    fileMode,
+                    fileDate,
+                    sendProgress,
+                    bufferSize = 1_024
+                )
+                it.recv(
+                    filePath,
+                    outputChannel,
+                    recvProgress,
+                    bufferSize = 1_024
+                )
+            }
+        }
+
+        // Assert
+        Assert.assertTrue(sendProgress.started)
+        Assert.assertTrue(sendProgress.progress)
+        Assert.assertTrue(sendProgress.done)
+
+        Assert.assertNotNull(fakeDevice.getFile(filePath))
+        fakeDevice.getFile(filePath)?.run {
+            Assert.assertEquals(filePath, path)
+            Assert.assertEquals(fileMode.modeBits, permission.toInt())
+            Assert.assertEquals(fileDate.toMillis() / 1_000, modifiedDate.toLong())
+            Assert.assertArrayEquals(fileBytes, bytes)
+        }
+
+        Assert.assertTrue(recvProgress.started)
+        Assert.assertTrue(recvProgress.progress)
+        Assert.assertTrue(recvProgress.done)
+
+        Assert.assertArrayEquals(fileBytes, outputStream.toByteArray())
+    }
+
+    /**
+     * This test tries do download a file that does not exist on the device
+     */
+    @Test
+    fun testSyncRecvFileThrowsExceptionIfFileDoesNotExist() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val progress = TestSyncProgress()
+        val outputStream = ByteArrayOutputStream()
+        val outputChannel = AdbOutputStreamChannel(host, outputStream)
+
+        // Act
+        exceptionRule.expect(AdbFailResponseException::class.java)
+        runBlocking {
+            deviceServices.syncRecv(
+                deviceSelector,
+                filePath,
+                outputChannel,
+                progress,
+                bufferSize = 1_024
+            )
+        }
+
+        // Assert
+        Assert.fail() // Should not be reachable
+    }
+
+    @Test
+    fun testSyncRecvRethrowsProgressException() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(128_000)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        fakeDevice.createFile(
+            DeviceFileState(
+                filePath,
+                fileMode.modeBits.toString(),
+                (fileDate.toMillis() / 1_000).toInt(),
+                fileBytes
+            )
+        )
+        val progress = object : TestSyncProgress() {
+            override suspend fun transferProgress(remotePath: String, totalBytesSoFar: Long) {
+                throw MyTestException("An error in progress callback")
+            }
+        }
+        val outputStream = ByteArrayOutputStream()
+        val outputChannel = AdbOutputStreamChannel(host, outputStream)
+
+        // Act
+        exceptionRule.expect(MyTestException::class.java)
+        runBlocking {
+            deviceServices.syncRecv(
+                deviceSelector,
+                filePath,
+                outputChannel,
+                progress,
+                bufferSize = 1_024
+            )
+        }
+
+        // Assert
+        Assert.fail() // Should not be reached
+    }
+
+    @Test
+    fun testSyncRecvRethrowsOutputChannelException() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(128_000)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val fileDate = FileTime.from(1_000_000, TimeUnit.SECONDS)
+        fakeDevice.createFile(
+            DeviceFileState(
+                filePath,
+                fileMode.modeBits.toString(),
+                (fileDate.toMillis() / 1_000).toInt(),
+                fileBytes
+            )
+        )
+        val progress = TestSyncProgress()
+        val outputChannel = object : AdbOutputChannel {
+            override suspend fun write(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+                throw MyTestException("this stream simulates an error writing to local storage")
+            }
+
+            override fun close() {
+            }
+        }
+
+        // Act
+        exceptionRule.expect(MyTestException::class.java)
+        runBlocking {
+            deviceServices.syncRecv(
+                deviceSelector,
+                filePath,
+                outputChannel,
+                progress,
+                bufferSize = 1_024
+            )
+        }
+
+        // Assert
+        Assert.fail() // Should not be reached
+    }
+
+    open class TestSyncProgress : SyncProgress {
+
+        var started = false
+        var progress = false
+        var done = false
+
+        override suspend fun transferStarted(remotePath: String) {
+            started = true
+        }
+
+        override suspend fun transferProgress(remotePath: String, totalBytesSoFar: Long) {
+            progress = true
+        }
+
+        override suspend fun transferDone(remotePath: String, totalBytes: Long) {
+            done = true
+        }
+    }
+
+    private fun createFileBytes(size: Int): ByteArray {
+        val result = ByteArray(size)
+        for (i in 0 until size) {
+            result[i] = (i and 0xff).toByte()
+        }
+        return result
+    }
+
     private fun createDeviceServices(
         host: TestingAdbLibHost,
-        channelProvider: FakeAdbServerProvider.TestingChannelProvider
+        channelProvider: AdbChannelProvider
     ): AdbDeviceServicesImpl {
         return AdbDeviceServicesImpl(
             host,

@@ -25,6 +25,7 @@ import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.DeviceState.HostConnectionType
 import com.android.fakeadbserver.FakeAdbServer
 import com.android.fakeadbserver.MdnsService
+import com.android.fakeadbserver.devicecommandhandlers.DeviceCommandHandler
 import com.android.fakeadbserver.hostcommandhandlers.HostCommandHandler
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -64,6 +65,11 @@ internal class FakeAdbServerProvider : AutoCloseable {
         handlerConstructor: Supplier<HostCommandHandler?>
     ): FakeAdbServerProvider {
         builder.setHostCommandHandler(command, handlerConstructor)
+        return this
+    }
+
+    fun installDeviceHandler(handler: DeviceCommandHandler): FakeAdbServerProvider {
+        builder.addDeviceHandler(handler)
         return this
     }
 

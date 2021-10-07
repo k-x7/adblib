@@ -6,6 +6,7 @@ import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.IOException
+import java.nio.channels.Channel
 import java.nio.channels.CompletionHandler
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -20,6 +21,8 @@ abstract class AsynchronousChannelWriteOperation(
 
     protected abstract val hasRemaining: Boolean
 
+    protected abstract val channel: Channel
+
     protected abstract fun writeChannel(
         timeout: TimeoutTracker,
         continuation: CancellableContinuation<Int>
@@ -32,6 +35,9 @@ abstract class AsynchronousChannelWriteOperation(
         }
 
         return suspendCancellableCoroutine { continuation ->
+            // Ensure async operation is stopped if coroutine is cancelled
+            channel.closeOnCancel(host, "write", continuation)
+
             writeAsync(continuation)
         }
     }
@@ -49,7 +55,7 @@ abstract class AsynchronousChannelWriteOperation(
 
     override fun completed(result: Int, continuation: CancellableContinuation<Int>) {
         host.logger.debug(
-            "${this::class.java.simpleName}.writeAsync completed successfully (%d bytes)",
+            "${javaClass.simpleName}.writeAsync completed successfully (%d bytes)",
             result
         )
         continuation.resume(result)

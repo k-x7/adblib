@@ -35,6 +35,9 @@ class TimeoutTracker(
     val remainingTime: Long
         get() = getRemainingTime(timeUnit)
 
+    val remainingMills: Long
+        get() = getRemainingTime(TimeUnit.MILLISECONDS)
+
     /**
      * Returns the time until this timeout expires in [TimeUnit.NANOSECONDS] units.
      */

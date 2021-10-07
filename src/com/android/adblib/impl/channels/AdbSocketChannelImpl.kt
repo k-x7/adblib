@@ -7,10 +7,12 @@ import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.io.Closeable
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousSocketChannel
+import java.nio.channels.Channel
 import java.nio.channels.CompletionHandler
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
@@ -30,14 +32,18 @@ class AdbSocketChannelImpl(
     internal val isOpen: Boolean
         get() = socketChannel.isOpen
 
+    override fun toString(): String {
+        return "AdbSocketChannelImpl(${socketChannel.remoteAddress})"
+    }
+
     @Throws(Exception::class)
     override fun close() {
-        host.logger.debug("Closing ${this::class.java.simpleName}")
+        host.logger.debug("Closing ${javaClass.simpleName}")
         socketChannel.close()
     }
 
     suspend fun connect(address: InetSocketAddress, timeout: TimeoutTracker) {
-        host.logger.debug("Connecting ${this::class.java.simpleName} at address $address, timeout=$timeout")
+        host.logger.debug("Connecting ${javaClass.simpleName} at address $address, timeout=$timeout")
         return ConnectOperation(host, socketChannel, address, timeout).execute()
     }
 
@@ -51,7 +57,7 @@ class AdbSocketChannelImpl(
 
     override suspend fun shutdownInput() {
         withContext(host.ioDispatcher) {
-            host.logger.debug("Shutting down input channel of ${this::class.java.simpleName}")
+            host.logger.debug("Shutting down input channel of ${javaClass.simpleName}")
             @Suppress("BlockingMethodInNonBlockingContext")
             socketChannel.shutdownInput()
         }
@@ -59,7 +65,7 @@ class AdbSocketChannelImpl(
 
     override suspend fun shutdownOutput() {
         withContext(host.ioDispatcher) {
-            host.logger.debug("Shutting down output channel of ${this::class.java.simpleName}")
+            host.logger.debug("Shutting down output channel of ${javaClass.simpleName}")
             @Suppress("BlockingMethodInNonBlockingContext")
             socketChannel.shutdownOutput()
         }
@@ -87,9 +93,10 @@ class AdbSocketChannelImpl(
             // is wrapped in our implementation of AutoCloseable
             return withTimeout(timeout.getRemainingTime(TimeUnit.MILLISECONDS)) {
                 suspendCancellableCoroutine { continuation ->
-                    socketChannel.connect(address, continuation, this@ConnectOperation)
                     // Ensure async operation is stopped if coroutine is cancelled
                     socketChannel.closeOnCancel(host, "connect", continuation)
+
+                    socketChannel.connect(address, continuation, this@ConnectOperation)
                 }
             }
         }
@@ -113,14 +120,15 @@ class AdbSocketChannelImpl(
         private val buffer: ByteBuffer
     ) : AsynchronousChannelReadOperation(host, timeout) {
 
+        override val channel: Channel
+            get() = socketChannel
+
         override fun readChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Int>) {
             host.logger.debug(
-                "${this::class.java.simpleName}.readChannel of maximum %d bytes",
+                "${javaClass.simpleName}.readChannel of maximum %d bytes",
                 buffer.remaining()
             )
             socketChannel.read(buffer, timeout.remainingTime, timeout.timeUnit, continuation, this)
-            // Ensure async operation is stopped if coroutine is cancelled
-            socketChannel.closeOnCancel(host, "read", continuation)
         }
     }
 
@@ -134,10 +142,11 @@ class AdbSocketChannelImpl(
         override val hasRemaining: Boolean
             get() = buffer.hasRemaining()
 
+        override val channel: Channel
+            get() = socketChannel
+
         override fun readChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Unit>) {
             socketChannel.read(buffer, timeout.remainingTime, timeout.timeUnit, continuation, this)
-            // Ensure async operation is stopped if coroutine is cancelled
-            socketChannel.closeOnCancel(host, "readExactly", continuation)
         }
     }
 
@@ -151,6 +160,9 @@ class AdbSocketChannelImpl(
         override val hasRemaining: Boolean
             get() = buffer.hasRemaining()
 
+        override val channel: Channel
+            get() = socketChannel
+
         override fun writeChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Int>) {
             socketChannel.write(
                 buffer,
@@ -159,8 +171,6 @@ class AdbSocketChannelImpl(
                 continuation,
                 this
             )
-            // Ensure async operation is stopped if coroutine is cancelled
-            socketChannel.closeOnCancel(host, "write", continuation)
         }
     }
 
@@ -174,6 +184,9 @@ class AdbSocketChannelImpl(
         override val hasRemaining: Boolean
             get() = buffer.hasRemaining()
 
+        override val channel: Channel
+            get() = socketChannel
+
         override fun writeChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Unit>) {
             socketChannel.write(
                 buffer,
@@ -182,7 +195,6 @@ class AdbSocketChannelImpl(
                 continuation,
                 this
             )
-            socketChannel.closeOnCancel(host, "writeExactly", continuation)
         }
     }
 }
@@ -199,19 +211,26 @@ class AdbSocketChannelImpl(
  * See [https://github.com/Kotlin/kotlinx.coroutines/blob/87eaba8a287285d4c47f84c91df7671fcb58271f/integration/kotlinx-coroutines-nio/src/Nio.kt#L126]
  * for the initial code this implementation is based on.
  */
-private fun AsynchronousSocketChannel.closeOnCancel(
+fun Closeable.closeOnCancel(
     host: AdbLibHost,
     operationId: String,
     cont: CancellableContinuation<*>
 ) {
-    cont.invokeOnCancellation {
-        try {
-            host.logger.debug("Closing SocketChannel because suspended coroutine for asynchronous \"${operationId}\" has been cancelled")
-            close()
-        } catch (t: Throwable) {
-            // Specification says that it is Ok to call it any time, but reality is different,
-            // so we have just to ignore exception
-            host.logger.warn(t, "Error closing SocketChannel during cancellation, ignoring")
+    try {
+        cont.invokeOnCancellation {
+            try {
+                host.logger.debug("Closing ${javaClass.simpleName} because suspended coroutine for asynchronous \"${operationId}\" has been cancelled")
+                close()
+            } catch (t: Throwable) {
+                // Specification says that it is Ok to call it any time, but reality is different,
+                // so we have just to ignore exception
+                host.logger.warn(t, "Error closing ${javaClass.simpleName} during cancellation, ignoring")
+            }
         }
+    } catch(t: Throwable) {
+        // This can happen, for example, if invokeOnCancellation has already been called for
+        // the cancellation
+        host.logger.error(t, "Error registering cancellation handler for ${javaClass.simpleName}")
+        throw t
     }
 }

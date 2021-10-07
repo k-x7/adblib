@@ -18,6 +18,7 @@ package com.android.adblib
 import com.android.adblib.impl.AdbChannelProviderOpenLocalHost
 import com.android.adblib.impl.AdbDeviceServicesImpl
 import com.android.adblib.impl.AdbHostServicesImpl
+import com.android.adblib.impl.channels.AdbChannelFactoryImpl
 import java.util.concurrent.TimeUnit
 
 /**
@@ -41,7 +42,11 @@ class AdbLibSession(
     val connectionTimeoutMillis: Long = TimeUnit.SECONDS.toMillis(30)
 ) : AutoCloseable {
 
-    var closed = false
+    private var closed = false
+
+    val channelFactory: AdbChannelFactory by lazy {
+        AdbChannelFactoryImpl(host)
+    }
 
     override fun close() {
         //TODO: Figure out if it would be worthwhile and efficient enough to implement a

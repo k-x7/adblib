@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.first
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
+import java.nio.file.Path
+import java.nio.file.attribute.FileTime
 import java.time.Duration
 import java.util.concurrent.TimeoutException
 
@@ -17,7 +19,6 @@ const val DEFAULT_SHELL_BUFFER_SIZE = 8_192
  * Exposes services that are executed by the ADB daemon of a given device
  */
 interface AdbDeviceServices {
-
     /**
      * Returns a [Flow] that, when collected, executes a shell command on a device
      * ("<device-transport>:shell" query) and emits the output of the command to the [Flow].
@@ -53,6 +54,19 @@ interface AdbDeviceServices {
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
     ): Flow<T>
+
+    /**
+     * Opens a `sync` session on a device ("<device-transport>:sync" query) and returns
+     * an instance of [AdbDeviceSyncServices] that allows performing one or more file
+     * transfer operation with a device.
+     *
+     * The [AdbDeviceSyncServices] instance should be [closed][AutoCloseable.close]
+     * when no longer in use, to ensure the underlying connection to the device is
+     * closed.
+     *
+     * @param [device] the [DeviceSelector] corresponding to the target device
+     */
+    suspend fun sync(device: DeviceSelector): AdbDeviceSyncServices
 }
 
 /**
@@ -93,4 +107,106 @@ fun AdbDeviceServices.shellAsLines(
 ): Flow<String> {
     val collector = MultiLineShellCollector()
     return shell(device, command, collector, stdinChannel, commandTimeout, bufferSize)
+}
+
+/**
+ * Uploads a single file to a remote device transferring the contents of [sourceChannel].
+ *
+ * @see [AdbDeviceSyncServices.send]
+ */
+suspend fun AdbDeviceServices.syncSend(
+    device: DeviceSelector,
+    sourceChannel: AdbInputChannel,
+    remoteFilePath: String,
+    remoteFileMode: RemoteFileMode,
+    remoteFileTime: FileTime,
+    progress: SyncProgress,
+    bufferSize: Int = SYNC_DATA_MAX
+) {
+    sync(device).use {
+        it.send(
+            sourceChannel,
+            remoteFilePath,
+            remoteFileMode,
+            remoteFileTime,
+            progress,
+            bufferSize
+        )
+    }
+}
+
+/**
+ * Uploads a single file to a remote device transferring the contents of [sourcePath].
+ *
+ * @see [AdbDeviceSyncServices.send]
+ */
+suspend fun AdbDeviceServices.syncSend(
+    session: AdbLibSession,
+    device: DeviceSelector,
+    sourcePath: Path,
+    remoteFilePath: String,
+    remoteFileMode: RemoteFileMode,
+    remoteFileTime: FileTime,
+    progress: SyncProgress,
+    bufferSize: Int = SYNC_DATA_MAX
+) {
+    session.channelFactory.openFile(sourcePath).use { source ->
+        syncSend(
+            device,
+            source,
+            remoteFilePath,
+            remoteFileMode,
+            remoteFileTime,
+            progress,
+            bufferSize
+        )
+        source.close()
+    }
+}
+
+/**
+ * Retrieves a single file from a remote device and writes its contents to a [destinationChannel].
+ *
+ * @see [AdbDeviceSyncServices.recv]
+ */
+suspend fun AdbDeviceServices.syncRecv(
+    device: DeviceSelector,
+    remoteFilePath: String,
+    destinationChannel: AdbOutputChannel,
+    progress: SyncProgress,
+    bufferSize: Int = SYNC_DATA_MAX
+) {
+    sync(device).use {
+        it.recv(
+            remoteFilePath,
+            destinationChannel,
+            progress,
+            bufferSize
+        )
+    }
+}
+
+/**
+ * Retrieves a single file from a remote device and writes its contents to a [destinationPath].
+ *
+ * @see [AdbDeviceSyncServices.recv]
+ */
+suspend fun AdbDeviceServices.syncRecv(
+    session: AdbLibSession,
+    device: DeviceSelector,
+    remoteFilePath: String,
+    destinationPath: Path,
+    progress: SyncProgress,
+    bufferSize: Int = SYNC_DATA_MAX
+) {
+    session.channelFactory.createFile(destinationPath).use { destination ->
+        syncRecv(
+            device,
+            remoteFilePath,
+            destination,
+            progress,
+            bufferSize
+        )
+        destination.close()
+    }
 }

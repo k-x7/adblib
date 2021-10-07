@@ -18,6 +18,11 @@ val INFINITE_DURATION: Duration = Duration.ofSeconds(
     999_999_999L // Max nanoseconds
 )
 
+/**
+ * "Infinite" timeout, to use as the default value for optional timeouts.
+ */
+const val INFINITE_TIMEOUT = Long.MAX_VALUE
+
 abstract class SystemNanoTimeProvider {
 
     /**
@@ -25,6 +30,28 @@ abstract class SystemNanoTimeProvider {
      * See [System.nanoTime]
      */
     abstract fun nanoTime(): Long
+
+    /**
+     * Throws a [TimeoutException] if [block] does not complete within the specified
+     * [timeout] milliseconds.
+     *
+     * Unlike [withTimeout], a non-cancellable exception (i.e. [TimeoutException]) is thrown
+     * when a timeout occurs.
+     */
+    open suspend fun <R> withErrorTimeout(
+        timeout: Long,
+        block: suspend CoroutineScope.() -> R
+    ): R {
+        return coroutineScope {
+            if (timeout == INFINITE_TIMEOUT) {
+                block()
+            } else {
+                withTimeoutOrNull(timeout) {
+                    block()
+                } ?: throw TimeoutException(getTimeoutMessage(timeout))
+            }
+        }
+    }
 
     /**
      * Throws a [TimeoutException] if [block] does not complete within the specified
@@ -38,27 +65,19 @@ abstract class SystemNanoTimeProvider {
         timeout: Duration,
         block: suspend CoroutineScope.() -> R
     ): R {
-        return coroutineScope {
-            if (timeout == INFINITE_DURATION) {
-                block()
-            } else {
-                // Note: We use the `withTimeoutOrNull(Long, ...)` overload because the overload
-                //       using a `Duration` is experimental at the time of this writing
-                withTimeoutOrNull(timeout.toSafeMillis()) {
-                    block()
-                } ?: throw TimeoutException(getTimeoutMessage(timeout))
-            }
-        }
+        // Note: We re-use withErrorTimeout(Long, ...) because the `withTimeoutOrNull(Long, ...)`
+        //       overload using a `Duration` is experimental at the time of this writing
+        return withErrorTimeout(timeout.toSafeMillis(), block)
     }
 
-    private fun getTimeoutMessage(timeout: Duration) =
-        "Timeout error waiting for ${timeout.toSafeMillis()} ms"
+    private fun getTimeoutMessage(timeout: Long) =
+        "Timeout error waiting for $timeout ms"
 
     private fun Duration.toSafeMillis(): Long {
         return try {
             this.toMillis()
         } catch (e: ArithmeticException) {
-            Long.MAX_VALUE
+            INFINITE_TIMEOUT
         }
     }
 }

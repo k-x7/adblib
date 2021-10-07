@@ -7,6 +7,7 @@ import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.EOFException
 import java.io.IOException
+import java.nio.channels.Channel
 import java.nio.channels.CompletionHandler
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -20,6 +21,7 @@ abstract class AsynchronousChannelReadExactlyOperation(
 ) : CompletionHandler<Int, CancellableContinuation<Unit>> {
 
     protected abstract val hasRemaining: Boolean
+    protected abstract val channel: Channel
 
     protected abstract fun readChannel(
         timeout: TimeoutTracker,
@@ -33,6 +35,9 @@ abstract class AsynchronousChannelReadExactlyOperation(
         }
 
         return suspendCancellableCoroutine { continuation ->
+            // Ensure async operation is stopped if coroutine is cancelled
+            channel.closeOnCancel(host, "readExactly", continuation)
+
             readAsync(continuation)
         }
     }
@@ -55,7 +60,7 @@ abstract class AsynchronousChannelReadExactlyOperation(
             return
         }
         host.logger.debug(
-            "${this::class.java.simpleName}.readAsync completed successfully (%d bytes)",
+            "${javaClass.simpleName}.readAsync completed successfully (%d bytes)",
             result
         )
 

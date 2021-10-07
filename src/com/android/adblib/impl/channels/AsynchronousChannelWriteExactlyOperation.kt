@@ -3,9 +3,11 @@ package com.android.adblib.impl.channels
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.utils.TimeoutTracker
+import com.android.adblib.utils.closeOnException
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.IOException
+import java.nio.channels.Channel
 import java.nio.channels.CompletionHandler
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -20,6 +22,8 @@ abstract class AsynchronousChannelWriteExactlyOperation(
 
     protected abstract val hasRemaining: Boolean
 
+    protected abstract val channel: Channel
+
     protected abstract fun writeChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Unit>)
 
     suspend fun execute() {
@@ -28,6 +32,9 @@ abstract class AsynchronousChannelWriteExactlyOperation(
            return
        }
        return suspendCancellableCoroutine { continuation ->
+           // Ensure async operation is stopped if coroutine is cancelled
+           channel.closeOnCancel(host, "writeExactly", continuation)
+
            writeAsync(continuation)
        }
    }
@@ -42,7 +49,7 @@ abstract class AsynchronousChannelWriteExactlyOperation(
    }
 
    override fun completed(result: Int, continuation: CancellableContinuation<Unit>) {
-       host.logger.debug("${this::class.java.simpleName}.writeAsync completed successfully (%d bytes)", result)
+       host.logger.debug("${javaClass.simpleName}.writeAsync completed successfully (%d bytes)", result)
        // Buffer is fully read, finish operation
        if (!hasRemaining) {
            continuation.resume(Unit)

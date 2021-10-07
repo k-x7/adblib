@@ -3,6 +3,7 @@ package com.android.adblib.impl
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbDeviceServices
+import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
 import com.android.adblib.DeviceSelector
@@ -72,6 +73,10 @@ internal class AdbDeviceServicesImpl(
             }
         }
     }.flowOn(host.ioDispatcher)
+
+    override suspend fun sync(device: DeviceSelector): AdbDeviceSyncServices {
+        return AdbDeviceSyncServicesImpl.open(serviceRunner, device, timeout, unit)
+    }
 
     private suspend fun <T> collectShellCommandOutput(
         channel: AdbChannel,

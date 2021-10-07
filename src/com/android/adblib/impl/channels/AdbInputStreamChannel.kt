@@ -20,7 +20,7 @@ internal open class AdbInputStreamChannel(
 ) : AdbInputChannel {
 
     private val loggerPrefix: String
-        get() = this::class.java.simpleName
+        get() = javaClass.simpleName
 
     private val bytes = ByteArray(bufferSize)
 

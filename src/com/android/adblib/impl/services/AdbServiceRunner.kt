@@ -3,7 +3,9 @@ package com.android.adblib.impl.services
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbFailResponseException
+import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbOutputChannel
 import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.DeviceSelector
 import com.android.adblib.utils.AdbProtocolUtils
@@ -15,6 +17,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 private const val OKAY_FAIL_BYTE_COUNT = 4
+private const val OKAY_FAIL_SYNC_BYTE_COUNT = 8
 private const val LENGTH_PREFIX_BYTE_COUNT = 4
 
 private const val TRANSPORT_ID_BYTE_COUNT = 8
@@ -40,11 +43,11 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
         timeout: TimeoutTracker
     ): AdbChannel {
         val logPrefix = "Running ADB server query \"${service}\" -"
-        host.logger.info("$logPrefix opening connection to ADB server, timeout=$timeout")
+        host.logger.debug("$logPrefix opening connection to ADB server, timeout=$timeout")
         channelProvider.createChannel(timeout).closeOnException { channel ->
-            host.logger.info("$logPrefix sending request to ADB server, timeout=$timeout")
+            host.logger.debug("$logPrefix sending request to ADB server, timeout=$timeout")
             sendAbdServiceRequest(channel, workBuffer, service, timeout)
-            host.logger.info("$logPrefix receiving response from ADB server, timeout=$timeout")
+            host.logger.debug("$logPrefix receiving response from ADB server, timeout=$timeout")
             consumeOkayFailResponse(channel, workBuffer, timeout)
             workBuffer.clear()
             return channel
@@ -54,18 +57,22 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
     /**
      * Executes a query on the ADB host that relates to a single [device][DeviceSelector]
      */
-    suspend fun runHostDeviceQuery(deviceSelector: DeviceSelector, query: String, timeout: TimeoutTracker): String {
+    suspend fun runHostDeviceQuery(
+        deviceSelector: DeviceSelector,
+        query: String,
+        timeout: TimeoutTracker
+    ): String {
         val service = deviceSelector.hostPrefix + ":" + query
         val workBuffer = newResizableBuffer()
         startHostQuery(workBuffer, service, timeout).use { channel ->
             val buffer = readLengthPrefixedData(channel, workBuffer, timeout)
-            host.logger.info("\"${service}\" - read ${buffer.remaining()} byte(s), timeout=$timeout")
+            host.logger.debug("\"${service}\" - read ${buffer.remaining()} byte(s), timeout=$timeout")
             return AdbProtocolUtils.byteBufferToString(buffer)
         }
     }
 
     suspend fun sendAbdServiceRequest(
-        channel: AdbChannel,
+        channel: AdbOutputChannel,
         workBuffer: ResizableBuffer,
         service: String,
         timeout: TimeoutTracker
@@ -86,7 +93,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
      * * If FAIL, throws an [AdbProtocolErrorException] exception (with the error message)
      */
     suspend fun consumeOkayFailResponse(
-        channel: AdbChannel,
+        channel: AdbInputChannel,
         workBuffer: ResizableBuffer,
         timeout: TimeoutTracker
     ) {
@@ -105,21 +112,78 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
             else -> {
                 val error = AdbProtocolErrorException(
                     "Expected \"OKAY\" or \"FAIL\" response header, " +
-                            "got \"${AdbProtocolUtils.bufferToByteDumpString(data)}\" instead")
+                            "got \"${AdbProtocolUtils.bufferToByteDumpString(data)}\" instead"
+                )
                 throw error
             }
         }
     }
 
+    /**
+     * Reads `OKAY` or `FAIL` from a `sync protocol` connection channel
+     *
+     * * If `OKAY`, consume it and the following 4-byte length (which should always be zero)
+     * * If `FAIL`, consume it and the following message, then throws an
+     *   [AdbProtocolErrorException] exception (with the error message)
+     */
+    suspend fun consumeSyncOkayFailResponse(
+        channel: AdbInputChannel,
+        workBuffer: ResizableBuffer,
+        timeout: TimeoutTracker
+    ) {
+        workBuffer.clear()
+        workBuffer.order(ByteOrder.LITTLE_ENDIAN) // `Sync` protocol is always little endian
+        channel.readExactly(workBuffer.forChannelRead(OKAY_FAIL_SYNC_BYTE_COUNT), timeout)
+        val data = workBuffer.afterChannelRead()
+        assert(data.remaining() == OKAY_FAIL_SYNC_BYTE_COUNT) { "readExactly() did not read the expected number of bytes" }
+
+        when {
+            // Bytes 0-3: 'OKAY'
+            // Bytes 4-7: length (always 0)
+            AdbProtocolUtils.isOkay(data) -> {
+                // Nothing to do
+            }
+
+            // Bytes 0-3: 'FAIL'
+            // Bytes 4-7: message length (little endian)
+            // Bytes 8-xx: message bytes
+            //
+            // Note: This is not a "regular" `FAIL` message, as the length is a 4 byte little
+            //       endian value, as opposed to 4 byte ascii string
+            AdbProtocolUtils.isFail(data) -> {
+                data.getInt() // Consume 'FAIL'
+                val length = data.getInt() // Consume length (little endian)
+                readSyncFailMessageAndThrow(channel, workBuffer, length, timeout)
+            }
+            else -> {
+                val error = AdbProtocolErrorException(
+                    "Expected \"OKAY\" or \"FAIL\" response header, " +
+                            "got \"${AdbProtocolUtils.bufferToByteDumpString(data)}\" instead"
+                )
+                throw error
+            }
+        }
+    }
+
+    suspend fun readSyncFailMessageAndThrow(
+        channel: AdbInputChannel,
+        workBuffer: ResizableBuffer,
+        length: Int,
+        timeout: TimeoutTracker
+    ) {
+        workBuffer.clear()
+        channel.readExactly(workBuffer.forChannelRead(length), timeout)
+        val messageBuffer = workBuffer.afterChannelRead()
+        throw AdbFailResponseException(messageBuffer)
+    }
+
     private suspend fun readFailResponseAndThrow(
-        channel: AdbChannel,
+        channel: AdbInputChannel,
         workBuffer: ResizableBuffer,
         timeout: TimeoutTracker
     ) {
         val data = readLengthPrefixedData(channel, workBuffer, timeout)
-        val error = AdbFailResponseException(data)
-        host.logger.warn("Error received from ADB server: ${error.failMessage}")
-        throw error
+        throw AdbFailResponseException(data)
     }
 
     /**
@@ -131,7 +195,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
      *
      */
     suspend fun readLengthPrefixedData(
-        channel: AdbChannel,
+        channel: AdbInputChannel,
         workBuffer: ResizableBuffer,
         timeout: TimeoutTracker
     ): ByteBuffer {
@@ -168,13 +232,13 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
             if (deviceSelector.responseContainsTransportId) {
                 transportId = consumeTransportId(channel, workBuffer, timeout)
             }
-            host.logger.info("ADB transport was switched to \"${transportPrefix}\", timeout left is $timeout")
+            host.logger.debug("ADB transport was switched to \"${transportPrefix}\", timeout left is $timeout")
             return Pair(channel, transportId)
         }
     }
 
     private suspend fun consumeTransportId(
-        channel: AdbChannel,
+        channel: AdbInputChannel,
         workBuffer: ResizableBuffer,
         timeout: TimeoutTracker
     ): Long {
@@ -183,7 +247,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
         channel.readExactly(workBuffer.forChannelRead(TRANSPORT_ID_BYTE_COUNT), timeout)
         val buffer = workBuffer.afterChannelRead()
         val transportId = buffer.withOrder(ByteOrder.LITTLE_ENDIAN) { buffer.long }
-        host.logger.info("Read transport id value of '${transportId}' from response")
+        host.logger.debug("Read transport id value of '${transportId}' from response")
         return transportId
     }
 }

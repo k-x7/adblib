@@ -22,6 +22,9 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
 
     private var buffer: ByteBuffer = ByteBuffer.allocate(initialCapacity)
 
+    val position: Int
+        get() = buffer.position()
+
     /**
      * Clears this buffer so it is ready for adding data or for `channel read` operation (see
      * [forChannelRead].
@@ -93,14 +96,14 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
      * Returns the underlying [ByteBuffer] after a `channel read` operation so that data can
      * be read from the [ByteBuffer].
      */
-    fun afterChannelRead(): ByteBuffer {
+    fun afterChannelRead(newPosition: Int = -1): ByteBuffer {
         try {
             // Data is from `mark` to `position`, so set limit = position, position = mark, and mark = -1
             val newLimit = buffer.position()
             buffer.reset() // reset position to mark
-            val newPosition = buffer.position()
+            val mark = if (newPosition >= 0) newPosition else buffer.position()
             buffer.rewind() // Clear mark (i.e. -1)
-            buffer.position(newPosition)
+            buffer.position(mark)
             buffer.limit(newLimit)
         } catch (e: InvalidMarkException) {
             throw IllegalStateException("Buffer has not been prepared for a read operation", e)
@@ -114,7 +117,7 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
      */
     fun appendBytes(src: ByteArray) {
         ensureRoom(src.size)
-        this.buffer.put(src)
+        buffer.put(src)
     }
 
     /**
@@ -123,7 +126,7 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
      */
     fun appendBytes(src: ByteBuffer) {
         ensureRoom(src.remaining())
-        this.buffer.put(src)
+        buffer.put(src)
     }
 
     /**
@@ -132,6 +135,15 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
      */
     fun appendString(value: String, charset: Charset) {
         appendBytes(charset.encode(value))
+    }
+
+    fun appendInt(value: Int) {
+        ensureRoom(Int.SIZE_BYTES)
+        buffer.putInt(value)
+    }
+
+    fun setInt(index: Int, value: Int) {
+        buffer.putInt(index, value)
     }
 
     /**
