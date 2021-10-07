@@ -31,7 +31,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExpectedException
 import java.nio.ByteBuffer
+import java.time.Duration
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 class AdbDeviceServicesTest {
 
@@ -156,6 +158,31 @@ class AdbDeviceServicesTest {
         Assert.assertEquals(expectedOutput, commandOutput)
     }
 
+    @Test
+    fun testShellWithTimeout() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val device = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(device.deviceId)
+        val collector = ByteBufferShellCollector()
+
+        // Act
+        exceptionRule.expect(TimeoutException::class.java)
+        val bytes = runBlocking {
+            deviceServices.shell(
+                deviceSelector,
+                "write-no-stop",
+                collector, Duration.ofMillis(10)
+            ).first()
+        }
+
+        // Assert
+        Assert.fail("Should not be reached")
+    }
+
     private fun createDeviceServices(
         host: TestingAdbLibHost,
         channelProvider: FakeAdbServerProvider.TestingChannelProvider
@@ -185,6 +212,7 @@ class AdbDeviceServicesTest {
     }
 
     class ByteBufferShellCollector : ShellCollector<ByteBuffer> {
+
         private val buffer = ResizableBuffer()
         var transportId: Long? = null
 

@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.first
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
+import java.time.Duration
+import java.util.concurrent.TimeoutException
 
 const val DEFAULT_SHELL_BUFFER_SIZE = 8_192
 
@@ -36,12 +38,16 @@ interface AdbDeviceServices {
      * @param [command] the shell command to execute
      * @param [shellCollector] The [ShellCollector] invoked to collect the shell command output
      *   and emit elements to the resulting [Flow]
+     * @param [commandTimeout] timeout tracking the command execution, tracking starts *after* the
+     *   device connection has been successfully established. If the command takes more time than
+     *   the timeout, a [TimeoutException] is thrown and the underlying [AdbChannel] is closed.
      * @param [bufferSize] the size of the buffer used to receive data from the shell command output
      */
     fun <T> shell(
         device: DeviceSelector,
         command: String,
         shellCollector: ShellCollector<T>,
+        commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
     ): Flow<T>
 }
@@ -56,10 +62,11 @@ interface AdbDeviceServices {
 suspend fun AdbDeviceServices.shellAsText(
     device: DeviceSelector,
     command: String,
+    commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): String {
     val collector = TextShellCollector()
-    return shell(device, command, collector, bufferSize).first()
+    return shell(device, command, collector, commandTimeout, bufferSize).first()
 }
 
 /**
@@ -76,8 +83,9 @@ suspend fun AdbDeviceServices.shellAsText(
 fun AdbDeviceServices.shellAsLines(
     device: DeviceSelector,
     command: String,
+    commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): Flow<String> {
     val collector = MultiLineShellCollector()
-    return shell(device, command, collector, bufferSize)
+    return shell(device, command, collector, commandTimeout, bufferSize)
 }

@@ -67,7 +67,7 @@ class TimeoutTrackerTest {
         timeout.throwIfElapsed()
     }
 
-    private class TestNanoProvider : SystemNanoTimeProvider {
+    private class TestNanoProvider : SystemNanoTimeProvider() {
 
         private var currentTimeNano: Long = 1_000_000
 

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 internal class AdbDeviceServicesImpl(
@@ -29,6 +30,7 @@ internal class AdbDeviceServicesImpl(
         device: DeviceSelector,
         command: String,
         shellCollector: ShellCollector<T>,
+        commandTimeout: Duration,
         bufferSize: Int,
     ): Flow<T> = flow {
         host.logger.info("Device \"${device}\" - Start execution of shell command \"$command\" (bufferSize=$bufferSize bytes)")
@@ -44,16 +46,18 @@ internal class AdbDeviceServicesImpl(
             serviceRunner.sendAbdServiceRequest(channel, workBuffer, service, tracker)
             serviceRunner.consumeOkayFailResponse(channel, workBuffer, tracker)
 
-            // Forward `stdout` from adb to flow
-            collectShellCommandOutput(
-                channel,
-                workBuffer,
-                service,
-                transportId,
-                bufferSize,
-                shellCollector,
-                this@flow
-            )
+            host.timeProvider.withErrorTimeout(commandTimeout) {
+                // Forward `stdout` from adb to flow
+                collectShellCommandOutput(
+                    channel,
+                    workBuffer,
+                    service,
+                    transportId,
+                    bufferSize,
+                    shellCollector,
+                    this@flow
+                )
+            }
         }
     }.flowOn(host.ioDispatcher)
 
