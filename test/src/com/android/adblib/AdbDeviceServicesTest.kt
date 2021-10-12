@@ -22,7 +22,9 @@ import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
 import com.android.adblib.utils.AdbProtocolUtils
+import com.android.adblib.utils.MultiLineShellCollector
 import com.android.adblib.utils.ResizableBuffer
+import com.android.adblib.utils.TextShellCollector
 import com.android.adblib.utils.TimeoutTracker
 import com.android.fakeadbserver.DeviceFileState
 import com.android.fakeadbserver.DeviceState
@@ -390,6 +392,101 @@ class AdbDeviceServicesTest {
                 inputOutputCoordinator.send("go-go")
             }
         }
+    }
+
+    @Test
+    fun testShellWithMonitoringCanDetectInactiveCommand() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val slowInputChannel = object : AdbInputChannel {
+            var firstCall = true
+            override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+                return if (firstCall) {
+                    firstCall = false
+                    delay(10)
+                    buffer.put('a'.toByte())
+                    1
+                } else {
+                    // Delay second call, so that the "cat" command does not receive
+                    // input for a while so that it does not emit any output. We essentially
+                    // force the "cat" command to be inactive for a while.
+                    delay(10_000)
+                    -1
+                }
+            }
+
+            override fun close() {
+            }
+        }
+
+        // Act
+        exceptionRule.expect(TimeoutException::class.java)
+        /*val ignored = */runBlocking {
+            deviceServices.shellWithIdleMonitoring(
+                host,
+                deviceSelector,
+                "cat",
+                MultiLineShellCollector(),
+                slowInputChannel,
+                commandTimeout = INFINITE_DURATION,
+                commandOutputTimeout = Duration.ofMillis(100)
+            ).first()
+        }
+
+        // Assert
+        Assert.fail() // Should not reach
+    }
+
+    @Test
+    fun testShellWithMonitoringWorksAsLongAsTimeoutIsNotExceeded() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val slowInputChannel = object : AdbInputChannel {
+            var callCount = 0
+            override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+                // In total, this will take 20 * 10 = 200 msec, but each call is less
+                // than the inactivity timeout of 100 msec we use for the test
+                return if (callCount < 20) {
+                    delay(10)
+                    buffer.put(('a'.toByte() + callCount.toByte()).toByte())
+                    buffer.put('\n'.toByte())
+                    callCount++
+                    2
+                } else {
+                    -1
+                }
+            }
+
+            override fun close() {
+                // Nothing
+            }
+        }
+
+        // Act
+        val text = runBlocking {
+            deviceServices.shellWithIdleMonitoring(
+                host,
+                deviceSelector,
+                "cat",
+                TextShellCollector(),
+                slowInputChannel,
+                // We have an "inactivity" timeout of 100 msec, but each read takes only 10 msec
+                commandOutputTimeout = Duration.ofMillis(100)
+            ).first()
+        }
+
+        // Assert
+        Assert.assertEquals("a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\ns\nt\n", text)
     }
 
     @Test

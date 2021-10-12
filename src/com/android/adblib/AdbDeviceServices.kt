@@ -1,5 +1,6 @@
 package com.android.adblib
 
+import com.android.adblib.impl.ShellWithIdleMonitoring
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.MultiLineShellCollector
 import com.android.adblib.utils.TextShellCollector
@@ -107,6 +108,34 @@ fun AdbDeviceServices.shellAsLines(
 ): Flow<String> {
     val collector = MultiLineShellCollector()
     return shell(device, command, collector, stdinChannel, commandTimeout, bufferSize)
+}
+
+/**
+ * Same as [AdbDeviceServices.shell] except that a [TimeoutException] is thrown
+ * when the command does not generate any output for the [Duration] specified in
+ * [commandOutputTimeout].
+ */
+fun <T> AdbDeviceServices.shellWithIdleMonitoring(
+    host: AdbLibHost,
+    device: DeviceSelector,
+    command: String,
+    stdoutCollector: ShellCollector<T>,
+    stdinChannel: AdbInputChannel? = null,
+    commandTimeout: Duration = INFINITE_DURATION,
+    commandOutputTimeout: Duration = INFINITE_DURATION,
+    bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+): Flow<T> {
+    return ShellWithIdleMonitoring(
+        host,
+        this,
+        device,
+        command,
+        stdoutCollector,
+        stdinChannel,
+        commandTimeout,
+        commandOutputTimeout,
+        bufferSize
+    ).flow()
 }
 
 /**
