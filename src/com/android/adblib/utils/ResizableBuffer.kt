@@ -137,6 +137,11 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
         appendBytes(charset.encode(value))
     }
 
+    fun appendByte(value: Byte) {
+        ensureRoom(Byte.SIZE_BYTES)
+        this.buffer.put(value)
+    }
+
     fun appendInt(value: Int) {
         ensureRoom(Int.SIZE_BYTES)
         buffer.putInt(value)

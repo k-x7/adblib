@@ -23,8 +23,8 @@ interface AdbHostServices {
     /**
      * Returns the list of features supported by the ADB server ("host:host-features" query).
      *
-     * Note that these features may not be supported by the ADB daemon running on a device.
-     * TODO: Add link to method to use to retrieve device features
+     * Note that these features may not be supported by the ADB daemon running on a device,
+     * use [features] to retrieve the list of features supported by a device.
      */
     suspend fun hostFeatures(): List<String>
 

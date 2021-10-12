@@ -33,6 +33,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
@@ -487,6 +488,198 @@ class AdbDeviceServicesTest {
 
         // Assert
         Assert.assertEquals("a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\ns\nt\n", text)
+    }
+
+    @Test
+    fun testShellV2Works() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val device = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(device.deviceId)
+        val collector = ShellV2ResultCollector()
+
+        // Act
+        val shellV2Result = runBlocking {
+            deviceServices.shellV2(deviceSelector, "getprop", collector).first()
+        }
+
+        // Assert
+        Assert.assertNull(shellV2Result.transportId)
+        val expectedOutput = """
+            # This is some build info
+            # This is more build info
+
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
+            [ro.build.version.release]: [model]
+            [ro.build.version.sdk]: [sdk]
+
+        """.trimIndent()
+        Assert.assertEquals(
+            expectedOutput,
+            AdbProtocolUtils.byteBufferToString(shellV2Result.stdout)
+        )
+        Assert.assertEquals("", AdbProtocolUtils.byteBufferToString(shellV2Result.stderr))
+        Assert.assertEquals(0, shellV2Result.exitCode)
+    }
+
+    @Test
+    fun testShellV2SplitsShellPackets() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val device = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(device.deviceId)
+        val collector = ShellV2ResultCollector()
+        val input = """
+            stdout: This is some text with
+            stdout: split in multiple lines
+            stderr: and containing non-ascii
+            stdout: characters such as
+            stderr: - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+            stdout: - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        val shellV2Result = runBlocking {
+            deviceServices.shellV2(
+                deviceSelector,
+                "shell-protocol-echo",
+                collector,
+                stdinChannel = input.asAdbInputChannel(host)
+            ).first()
+        }
+
+        // Assert
+        Assert.assertNull(shellV2Result.transportId)
+        val expectedStdout = """
+            This is some text with
+            split in multiple lines
+            characters such as
+            - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+
+        """.trimIndent()
+
+        val expectedStderr = """
+            and containing non-ascii
+            - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+
+        """.trimIndent()
+
+        Assert.assertEquals(expectedStdout, AdbProtocolUtils.byteBufferToString(shellV2Result.stdout))
+        Assert.assertEquals(expectedStderr, AdbProtocolUtils.byteBufferToString(shellV2Result.stderr))
+        Assert.assertEquals(10, shellV2Result.exitCode)
+    }
+
+    @Test
+    fun testShellV2AsTextWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            stdout: split in multiple lines
+            stderr: and containing non-ascii
+            stdout: characters such as
+            stderr: - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+            stdout: - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        val commandOutput = runBlocking {
+            deviceServices.shellV2AsText(
+                deviceSelector,
+                "shell-protocol-echo",
+                stdinChannel = input.asAdbInputChannel(host)
+            )
+        }
+
+        // Assert
+        val expectedStdout = """
+            This is some text with
+            split in multiple lines
+            characters such as
+            - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+
+        """.trimIndent()
+
+        val expectedStderr = """
+            and containing non-ascii
+            - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+
+        """.trimIndent()
+
+        Assert.assertEquals(expectedStdout, commandOutput.stdout)
+        Assert.assertEquals(expectedStderr, commandOutput.stderr)
+        Assert.assertEquals(10, commandOutput.exitCode)
+    }
+
+    @Test
+    fun testShellV2AsLineWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val host = registerCloseable(TestingAdbLibHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val deviceServices = createDeviceServices(host, channelProvider)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            stdout: split in multiple lines
+            stderr: and containing non-ascii
+            stdout: characters such as
+            stderr: - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+            stdout: - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        val collectedStdout = ArrayList<String>()
+        val collectedStderr = ArrayList<String>()
+        var collectedExitCode = -1
+        runBlocking {
+            deviceServices.shellV2AsLines(
+                deviceSelector,
+                "shell-protocol-echo",
+                stdinChannel = input.asAdbInputChannel(host)
+            ).collect { entry ->
+                when (entry) {
+                    is ShellCommandOutputElement.StdoutLine -> collectedStdout.add(entry.contents)
+                    is ShellCommandOutputElement.StderrLine -> collectedStderr.add(entry.contents)
+                    is ShellCommandOutputElement.ExitCode -> collectedExitCode = entry.exitCode
+                }
+            }
+        }
+
+        // Assert
+        val expectedStdout = """
+            This is some text with
+            split in multiple lines
+            characters such as
+            - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+
+        """.trimIndent()
+
+        val expectedStderr = """
+            and containing non-ascii
+            - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+
+        """.trimIndent()
+
+        Assert.assertEquals(expectedStdout, collectedStdout.joinToString(separator = "\n"))
+        Assert.assertEquals(expectedStderr, collectedStderr.joinToString(separator = "\n"))
+        Assert.assertEquals(10, collectedExitCode)
     }
 
     @Test
@@ -1146,6 +1339,52 @@ class AdbDeviceServicesTest {
             collector.emit(buffer.forChannelWrite())
         }
     }
+
+    class ShellV2ResultCollector : ShellV2Collector<ShellV2Result> {
+
+        private val stdoutBuffer = ResizableBuffer()
+        private val stderrBuffer = ResizableBuffer()
+        private var transportId: Long? = null
+
+        override suspend fun start(collector: FlowCollector<ShellV2Result>, transportId: Long?) {
+            this.transportId = transportId
+        }
+
+        override suspend fun collectStdout(
+            collector: FlowCollector<ShellV2Result>,
+            stdout: ByteBuffer
+        ) {
+            stdoutBuffer.appendBytes(stdout)
+        }
+
+        override suspend fun collectStderr(
+            collector: FlowCollector<ShellV2Result>,
+            stderr: ByteBuffer
+        ) {
+            stderrBuffer.appendBytes(stderr)
+        }
+
+        override suspend fun end(
+            collector: FlowCollector<ShellV2Result>,
+            exitCode: Int
+        ) {
+            val result =
+                ShellV2Result(
+                    transportId,
+                    stdoutBuffer.forChannelWrite(),
+                    stderrBuffer.forChannelWrite(),
+                    exitCode
+                )
+            collector.emit(result)
+        }
+    }
+
+    class ShellV2Result(
+        val transportId: Long?,
+        val stdout: ByteBuffer,
+        val stderr: ByteBuffer,
+        val exitCode: Int
+    )
 
     class MyTestException(message: String) : IOException(message)
 }

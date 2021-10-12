@@ -3,7 +3,9 @@ package com.android.adblib
 import com.android.adblib.impl.ShellWithIdleMonitoring
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.MultiLineShellCollector
+import com.android.adblib.utils.MultiLineShellV2Collector
 import com.android.adblib.utils.TextShellCollector
+import com.android.adblib.utils.TextShellV2Collector
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.io.IOException
@@ -51,6 +53,49 @@ interface AdbDeviceServices {
         device: DeviceSelector,
         command: String,
         shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel? = null,
+        commandTimeout: Duration = INFINITE_DURATION,
+        bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+    ): Flow<T>
+
+    /**
+     * Returns a [Flow] that, when collected, executes a shell command on a device
+     * ("<device-transport>:shell,v2" query) and emits the output, as well as `stderr` and
+     * exit code, of the command to the [Flow].
+     *
+     * The returned [Flow] elements are collected and emitted through a [ShellV2Collector],
+     * which enables advanced use cases for collecting, mapping, filtering and joining
+     * the command output which is initially collected as [ByteBuffer]. A typical use
+     * case is to use a [ShellV2Collector] that decodes the output as a [Flow] of [String],
+     * one for each line of the output.
+     *
+     * The flow is active until an exception is thrown, cancellation is requested by
+     * the flow consumer, or the shell command is terminated.
+     *
+     * The flow can throw [AdbProtocolErrorException], [AdbFailResponseException],
+     * [IOException] or any [Exception] thrown by [shellCollector].
+     *
+     * __Note__: Support for the "shell v2" protocol was added in Android API 24 (Nougat).
+     *   To verify the protocol is supported by the target device, call the
+     *   [AdbHostServices.features] method and look for the "shell_v2" element in the
+     *   resulting [List]. If protocol is not supported by the device, the returned [Flow] throws
+     *   an [AdbFailResponseException].
+     *
+     * @param [device] the [DeviceSelector] corresponding to the target device
+     * @param [command] the shell command to execute
+     * @param [shellCollector] The [ShellV2Collector] invoked to collect the shell command output
+     *   and emit elements to the resulting [Flow]
+     * @param [stdinChannel] is an optional [AdbChannel] providing bytes to send to the `stdin`
+     *   of the shell command
+     * @param [commandTimeout] timeout tracking the command execution, tracking starts *after* the
+     *   device connection has been successfully established. If the command takes more time than
+     *   the timeout, a [TimeoutException] is thrown and the underlying [AdbChannel] is closed.
+     * @param [bufferSize] the size of the buffer used to receive data from shell command output
+     */
+    fun <T> shellV2(
+        device: DeviceSelector,
+        command: String,
+        shellCollector: ShellV2Collector<T>,
         stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
@@ -136,6 +181,81 @@ fun <T> AdbDeviceServices.shellWithIdleMonitoring(
         commandOutputTimeout,
         bufferSize
     ).flow()
+}
+
+/**
+ * Similar to [AdbDeviceServices.shellV2] but captures the command output as a single
+ * [ShellCommandOutput] instance. Both [ShellCommandOutput.stdout] and [ShellCommandOutput.stderr]
+ * are decoded using the [AdbProtocolUtils.ADB_CHARSET]&nbsp;[Charset] character set.
+ *
+ * Note: This method should be used only for commands that output a relatively small
+ * amount of text.
+ */
+suspend fun AdbDeviceServices.shellV2AsText(
+    device: DeviceSelector,
+    command: String,
+    stdinChannel: AdbInputChannel? = null,
+    commandTimeout: Duration = INFINITE_DURATION,
+    bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+): ShellCommandOutput {
+    val collector = TextShellV2Collector()
+    return this.shellV2(device, command, collector, stdinChannel, commandTimeout, bufferSize).first()
+}
+
+/**
+ * The result of [AdbDeviceServices.shellV2AsText]
+ */
+class ShellCommandOutput(
+    /**
+     * The shell command output captured as a single string
+     */
+    val stdout: String,
+    /**
+     * The shell command error output captured as a single string
+     */
+    val stderr: String,
+    /**
+     * The shell command exit code
+     */
+    val exitCode: Int)
+
+/**
+ * Similar to [AdbDeviceServices.shellV2] but captures the command output as a [Flow] of
+ * [ShellCommandOutputElement] objects, which represents the command output (both `stdout`
+ * and `stderr`) split across new line boundaries. The last element of the [Flow] is
+ * always a [ShellCommandOutputElement.ExitCode] element, representing the exit code
+ * of the shell command.
+ */
+fun AdbDeviceServices.shellV2AsLines(
+    device: DeviceSelector,
+    command: String,
+    stdinChannel: AdbInputChannel? = null,
+    commandTimeout: Duration = INFINITE_DURATION,
+    bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+): Flow<ShellCommandOutputElement> {
+    val collector = MultiLineShellV2Collector()
+    return this.shellV2(device, command, collector, stdinChannel, commandTimeout, bufferSize)
+}
+
+/**
+ * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellV2AsLines]
+ */
+sealed class ShellCommandOutputElement {
+    /**
+     * A `stdout` text line of the shell command
+     */
+    class StdoutLine(val contents: String) : ShellCommandOutputElement()
+
+    /**
+     * A `stderr` text line of the shell command
+     */
+    class StderrLine(val contents: String) : ShellCommandOutputElement()
+
+    /**
+     * The exit code of the shell command. This is always the last entry of the [Flow] returned by
+     * [AdbDeviceServices.shellV2AsLines].
+     */
+    class ExitCode(val exitCode: Int) : ShellCommandOutputElement()
 }
 
 /**
