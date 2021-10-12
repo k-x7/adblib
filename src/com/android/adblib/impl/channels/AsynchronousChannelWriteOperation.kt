@@ -54,10 +54,7 @@ abstract class AsynchronousChannelWriteOperation(
     }
 
     override fun completed(result: Int, continuation: CancellableContinuation<Int>) {
-        host.logger.debug(
-            "${javaClass.simpleName}.writeAsync completed successfully (%d bytes)",
-            result
-        )
+        host.logger.debug("${javaClass.simpleName}.writeAsync completed successfully ($result bytes)")
         continuation.resume(result)
     }
 

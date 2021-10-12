@@ -49,7 +49,7 @@ abstract class AsynchronousChannelWriteExactlyOperation(
    }
 
    override fun completed(result: Int, continuation: CancellableContinuation<Unit>) {
-       host.logger.debug("${javaClass.simpleName}.writeAsync completed successfully (%d bytes)", result)
+       host.logger.debug("${javaClass.simpleName}.writeAsync completed successfully ($result bytes)")
        // Buffer is fully read, finish operation
        if (!hasRemaining) {
            continuation.resume(Unit)

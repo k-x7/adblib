@@ -45,10 +45,7 @@ abstract class AsynchronousChannelReadOperation(
     }
 
     override fun completed(byteCount: Int, continuation: CancellableContinuation<Int>) {
-        host.logger.debug(
-            "${javaClass.simpleName}.readAsync completed successfully (%d bytes)",
-            byteCount
-        )
+        host.logger.debug("${javaClass.simpleName}.readAsync completed successfully ($byteCount bytes)")
         continuation.resume(byteCount)
     }
 

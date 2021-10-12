@@ -59,10 +59,7 @@ abstract class AsynchronousChannelReadExactlyOperation(
             continuation.resumeWithException(EOFException("Unexpected end of asynchronous channel"))
             return
         }
-        host.logger.debug(
-            "${javaClass.simpleName}.readAsync completed successfully (%d bytes)",
-            result
-        )
+        host.logger.debug("${javaClass.simpleName}.readAsync completed successfully ($result bytes)")
 
         // Buffer full, done reading
         if (!hasRemaining) {

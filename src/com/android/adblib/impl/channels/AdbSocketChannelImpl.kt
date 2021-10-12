@@ -124,10 +124,7 @@ class AdbSocketChannelImpl(
             get() = socketChannel
 
         override fun readChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Int>) {
-            host.logger.debug(
-                "${javaClass.simpleName}.readChannel of maximum %d bytes",
-                buffer.remaining()
-            )
+            host.logger.debug("${javaClass.simpleName}.readChannel of maximum ${buffer.remaining()} bytes")
             socketChannel.read(buffer, timeout.remainingTime, timeout.timeUnit, continuation, this)
         }
     }

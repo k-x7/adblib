@@ -197,7 +197,7 @@ internal class AdbDeviceServicesImpl(
                     host.logger.warn("Skipping shell protocol packet (kind=\"${packetKind}\")")
                 }
             }
-            host.logger.debug("\"%s\" - packet process successfully", service)
+            host.logger.debug("\"${service}\" - packet processed successfully")
         }
     }
 

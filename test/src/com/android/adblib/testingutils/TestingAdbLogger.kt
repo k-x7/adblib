@@ -20,7 +20,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 class TestingAdbLogger(
-    var minLevel: Level = Level.VERBOSE,
+    override var minLevel: Level = Level.VERBOSE,
     var logDeltaTime: Boolean = true
 ) : AdbLogger() {
 
