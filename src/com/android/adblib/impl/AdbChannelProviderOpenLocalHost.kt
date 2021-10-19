@@ -34,7 +34,7 @@ class AdbChannelProviderOpenLocalHost(
     override suspend fun createChannel(timeout: TimeoutTracker): AdbChannel {
         // Runs code block on the IO Dispatcher to ensure caller is never blocked on this call
         return withContext(host.ioDispatcher) {
-            host.logger.info("Opening ADB connection on local host addresses, timeout=$timeout")
+            host.logger.debug { "Opening ADB connection on local host addresses, timeout=$timeout" }
 
             // Acquire port from supplier before anything else
             val port = portSupplier()
@@ -65,7 +65,7 @@ class AdbChannelProviderOpenLocalHost(
             val message = "Cannot connect to an active ADB server on any of the following " +
                     "addresses: ${addresses.joinToString { it.toString() }}"
             val error = IOException(message).withSuppressed(suppressedExceptions)
-            host.logger.info(error, "Error connecting to local ADB instance")
+            host.logger.info(error) { "Error connecting to local ADB instance" }
             throw error
         }
     }

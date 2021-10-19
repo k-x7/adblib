@@ -40,7 +40,7 @@ internal class AdbDeviceServicesImpl(
         commandTimeout: Duration,
         bufferSize: Int,
     ): Flow<T> = flow {
-        host.logger.info("Device \"${device}\" - Start execution of shell command \"$command\" (bufferSize=$bufferSize bytes)")
+        host.logger.info { "Device \"${device}\" - Start execution of shell command \"$command\" (bufferSize=$bufferSize bytes)" }
         // Note: We only track the time to launch the shell command, since command execution
         // itself can take an arbitrary amount of time.
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
@@ -49,7 +49,7 @@ internal class AdbDeviceServicesImpl(
         channel.use {
             // We switched the channel to the right transport (i.e. device), now send the service request
             val service = getShellServiceString(ShellProtocol.V1, command)
-            host.logger.debug("\"${service}\" - sending local service request to ADB daemon, timeout: $tracker")
+            host.logger.debug { "\"${service}\" - sending local service request to ADB daemon, timeout: $tracker" }
             serviceRunner.sendAbdServiceRequest(channel, workBuffer, service, tracker)
             serviceRunner.consumeOkayFailResponse(channel, workBuffer, tracker)
 
@@ -96,7 +96,7 @@ internal class AdbDeviceServicesImpl(
         channel.use {
             // We switched the channel to the right transport (i.e. device), now send the service request
             val localService = getShellServiceString(ShellProtocol.V2, command)
-            host.logger.debug("\${localService}\" - sending local service request to ADB daemon, timeout: $tracker")
+            host.logger.debug { "\${localService}\" - sending local service request to ADB daemon, timeout: $tracker" }
             serviceRunner.sendAbdServiceRequest(channel, workBuffer, localService, tracker)
             serviceRunner.consumeOkayFailResponse(channel, workBuffer, tracker)
 
@@ -133,10 +133,10 @@ internal class AdbDeviceServicesImpl(
         shellCollector: ShellCollector<T>,
         flowCollector: FlowCollector<T>
     ) {
-        host.logger.debug("\"${service}\" - Collecting messages from shell command output")
+        host.logger.debug { "\"${service}\" - Collecting messages from shell command output" }
         shellCollector.start(flowCollector, transportId)
         while (true) {
-            host.logger.verbose("\"${service}\" - Waiting for next message from shell command output")
+            host.logger.verbose { "\"${service}\" - Waiting for next message from shell command output" }
 
             // Note: We use an infinite timeout here as shell commands can take arbitrary amount
             //       of time to execute and produce output.
@@ -149,11 +149,11 @@ internal class AdbDeviceServicesImpl(
             val buffer = workBuffer.afterChannelRead()
             assert(buffer.remaining() == byteCount)
 
-            host.logger.verbose("\"${service}\" - Emitting packet of $byteCount bytes")
+            host.logger.verbose { "\"${service}\" - Emitting packet of $byteCount bytes" }
             shellCollector.collect(flowCollector, buffer)
         }
         shellCollector.end(flowCollector)
-        host.logger.debug("\"${service}\" - Done collecting messages from shell command output")
+        host.logger.debug { "\"${service}\" - Done collecting messages from shell command output" }
     }
 
     private suspend fun <T> collectShellCommandOutputV2Format(
@@ -164,7 +164,7 @@ internal class AdbDeviceServicesImpl(
         shellCollector: ShellV2Collector<T>,
         flowCollector: FlowCollector<T>
     ) {
-        host.logger.debug("\"${service}\" - Waiting for next shell protocol packet")
+        host.logger.debug { "\"${service}\" - Waiting for next shell protocol packet" }
         shellCollector.start(flowCollector, transportId)
         val shellProtocol = ShellV2ProtocolHandler(channel, workBuffer)
 
@@ -174,17 +174,17 @@ internal class AdbDeviceServicesImpl(
             val (packetKind, packetBuffer) = shellProtocol.readPacket(INFINITE)
             when (packetKind) {
                 ShellV2PacketKind.STDOUT -> {
-                    host.logger.debug("Received stdout buffer of ${packetBuffer.remaining()} bytes")
+                    host.logger.debug { "Received stdout buffer of ${packetBuffer.remaining()} bytes" }
                     shellCollector.collectStdout(flowCollector, packetBuffer)
                 }
                 ShellV2PacketKind.STDERR -> {
-                    host.logger.debug("Received stderr buffer of ${packetBuffer.remaining()} bytes")
+                    host.logger.debug { "Received stderr buffer of ${packetBuffer.remaining()} bytes" }
                     shellCollector.collectStderr(flowCollector, packetBuffer)
                 }
                 ShellV2PacketKind.EXIT_CODE -> {
                     // Ensure value is unsigned
                     val exitCode = packetBuffer.get().toInt() and 0xFF
-                    host.logger.debug("Received shell command exit code=${exitCode}")
+                    host.logger.debug { "Received shell command exit code=${exitCode}" }
                     shellCollector.end(flowCollector, exitCode)
 
                     // There should be no messages after the exit code
@@ -197,7 +197,7 @@ internal class AdbDeviceServicesImpl(
                     host.logger.warn("Skipping shell protocol packet (kind=\"${packetKind}\")")
                 }
             }
-            host.logger.debug("\"${service}\" - packet processed successfully")
+            host.logger.debug { "\"${service}\" - packet processed successfully" }
         }
     }
 
@@ -219,7 +219,7 @@ internal class AdbDeviceServicesImpl(
         bufferSize: Int
     ) {
         stdInput.forwardTo(host, shellCommandChannel, bufferSize)
-        host.logger.info("forwardStdInput - input channel has reached EOF, sending EOF to shell host")
+        host.logger.info { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
         shellCommandChannel.shutdownOutput()
     }
 

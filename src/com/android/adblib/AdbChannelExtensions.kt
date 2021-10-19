@@ -15,18 +15,18 @@ suspend fun AdbInputChannel.forwardTo(
     outputChannel: AdbOutputChannel,
     bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ) {
-    host.logger.info("forwardChannel - Forwarding input channel to output channel using buffer of size $bufferSize bytes")
+    host.logger.info { "forwardChannel - Forwarding input channel to output channel using buffer of size $bufferSize bytes" }
     val buffer = ByteBuffer.allocate(bufferSize)
     while (true) {
         buffer.clear()
         val byteCount = read(buffer, TimeoutTracker.INFINITE)
         if (byteCount < 0) {
             // EOF, nothing left to forward
-            host.logger.info("forwardChannel - end of input channel reached, done")
+            host.logger.info { "forwardChannel - end of input channel reached, done" }
             break
         }
 
-        host.logger.debug("forwardChannel - forwarding packet of $byteCount bytes")
+        host.logger.debug { "forwardChannel - forwarding packet of $byteCount bytes" }
         buffer.flip()
         outputChannel.writeExactly(buffer, TimeoutTracker.INFINITE)
     }

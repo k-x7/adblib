@@ -53,7 +53,7 @@ class AdbLibSession(
         //      way to track and release all resources acquired from this session. For example,
         //      we may want to close all connections to the ADB server that were opened
         //      from this session.
-        host.logger.info("Closing session")
+        host.logger.debug { "Closing session" }
         closed = true
     }
 

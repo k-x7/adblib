@@ -16,13 +16,31 @@
 package com.android.adblib.testingutils
 
 import com.android.adblib.AdbLogger
+import com.android.adblib.AdbLoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-class TestingAdbLogger(
+class TestingAdbLoggerFactory : AdbLoggerFactory {
+
+    override val logger: AdbLogger by lazy {
+        TestingAdbLogger()
+    }
+
+    override fun createLogger(cls: Class<*>): AdbLogger {
+        return createLogger(cls.simpleName)
+    }
+
+    override fun createLogger(category: String): AdbLogger {
+        return TestingAdbLoggerWithPrefix(category)
+    }
+}
+
+open class TestingAdbLogger(
     override var minLevel: Level = Level.VERBOSE,
     var logDeltaTime: Boolean = true
 ) : AdbLogger() {
+
+    open val prefix: String = "adblib"
 
     private var previousInstant: Instant? = null
 
@@ -33,20 +51,28 @@ class TestingAdbLogger(
                 synchronized(this) {
                     val prevInstant = previousInstant ?: newInstant
                     previousInstant = newInstant
-
                     println(
                         String.format(
-                            "[%s%s] [adblib] [%-40s] %s: %s",
+                            "[%s%s] [%-15s] %7s - %30s - %s",
                             formatInstant(newInstant),
-                            deltaInstant(newInstant, prevInstant),
-                            Thread.currentThread().name,
-                            level,
+                            if (logDeltaTime) deltaInstant(newInstant, prevInstant) else "",
+                            Thread.currentThread().name.takeLast(15),
+                            level.toString().takeLast(7),
+                            prefix.takeLast(30),
                             message
                         )
                     )
                 }
             } else {
-                println(String.format("[adblib] [%-40s] %s: %s", Thread.currentThread().name, level, message))
+                println(
+                    String.format(
+                        "[%-15s] %7s - %30s - %s",
+                        Thread.currentThread().name.takeLast(15),
+                        level.toString().takeLast(7),
+                        prefix.takeLast(30),
+                        message
+                    )
+                )
             }
         }
     }
@@ -55,7 +81,7 @@ class TestingAdbLogger(
         // We want to log xxx.y "milliseconds"
         val micros = ChronoUnit.MICROS.between(prevInstant, newInstant) / 100
         return if (micros > 0L) {
-            val microsString = String.format("%4s", micros)//.replace(' ', '0')
+            val microsString = String.format("%4s", micros)
             String.format("(+%s.%sms)", microsString.substring(0, 3), microsString.substring(3, 4))
         } else {
             "          "
@@ -72,3 +98,5 @@ class TestingAdbLogger(
         }
     }
 }
+
+class TestingAdbLoggerWithPrefix(override val prefix: String) : TestingAdbLogger()

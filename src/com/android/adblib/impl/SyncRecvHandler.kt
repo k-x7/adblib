@@ -22,9 +22,11 @@ import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.DeviceSelector
 import com.android.adblib.SyncProgress
 import com.android.adblib.impl.services.AdbServiceRunner
+import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.withContext
+import com.android.adblib.withPrefix
 import java.nio.ByteOrder
 
 /**
@@ -38,7 +40,7 @@ internal class SyncRecvHandler(
     private val deviceChannel: AdbChannel
 ) {
 
-    private val logPrefix = "device:$device,sync:SEND"
+    private val logger = thisLogger(host).withPrefix("device:$device,sync:RECV - ")
 
     private val host: AdbLibHost
         get() = serviceRunner.host
@@ -70,13 +72,10 @@ internal class SyncRecvHandler(
         progress: SyncProgress
     ) {
         withContext(host.ioDispatcher) {
-            host.logger.info("$logPrefix: RECV \"$remoteFilePath\" -> $destinationChannel")
+            logger.info { "\"$remoteFilePath\" -> $destinationChannel" }
 
             if (remoteFilePath.length > REMOTE_PATH_MAX_LENGTH) {
-                host.logger.warn(
-                    "$logPrefix: RECV \"$remoteFilePath\": "
-                            + "Remote path length is too long ($REMOTE_PATH_MAX_LENGTH)"
-                )
+                logger.warn("\"$remoteFilePath\": Remote path length is too long ($REMOTE_PATH_MAX_LENGTH)")
                 throw IllegalArgumentException(
                     "Remote paths are limited to $REMOTE_PATH_MAX_LENGTH characters"
                 )
@@ -96,7 +95,7 @@ internal class SyncRecvHandler(
     private suspend fun startRecvRequest(remoteFilePath: String, progress: SyncProgress) {
         progress.transferStarted(remoteFilePath)
 
-        host.logger.debug("$logPrefix: RECV: sending \"RECV\" command to device $device")
+        logger.debug { "sending \"RECV\" command to device $device" }
         // Bytes 0-3: 'RECV'
         // Bytes 4-7: request size (little endian)
         // Bytes 8-xx: An utf-8 string with the remote file path

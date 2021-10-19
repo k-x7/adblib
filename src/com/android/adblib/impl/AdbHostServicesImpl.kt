@@ -86,12 +86,13 @@ internal class AdbHostServicesImpl(
         try {
             val workBuffer = serviceRunner.newResizableBuffer()
             serviceRunner.startHostQuery(workBuffer, "host:kill", tracker).use {
-                host.logger.info("ADB server was killed, timeout left is $tracker")
+                host.logger.info { "ADB server was killed, timeout left is $tracker" }
             }
         } catch (e: EOFException) {
-            host.logger
-                .info("Received EOF instead of OKAY response. This can happen, as server was killed just after " +
-                              "sending OKAY")
+            host.logger.info {
+                "Received EOF instead of OKAY response. This can happen, " +
+                        "as server was killed just after sending OKAY"
+            }
         }
     }
 

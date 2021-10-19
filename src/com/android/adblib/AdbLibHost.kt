@@ -14,7 +14,13 @@ abstract class AdbLibHost : AutoCloseable {
     open val timeProvider: SystemNanoTimeProvider
         get() = SystemNanoTime()
 
-    abstract val logger: AdbLogger
+    /**
+     * The "main" or "root" logger from the [loggerFactory]
+     */
+    val logger: AdbLogger
+        get() = loggerFactory.logger
+
+    abstract val loggerFactory: AdbLoggerFactory
 
     /**
      * The [AsynchronousChannelGroup] used for running [java.nio.channels.AsynchronousSocketChannel] completions.

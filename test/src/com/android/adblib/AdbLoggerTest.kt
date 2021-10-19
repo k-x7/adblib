@@ -27,7 +27,7 @@ class AdbLoggerTest {
         val testLogger = MyAdbLogger()
 
         // Act
-        testLogger.debug("foo")
+        testLogger.debug { "foo" }
         testLogger.error(IOException(), "bar")
         testLogger.log(AdbLogger.Level.ERROR, "foo2bar")
         testLogger.log(AdbLogger.Level.ERROR, RuntimeException(), "foo3bar")
@@ -58,18 +58,18 @@ class AdbLoggerTest {
         val loggerFunctions: List<LoggerOverloads> = listOf(
             LoggerOverloads(
                 AdbLogger.Level.VERBOSE,
-                AdbLogger::verbose,
-                AdbLogger::verbose,
+                { s -> verbose { s } },
+                { e, s -> verbose(e) { s } },
             ),
             LoggerOverloads(
                 AdbLogger.Level.DEBUG,
-                AdbLogger::debug,
-                AdbLogger::debug,
+                { s -> debug { s } },
+                { e, s -> debug(e) { s } },
             ),
             LoggerOverloads(
                 AdbLogger.Level.INFO,
-                AdbLogger::info,
-                AdbLogger::info,
+                { s -> info { s } },
+                { e, s -> info(e) { s } },
             ),
             LoggerOverloads(
                 AdbLogger.Level.WARN,
@@ -126,9 +126,9 @@ class AdbLoggerTest {
         data class Entry(val level: Level, val message: String, val exception: Throwable?)
     }
 
-    class LoggerOverloads(
+    open class LoggerOverloads(
         val level: AdbLogger.Level,
         val fun1: AdbLogger.(String) -> Unit,
-        val fun2: AdbLogger.(exception: Throwable, message: String) -> Unit,
+        val fun2: AdbLogger.(exception: Throwable, message: String) -> Unit
     )
 }

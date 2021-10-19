@@ -84,19 +84,19 @@ internal class ShellWithIdleMonitoring<T>(
             get() = this::class.java.simpleName
 
         override suspend fun start(collector: FlowCollector<T>, transportId: Long?) {
-            host.logger.verbose("$logPrefix.start")
+            host.logger.verbose { "$logPrefix.start" }
             heartbeatChannel.send(Unit)
             delegate.start(collector, transportId)
         }
 
         override suspend fun collect(collector: FlowCollector<T>, stdout: ByteBuffer) {
-            host.logger.verbose("$logPrefix.collect")
+            host.logger.verbose { "$logPrefix.collect" }
             heartbeatChannel.send(Unit)
             delegate.collect(collector, stdout)
         }
 
         override suspend fun end(collector: FlowCollector<T>) {
-            host.logger.verbose("$logPrefix.end")
+            host.logger.verbose { "$logPrefix.end" }
             heartbeatChannel.send(Unit)
             delegate.end(collector)
         }

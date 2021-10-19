@@ -2,6 +2,7 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
+import com.android.adblib.thisLogger
 import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -18,6 +19,8 @@ abstract class AsynchronousChannelReadOperation(
     protected val host: AdbLibHost,
     private val timeout: TimeoutTracker
 ) : CompletionHandler<Int, CancellableContinuation<Int>> {
+
+    private val logger = thisLogger(host)
 
     protected abstract val channel: Channel
 
@@ -45,7 +48,7 @@ abstract class AsynchronousChannelReadOperation(
     }
 
     override fun completed(byteCount: Int, continuation: CancellableContinuation<Int>) {
-        host.logger.debug("${javaClass.simpleName}.readAsync completed successfully ($byteCount bytes)")
+        logger.verbose { "readAsync completed successfully ($byteCount bytes)" }
         continuation.resume(byteCount)
     }
 

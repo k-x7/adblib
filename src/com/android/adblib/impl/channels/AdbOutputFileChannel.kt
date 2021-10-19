@@ -17,6 +17,7 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbOutputChannel
+import com.android.adblib.thisLogger
 import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import java.nio.ByteBuffer
@@ -33,7 +34,7 @@ internal class AdbOutputFileChannel(
     private val fileChannel: AsynchronousFileChannel
 ) : AdbOutputChannel {
 
-    private val loggerPrefix = javaClass.simpleName
+    private val logger = thisLogger(host)
 
     private var filePosition = 0L
 
@@ -43,7 +44,7 @@ internal class AdbOutputFileChannel(
 
     @Throws(Exception::class)
     override fun close() {
-        host.logger.debug("$loggerPrefix: closing output channel for \"$file\"")
+        logger.debug { "closing output channel for \"$file\"" }
         fileChannel.close()
     }
 

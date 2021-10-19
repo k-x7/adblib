@@ -2,6 +2,7 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
+import com.android.adblib.thisLogger
 import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -13,20 +14,19 @@ const val DEFAULT_CHANNEL_BUFFER_SIZE = 8_192
 /**
  * Implementation of [AdbInputChannel] over an arbitrary [InputStream]
  */
-internal open class AdbInputStreamChannel(
+internal class AdbInputStreamChannel(
     private val host: AdbLibHost,
     private val stream: InputStream,
     bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ) : AdbInputChannel {
 
-    private val loggerPrefix: String
-        get() = javaClass.simpleName
+    private val logger = thisLogger(host)
 
     private val bytes = ByteArray(bufferSize)
 
     @Throws(Exception::class)
     override fun close() {
-        host.logger.debug("${loggerPrefix}: Closing")
+        logger.debug { "Closing" }
         stream.close()
     }
 
@@ -37,7 +37,7 @@ internal open class AdbInputStreamChannel(
             //           within the context of the IO dispatcher, so we are ok.
             @Suppress("BlockingMethodInNonBlockingContext")
             val count = stream.read(bytes, 0, min(bytes.size, buffer.remaining()))
-            host.logger.debug("${loggerPrefix}: Read $count bytes from input stream")
+            logger.debug { "Read $count bytes from input stream" }
             if (count > 0) {
                 buffer.put(bytes, 0, count)
             }

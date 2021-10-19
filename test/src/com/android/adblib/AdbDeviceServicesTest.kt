@@ -21,6 +21,7 @@ import com.android.adblib.impl.channels.AdbOutputStreamChannel
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
+import com.android.adblib.testingutils.TestingAdbLogger
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.MultiLineShellCollector
 import com.android.adblib.utils.ResizableBuffer
@@ -240,6 +241,8 @@ class AdbDeviceServicesTest {
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val fakeDevice = addFakeDevice(fakeAdb)
         val host = registerCloseable(TestingAdbLibHost())
+        // To ensure we don't spam the log during this test
+        (host.logger as TestingAdbLogger).minLevel = host.logger.minLevel.coerceAtLeast(AdbLogger.Level.INFO)
         val channelProvider = fakeAdb.createChannelProvider(host)
         val deviceServices = createDeviceServices(host, channelProvider)
         val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
@@ -252,8 +255,6 @@ class AdbDeviceServicesTest {
             - ⿉⿉⿉⿉⿉⿉⿉ (KANGXI RADICAL MILLET (U+2FC9))
 
         """.trimIndent().repeat(100)
-        // To ensure we don't spam the log during this test
-        host.logger.minLevel = host.logger.minLevel.coerceAtLeast(AdbLogger.Level.INFO)
 
         // Act
         val commandOutput = runBlocking {

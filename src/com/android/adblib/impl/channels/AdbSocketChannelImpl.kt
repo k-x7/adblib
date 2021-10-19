@@ -2,6 +2,7 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbLibHost
+import com.android.adblib.thisLogger
 import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -26,6 +27,8 @@ class AdbSocketChannelImpl(
     private val socketChannel: AsynchronousSocketChannel
 ) : AdbChannel {
 
+    private val logger = thisLogger(host)
+
     /**
      * Tell whether or not the underlying [AsynchronousSocketChannel] is open.
      */
@@ -38,26 +41,26 @@ class AdbSocketChannelImpl(
 
     @Throws(Exception::class)
     override fun close() {
-        host.logger.debug("Closing ${javaClass.simpleName}")
+        logger.debug { "Closing socket channel" }
         socketChannel.close()
     }
 
     suspend fun connect(address: InetSocketAddress, timeout: TimeoutTracker) {
-        host.logger.debug("Connecting ${javaClass.simpleName} at address $address, timeout=$timeout")
-        return ConnectOperation(host, socketChannel, address, timeout).execute()
+        logger.debug { "Connecting to IP address $address, timeout=$timeout" }
+        return ConnectOperation(address, timeout).execute()
     }
 
     override suspend fun write(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
-        return WriteOperation(host, timeout, socketChannel, buffer).execute()
+        return WriteOperation(buffer, timeout).execute()
     }
 
     override suspend fun writeExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
-        return WriteExactlyOperation(host, timeout, socketChannel, buffer).execute()
+        return WriteExactlyOperation(buffer, timeout).execute()
     }
 
     override suspend fun shutdownInput() {
         withContext(host.ioDispatcher) {
-            host.logger.debug("Shutting down input channel of ${javaClass.simpleName}")
+            logger.debug { "Shutting down input channel" }
             @Suppress("BlockingMethodInNonBlockingContext")
             socketChannel.shutdownInput()
         }
@@ -65,25 +68,23 @@ class AdbSocketChannelImpl(
 
     override suspend fun shutdownOutput() {
         withContext(host.ioDispatcher) {
-            host.logger.debug("Shutting down output channel of ${javaClass.simpleName}")
+            logger.debug { "Shutting down output channel" }
             @Suppress("BlockingMethodInNonBlockingContext")
             socketChannel.shutdownOutput()
         }
     }
 
     override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
-        return ReadOperation(host, timeout, socketChannel, buffer).execute()
+        return ReadOperation(buffer, timeout).execute()
     }
 
     override suspend fun readExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
-        return ReadExactlyOperation(host, timeout, socketChannel, buffer).execute()
+        return ReadExactlyOperation(buffer, timeout).execute()
     }
 
-    private class ConnectOperation(
-        private val host: AdbLibHost,
-        private val socketChannel: AsynchronousSocketChannel,
+    private inner class ConnectOperation(
         private val address: InetSocketAddress,
-        private val timeout: TimeoutTracker
+        private val timeout: TimeoutTracker,
     ) : CompletionHandler<Void?, CancellableContinuation<Unit>> {
 
         suspend fun execute() {
@@ -102,38 +103,34 @@ class AdbSocketChannelImpl(
         }
 
         override fun completed(result: Void?, continuation: CancellableContinuation<Unit>) {
-            host.logger.debug("Connection completed successfully, timeout=$timeout")
+            logger.debug { "Connection completed successfully, timeout=$timeout" }
             continuation.resume(Unit)
         }
 
         override fun failed(exc: Throwable, continuation: CancellableContinuation<Unit>) {
             val error = IOException("Error connecting channel to address '$address'", exc)
-            host.logger.info(error, "Connection failed")
+            logger.info(error) { "Connection failed" }
             continuation.resumeWithException(error)
         }
     }
 
-    private class ReadOperation(
-        host: AdbLibHost,
+    private inner class ReadOperation(
+        private val buffer: ByteBuffer,
         timeout: TimeoutTracker,
-        private val socketChannel: AsynchronousSocketChannel,
-        private val buffer: ByteBuffer
     ) : AsynchronousChannelReadOperation(host, timeout) {
 
         override val channel: Channel
             get() = socketChannel
 
         override fun readChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Int>) {
-            host.logger.debug("${javaClass.simpleName}.readChannel of maximum ${buffer.remaining()} bytes")
+            logger.debug { "ReadChannel of maximum ${buffer.remaining()} bytes" }
             socketChannel.read(buffer, timeout.remainingTime, timeout.timeUnit, continuation, this)
         }
     }
 
-    private class ReadExactlyOperation(
-        host: AdbLibHost,
+    private inner class ReadExactlyOperation(
+        private val buffer: ByteBuffer,
         timeout: TimeoutTracker,
-        private val socketChannel: AsynchronousSocketChannel,
-        private val buffer: ByteBuffer
     ) : AsynchronousChannelReadExactlyOperation(host, timeout) {
 
         override val hasRemaining: Boolean
@@ -147,11 +144,9 @@ class AdbSocketChannelImpl(
         }
     }
 
-    private class WriteOperation(
-        host: AdbLibHost,
+    private inner class WriteOperation(
+        private val buffer: ByteBuffer,
         timeout: TimeoutTracker,
-        private val socketChannel: AsynchronousSocketChannel,
-        private val buffer: ByteBuffer
     ) : AsynchronousChannelWriteOperation(host, timeout) {
 
         override val hasRemaining: Boolean
@@ -171,11 +166,9 @@ class AdbSocketChannelImpl(
         }
     }
 
-    private class WriteExactlyOperation(
-        host: AdbLibHost,
+    private inner class WriteExactlyOperation(
+        private val buffer: ByteBuffer,
         timeout: TimeoutTracker,
-        private val socketChannel: AsynchronousSocketChannel,
-        private val buffer: ByteBuffer
     ) : AsynchronousChannelWriteExactlyOperation(host, timeout) {
 
         override val hasRemaining: Boolean
@@ -216,7 +209,7 @@ fun Closeable.closeOnCancel(
     try {
         cont.invokeOnCancellation {
             try {
-                host.logger.debug("Closing ${javaClass.simpleName} because suspended coroutine for asynchronous \"${operationId}\" has been cancelled")
+                host.logger.debug { "Closing ${javaClass.simpleName} because suspended coroutine for asynchronous \"${operationId}\" has been cancelled" }
                 close()
             } catch (t: Throwable) {
                 // Specification says that it is Ok to call it any time, but reality is different,

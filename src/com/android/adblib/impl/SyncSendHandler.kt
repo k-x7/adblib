@@ -22,8 +22,10 @@ import com.android.adblib.DeviceSelector
 import com.android.adblib.RemoteFileMode
 import com.android.adblib.SyncProgress
 import com.android.adblib.impl.services.AdbServiceRunner
+import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.TimeoutTracker
+import com.android.adblib.withPrefix
 import kotlinx.coroutines.withContext
 import java.nio.ByteOrder
 import java.nio.file.attribute.FileTime
@@ -39,7 +41,7 @@ internal class SyncSendHandler(
     private val deviceChannel: AdbChannel
 ) {
 
-    private val logPrefix = "device:$device,sync:SEND"
+    private val logger = thisLogger(host).withPrefix("device:$device,sync:SEND - ")
 
     private val host: AdbLibHost
         get() = serviceRunner.host
@@ -86,7 +88,7 @@ internal class SyncSendHandler(
         withContext(host.ioDispatcher) {
             // Note: ADB daemon implementation
             //       See [https://cs.android.com/android/platform/superproject/+/fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f:packages/modules/adb/daemon/file_sync_service.cpp;l=498;drc=fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f;bpv=0;bpt=1]
-            host.logger.info("$logPrefix: $sourceChannel -> \"$remoteFilePath\"")
+            logger.info { "$sourceChannel -> \"$remoteFilePath\"" }
 
             if (remoteFilePath.length > REMOTE_PATH_MAX_LENGTH) {
                 throw IllegalArgumentException("Remote paths are limited to $REMOTE_PATH_MAX_LENGTH characters")
@@ -122,7 +124,7 @@ internal class SyncSendHandler(
     ) {
         progress.transferStarted(remoteFilePath)
 
-        host.logger.debug("$logPrefix - Starting sync request to \"$remoteFilePath\"")
+        logger.debug { "Starting sync request to \"$remoteFilePath\"" }
         // Bytes 0-3: 'SEND'
         // Bytes 4-7: request size (little endian)
         // Bytes 8-xx: An utf-8 string with the remote file path followed by ','
@@ -163,7 +165,7 @@ internal class SyncSendHandler(
                 )
             if (byteCount < 0) {
                 // We reached EOF, we are done
-                host.logger.debug("$logPrefix - Done reading bytes from source channel $sourceChannel")
+                logger.debug { "Done reading bytes from source channel $sourceChannel" }
                 break
             }
 
@@ -176,7 +178,7 @@ internal class SyncSendHandler(
             progress.transferProgress(remoteFilePath, totalBytesSoFar)
         }
 
-        host.logger.debug("$logPrefix - Done writing bytes to channel $deviceChannel ($totalBytesSoFar bytes written)")
+        logger.debug { "Done writing bytes to channel $deviceChannel ($totalBytesSoFar bytes written)" }
         return totalBytesSoFar
     }
 
@@ -186,7 +188,7 @@ internal class SyncSendHandler(
         progress: SyncProgress,
         byteCount: Long
     ) {
-        host.logger.debug("$logPrefix - Committing remote file $remoteFilePath ($byteCount bytes)")
+        logger.debug { "Committing remote file $remoteFilePath ($byteCount bytes)" }
 
         // Bytes 0-3: 'DONE'
         // Bytes 4-7: modified date (since epoch, in seconds)

@@ -8,6 +8,7 @@ import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.DeviceSelector
+import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TimeoutTracker
@@ -27,6 +28,8 @@ private const val TRANSPORT_ID_BYTE_COUNT = 8
  */
 class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbChannelProvider) {
 
+    private val logger = thisLogger(host)
+
     /**
      * Opens an [AdbChannel] and invokes a service on the ADB host, then waits for an OKAY/FAIL
      * response.
@@ -43,11 +46,11 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
         timeout: TimeoutTracker
     ): AdbChannel {
         val logPrefix = "Running ADB server query \"${service}\" -"
-        host.logger.debug("$logPrefix opening connection to ADB server, timeout=$timeout")
+        logger.debug { "$logPrefix opening connection to ADB server, timeout=$timeout" }
         channelProvider.createChannel(timeout).closeOnException { channel ->
-            host.logger.debug("$logPrefix sending request to ADB server, timeout=$timeout")
+            logger.debug { "$logPrefix sending request to ADB server, timeout=$timeout" }
             sendAbdServiceRequest(channel, workBuffer, service, timeout)
-            host.logger.debug("$logPrefix receiving response from ADB server, timeout=$timeout")
+            logger.debug { "$logPrefix receiving response from ADB server, timeout=$timeout" }
             consumeOkayFailResponse(channel, workBuffer, timeout)
             workBuffer.clear()
             return channel
@@ -66,7 +69,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
         val workBuffer = newResizableBuffer()
         startHostQuery(workBuffer, service, timeout).use { channel ->
             val buffer = readLengthPrefixedData(channel, workBuffer, timeout)
-            host.logger.debug("\"${service}\" - read ${buffer.remaining()} byte(s), timeout=$timeout")
+            logger.debug { "\"${service}\" - read ${buffer.remaining()} byte(s), timeout=$timeout" }
             return AdbProtocolUtils.byteBufferToString(buffer)
         }
     }
@@ -232,7 +235,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
             if (deviceSelector.responseContainsTransportId) {
                 transportId = consumeTransportId(channel, workBuffer, timeout)
             }
-            host.logger.debug("ADB transport was switched to \"${transportPrefix}\", timeout left is $timeout")
+            logger.debug { "ADB transport was switched to \"${transportPrefix}\", timeout left is $timeout" }
             return Pair(channel, transportId)
         }
     }
@@ -247,7 +250,7 @@ class AdbServiceRunner(val host: AdbLibHost, private val channelProvider: AdbCha
         channel.readExactly(workBuffer.forChannelRead(TRANSPORT_ID_BYTE_COUNT), timeout)
         val buffer = workBuffer.afterChannelRead()
         val transportId = buffer.withOrder(ByteOrder.LITTLE_ENDIAN) { buffer.long }
-        host.logger.debug("Read transport id value of '${transportId}' from response")
+        logger.debug { "Read transport id value of '${transportId}' from response" }
         return transportId
     }
 }

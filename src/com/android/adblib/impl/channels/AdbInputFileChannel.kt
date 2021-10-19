@@ -18,15 +18,11 @@ package com.android.adblib.impl.channels
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
 import com.android.adblib.utils.TimeoutTracker
-import com.android.adblib.utils.closeOnException
 import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousFileChannel
 import java.nio.channels.Channel
-import java.nio.file.OpenOption
 import java.nio.file.Path
-import java.nio.file.StandardOpenOption
 
 /**
  * Implementation of [AdbInputChannel] over a [AsynchronousFileChannel]
@@ -47,7 +43,7 @@ internal class AdbInputFileChannel(
 
     @Throws(Exception::class)
     override fun close() {
-        host.logger.debug("$loggerPrefix: closing input channel for \"$file\"")
+        host.logger.debug { "$loggerPrefix: closing input channel for \"$file\"" }
         fileChannel.close()
     }
 
