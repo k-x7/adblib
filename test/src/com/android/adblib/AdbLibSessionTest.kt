@@ -47,7 +47,7 @@ class AdbLibSessionTest {
         val session = registerCloseable(AdbLibSession(host, channelProvider))
 
         // Act
-        val services = session.createHostServices()
+        val services = session.hostServices
         val version = runBlocking {
             services.version()
         }
@@ -65,7 +65,7 @@ class AdbLibSessionTest {
         val session = registerCloseable(AdbLibSession(host, channelProvider))
 
         // Act
-        /*val services = */ session.createDeviceServices()
+        /*val services = */ session.deviceServices
     }
 
     @Test
@@ -79,7 +79,7 @@ class AdbLibSessionTest {
         // Act
         session.close()
         exceptionRule.expect(IllegalStateException::class.java)
-        /*val services = */ session.createHostServices()
+        /*val services = */ session.hostServices
 
         // Assert
         Assert.fail("Should be unreachable")

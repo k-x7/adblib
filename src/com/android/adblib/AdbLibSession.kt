@@ -15,7 +15,6 @@
  */
 package com.android.adblib
 
-import com.android.adblib.impl.AdbChannelProviderOpenLocalHost
 import com.android.adblib.impl.AdbDeviceServicesImpl
 import com.android.adblib.impl.AdbHostServicesImpl
 import com.android.adblib.impl.channels.AdbChannelFactoryImpl
@@ -35,7 +34,7 @@ class AdbLibSession(
     /**
      * The [AdbChannelProvider] implementation to connect to ADB
      */
-    val channelProvider: AdbChannelProvider = AdbChannelProviderOpenLocalHost(host),
+    val channelProvider: AdbChannelProvider = AdbChannelProviderFactory.createOpenLocalHost(host),
     /**
      * The timeout (in milliseconds) to use when connecting to ADB
      */
@@ -44,9 +43,33 @@ class AdbLibSession(
 
     private var closed = false
 
-    val channelFactory: AdbChannelFactory by lazy {
-        AdbChannelFactoryImpl(host)
-    }
+    /**
+     * An [AdbChannelFactory] that can be used to create various implementations of
+     * [AdbChannel], [AdbInputChannel] and [AdbOutputChannel] for files, streams, etc.
+     */
+    val channelFactory: AdbChannelFactory = AdbChannelFactoryImpl(host)
+        get() {
+            throwIfClosed()
+            return field
+        }
+
+    /**
+     * An [AdbHostServices] implementation for this session.
+     */
+    val hostServices: AdbHostServices = createHostServices()
+        get() {
+            throwIfClosed()
+            return field
+        }
+
+    /**
+     * An [AdbDeviceServices] implementation for this session.
+     */
+    val deviceServices: AdbDeviceServices = createDeviceServices()
+        get() {
+            throwIfClosed()
+            return field
+        }
 
     override fun close() {
         //TODO: Figure out if it would be worthwhile and efficient enough to implement a
@@ -57,8 +80,7 @@ class AdbLibSession(
         closed = true
     }
 
-    fun createHostServices(): AdbHostServices {
-        throwIfClosed()
+    private fun createHostServices(): AdbHostServices {
         return AdbHostServicesImpl(
             host,
             channelProvider,
@@ -67,8 +89,7 @@ class AdbLibSession(
         )
     }
 
-    fun createDeviceServices(): AdbDeviceServices {
-        throwIfClosed()
+    private fun createDeviceServices(): AdbDeviceServices {
         return AdbDeviceServicesImpl(
             host,
             channelProvider,
