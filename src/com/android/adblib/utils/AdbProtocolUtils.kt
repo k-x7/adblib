@@ -39,10 +39,10 @@ object AdbProtocolUtils {
         if (buffer.remaining() < letters.length) {
             return false;
         }
-        return buffer[0] == letters[0].toByte() &&
-                buffer[1] == letters[1].toByte() &&
-                buffer[2] == letters[2].toByte() &&
-                buffer[3] == letters[3].toByte()
+        return buffer.get(0 + buffer.position()) == letters[0].toByte() &&
+                buffer.get(1 + buffer.position()) == letters[1].toByte() &&
+                buffer.get(2 + buffer.position()) == letters[2].toByte() &&
+                buffer.get(3 + buffer.position()) == letters[3].toByte()
     }
 
 
@@ -58,9 +58,11 @@ object AdbProtocolUtils {
         val sb1 = StringBuilder()
         val sb2 = StringBuilder()
         val maxCount = 16
-        for (i in 0 until min(status.capacity(), maxCount)) {
-            sb1.append(String.format("%02X", status[i]))
-            sb2.append(String.format("%c", status[i].toChar()))
+        val position = status.position()
+        for (i in 0 until min(status.remaining(), maxCount)) {
+            val statusByte = status.get(i + position)
+            sb1.append(String.format("%02X", statusByte))
+            sb2.append(String.format("%c", statusByte.toChar()))
         }
         return String.format("0x%s (\"%s\")", sb1, sb2)
     }
