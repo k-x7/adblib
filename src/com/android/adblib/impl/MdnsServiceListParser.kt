@@ -15,6 +15,7 @@
  */
 package com.android.adblib.impl
 
+import com.android.adblib.DeviceAddress
 import com.android.adblib.DeviceErrorInfo
 import com.android.adblib.MdnsServiceInfo
 import com.android.adblib.MdnsServiceList
@@ -36,10 +37,10 @@ private const val PORT = "[0-9]+"
  *
  * Regular expression
  *
- *  `<everything>TAB<everything>TAB<everything>:<port>`
+ *  `<everything>TAB<everything>TAB<everything>`
  */
 private const val SERVICE_LINE_PATTERN =
-    "(${ALL_BUT_TAB})${TAB}(${ALL_BUT_TAB})${TAB}(${ALL_BUT_COLON}):(${PORT})"
+    "(${ALL_BUT_TAB})${TAB}(${ALL_BUT_TAB})${TAB}(${ALL_BUT_TAB})"
 
 class MdnsServiceListParser {
 
@@ -67,11 +68,8 @@ class MdnsServiceListParser {
             try {
                 val instanceName = matchResult.groupValues[1]
                 val serviceName = matchResult.groupValues[2]
-                // Note: getByName supports ipv4 and ipv6 format, including host names, but does
-                //       not perform network checks
-                val ipAddress = InetAddress.getByName(matchResult.groupValues[3])
-                val port = matchResult.groupValues[4].toInt()
-                services.add(MdnsServiceInfo(instanceName, serviceName, ipAddress, port))
+                val deviceAddress = DeviceAddress(matchResult.groupValues[3])
+                services.add(MdnsServiceInfo(instanceName, serviceName, deviceAddress))
             } catch (ignored: Exception) {
                 val error =
                     DeviceErrorInfo(

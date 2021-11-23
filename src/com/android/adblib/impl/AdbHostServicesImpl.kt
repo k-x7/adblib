@@ -5,17 +5,20 @@ import com.android.adblib.AdbHostServices
 import com.android.adblib.AdbHostServices.DeviceInfoFormat
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbProtocolErrorException
+import com.android.adblib.DeviceAddress
 import com.android.adblib.DeviceList
 import com.android.adblib.DeviceSelector
 import com.android.adblib.DeviceState
 import com.android.adblib.MdnsCheckResult
 import com.android.adblib.MdnsServiceList
+import com.android.adblib.PairResult
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.TrackDevicesService
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.flow.Flow
 import java.io.EOFException
+import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 
 internal class AdbHostServicesImpl(
@@ -121,6 +124,26 @@ internal class AdbHostServicesImpl(
             val buffer = serviceRunner.readLengthPrefixedData(channel, workBuffer, tracker)
             val outputString = AdbProtocolUtils.byteBufferToString(buffer)
             return@mdnsServices mdnsServicesParser.parse(outputString)
+        }
+    }
+
+    override suspend fun pair(deviceAddress: DeviceAddress, pairingCode: String): PairResult {
+        // ADB Server code, service handler:
+        // https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/services.cpp;l=259
+        // ADB client code:
+        // https://cs.android.com/android/platform/superproject/+/fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f:packages/modules/adb/client/commandline.cpp;l=1741
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "host:pair:$pairingCode:${deviceAddress}"
+        val workBuffer = serviceRunner.newResizableBuffer()
+        serviceRunner.startHostQuery(workBuffer, service, tracker).use { channel ->
+            val buffer = serviceRunner.readLengthPrefixedData(channel, workBuffer, tracker)
+            val outputString = AdbProtocolUtils.byteBufferToString(buffer)
+            // See https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/client/adb_wifi.cpp;l=249
+            val successRegex = Regex("Successfully paired to (.*) \\[guid=([^]]*)]")
+            val matchResult = successRegex.find(outputString) ?: return PairResult(false, outputString)
+            val serviceAddress = DeviceAddress(matchResult.groupValues[1])
+            val serviceGuid = matchResult.groupValues[2]
+            return PairResult(true, outputString, serviceAddress, serviceGuid)
         }
     }
 

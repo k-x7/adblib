@@ -15,16 +15,16 @@
  */
 package com.android.adblib
 
-import java.net.InetAddress
-
 /**
- * An mDNS service as returned by ADB
+ * Result of the [AdbHostServices.pair] operation
  */
-data class MdnsServiceInfo(
-    /** The service instance name */
-    val instanceName: String,
-    /** The service type */
-    val serviceName: String,
-    /** The [DeviceAddress] of the service */
-    val deviceAddress: DeviceAddress
+data class PairResult(
+    /** Whether the `pair` operation was successful */
+    val success: Boolean,
+    /** The raw output from the "host:pair" service invocation */
+    val rawText: String,
+    /** The [DeviceAddress] of the device, if pairing was successful */
+    val deviceAddress: DeviceAddress? = null,
+    /** The GUID of the service used for pairing, if pairing was successful */
+    val serviceGuid: String? = null
 )

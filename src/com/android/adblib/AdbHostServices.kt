@@ -73,6 +73,11 @@ interface AdbHostServices {
     suspend fun mdnsServices(): MdnsServiceList
 
     /**
+     * Pairs this ADB server with a device given its [deviceAddress] and a [pairingCode].
+     */
+    suspend fun pair(deviceAddress: DeviceAddress, pairingCode: String): PairResult
+
+    /**
      * Returns the [DeviceState] of the [device] ("<device-prefix>:get-state" query).
      */
     suspend fun getState(device: DeviceSelector): DeviceState
