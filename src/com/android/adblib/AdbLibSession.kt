@@ -15,92 +15,57 @@
  */
 package com.android.adblib
 
-import com.android.adblib.impl.AdbDeviceServicesImpl
-import com.android.adblib.impl.AdbHostServicesImpl
-import com.android.adblib.impl.channels.AdbChannelFactoryImpl
-import java.util.concurrent.TimeUnit
+import com.android.adblib.impl.AdbLibSessionImpl
+import java.time.Duration
 
 /**
- * The main entry point of `adblib`, provides access to various service implementations
- * (e.g. [AdbHostServices]) given configuration parameters (e.g. [AdbChannelProvider]) of
- * the host application/consumer.
+ * Provides access to various ADB services (e.g. [AdbHostServices], [AdbDeviceServices]) for
+ * a given [AdbLibHost]. The [close] method should be called when the session is not needed
+ * anymore, to ensure all pending operations and all optional state are released.
+ *
+ * This is the main entry point of `adblib`, use the [create] method to create an instance.
  */
-class AdbLibSession(
+interface AdbLibSession : AutoCloseable {
+
     /**
      * The [AdbLibHost] implementation provided by the hosting application for environment
-     * specific configuration
+     * specific configuration.
      */
-    val host: AdbLibHost,
-    /**
-     * The [AdbChannelProvider] implementation to connect to ADB
-     */
-    val channelProvider: AdbChannelProvider = AdbChannelProviderFactory.createOpenLocalHost(host),
-    /**
-     * The timeout (in milliseconds) to use when connecting to ADB
-     */
-    val connectionTimeoutMillis: Long = TimeUnit.SECONDS.toMillis(30)
-) : AutoCloseable {
-
-    private var closed = false
+    val host: AdbLibHost
 
     /**
      * An [AdbChannelFactory] that can be used to create various implementations of
      * [AdbChannel], [AdbInputChannel] and [AdbOutputChannel] for files, streams, etc.
      */
-    val channelFactory: AdbChannelFactory = AdbChannelFactoryImpl(host)
-        get() {
-            throwIfClosed()
-            return field
-        }
+    val channelFactory: AdbChannelFactory
 
     /**
      * An [AdbHostServices] implementation for this session.
      */
-    val hostServices: AdbHostServices = createHostServices()
-        get() {
-            throwIfClosed()
-            return field
-        }
+    val hostServices: AdbHostServices
 
     /**
      * An [AdbDeviceServices] implementation for this session.
      */
-    val deviceServices: AdbDeviceServices = createDeviceServices()
-        get() {
-            throwIfClosed()
-            return field
-        }
+    val deviceServices: AdbDeviceServices
 
-    override fun close() {
-        //TODO: Figure out if it would be worthwhile and efficient enough to implement a
-        //      way to track and release all resources acquired from this session. For example,
-        //      we may want to close all connections to the ADB server that were opened
-        //      from this session.
-        host.logger.debug { "Closing session" }
-        closed = true
-    }
+    companion object {
 
-    private fun createHostServices(): AdbHostServices {
-        return AdbHostServicesImpl(
-            host,
-            channelProvider,
-            connectionTimeoutMillis,
-            TimeUnit.MILLISECONDS
-        )
-    }
-
-    private fun createDeviceServices(): AdbDeviceServices {
-        return AdbDeviceServicesImpl(
-            host,
-            channelProvider,
-            connectionTimeoutMillis,
-            TimeUnit.MILLISECONDS
-        )
-    }
-
-    private fun throwIfClosed() {
-        if (closed) {
-            throw IllegalStateException("Session has been closed")
+        /**
+         * Creates an instance of an [AdbLibSession] given an [AdbLibHost] instance.
+         *
+         * @param host The [AdbLibHost] implementation provided by the hosting application for
+         *             environment specific configuration
+         * @param channelProvider The [AdbChannelProvider] implementation to connect to the ADB server
+         * @param connectionTimeout The timeout to use when creating a connection the ADB Server
+         */
+        @JvmStatic
+        fun create(
+            host: AdbLibHost,
+            channelProvider: AdbChannelProvider = AdbChannelProviderFactory.createOpenLocalHost(host),
+            connectionTimeout: Duration = Duration.ofSeconds(30)
+        ): AdbLibSession {
+            return AdbLibSessionImpl(host, channelProvider, connectionTimeout.toMillis())
         }
     }
 }
