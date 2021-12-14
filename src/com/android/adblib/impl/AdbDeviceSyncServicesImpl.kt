@@ -62,8 +62,8 @@ internal class AdbDeviceSyncServicesImpl private constructor(
         sourceChannel: AdbInputChannel,
         remoteFilePath: String,
         remoteFileMode: RemoteFileMode,
-        remoteFileTime: FileTime,
-        progress: SyncProgress,
+        remoteFileTime: FileTime?,
+        progress: SyncProgress?,
         bufferSize: Int
     ) {
         sendHandler.send(
@@ -79,7 +79,7 @@ internal class AdbDeviceSyncServicesImpl private constructor(
     override suspend fun recv(
         remoteFilePath: String,
         destinationChannel: AdbOutputChannel,
-        progress: SyncProgress,
+        progress: SyncProgress?,
         bufferSize: Int
     ) {
         recvHandler.recv(remoteFilePath, destinationChannel, progress)

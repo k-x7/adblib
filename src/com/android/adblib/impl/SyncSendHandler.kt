@@ -76,13 +76,15 @@ internal class SyncSendHandler(
      * a "FAIL" chunk, length is the error message size, followed by the error message encoded
      * as a UTF-8 string. This can happen if there is an I/O error creating the file on the
      * remote device.
+     *
+     * If [remoteFileTime] is not provided, it defaults to the current system time.
      */
     suspend fun send(
         sourceChannel: AdbInputChannel,
         remoteFilePath: String,
         remoteFileMode: RemoteFileMode,
-        remoteFileTime: FileTime,
-        progress: SyncProgress,
+        remoteFileTime: FileTime?,
+        progress: SyncProgress?,
         bufferSize: Int,
     ) {
         withContext(host.ioDispatcher) {
@@ -93,7 +95,9 @@ internal class SyncSendHandler(
             if (remoteFilePath.length > REMOTE_PATH_MAX_LENGTH) {
                 throw IllegalArgumentException("Remote paths are limited to $REMOTE_PATH_MAX_LENGTH characters")
             }
-            val remoteFileEpoch = AdbProtocolUtils.convertFileTimeToEpochSeconds(remoteFileTime)
+            val remoteFileEpoch =
+                if (remoteFileTime == null) (host.timeProvider.nanoTime() / 1_000_000_000L).toInt()
+                else AdbProtocolUtils.convertFileTimeToEpochSeconds(remoteFileTime)
 
             // Send the file using the "SEND" query
             startSendRequest(remoteFilePath, remoteFileMode, progress)
@@ -120,9 +124,9 @@ internal class SyncSendHandler(
     private suspend fun startSendRequest(
         remoteFilePath: String,
         remoteFileMode: RemoteFileMode,
-        progress: SyncProgress
+        progress: SyncProgress?
     ) {
-        progress.transferStarted(remoteFilePath)
+        progress?.transferStarted(remoteFilePath)
 
         logger.debug { "Starting sync request to \"$remoteFilePath\"" }
         // Bytes 0-3: 'SEND'
@@ -146,7 +150,7 @@ internal class SyncSendHandler(
         remoteFilePath: String,
         sourceChannel: AdbInputChannel,
         bufferSize: Int,
-        progress: SyncProgress
+        progress: SyncProgress?
     ): Long {
         var totalBytesSoFar = 0L
         while (true) {
@@ -175,7 +179,7 @@ internal class SyncSendHandler(
             deviceChannel.writeExactly(writeBuffer, TimeoutTracker.INFINITE)
 
             totalBytesSoFar += byteCount
-            progress.transferProgress(remoteFilePath, totalBytesSoFar)
+            progress?.transferProgress(remoteFilePath, totalBytesSoFar)
         }
 
         logger.debug { "Done writing bytes to channel $deviceChannel ($totalBytesSoFar bytes written)" }
@@ -185,7 +189,7 @@ internal class SyncSendHandler(
     private suspend fun commitRemoteFile(
         remoteFilePath: String,
         remoteFileEpoch: Int,
-        progress: SyncProgress,
+        progress: SyncProgress?,
         byteCount: Long
     ) {
         logger.debug { "Committing remote file $remoteFilePath ($byteCount bytes)" }
@@ -197,6 +201,6 @@ internal class SyncSendHandler(
         workBuffer.appendInt(remoteFileEpoch)
         deviceChannel.writeExactly(workBuffer.forChannelWrite(), TimeoutTracker.INFINITE)
 
-        progress.transferDone(remoteFilePath, byteCount)
+        progress?.transferDone(remoteFilePath, byteCount)
     }
 }

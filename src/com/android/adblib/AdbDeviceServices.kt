@@ -268,8 +268,8 @@ suspend fun AdbDeviceServices.syncSend(
     sourceChannel: AdbInputChannel,
     remoteFilePath: String,
     remoteFileMode: RemoteFileMode,
-    remoteFileTime: FileTime,
-    progress: SyncProgress,
+    remoteFileTime: FileTime? = null,
+    progress: SyncProgress? = null,
     bufferSize: Int = SYNC_DATA_MAX
 ) {
     sync(device).use {
@@ -295,8 +295,8 @@ suspend fun AdbDeviceServices.syncSend(
     sourcePath: Path,
     remoteFilePath: String,
     remoteFileMode: RemoteFileMode,
-    remoteFileTime: FileTime,
-    progress: SyncProgress,
+    remoteFileTime: FileTime? = null,
+    progress: SyncProgress? = null,
     bufferSize: Int = SYNC_DATA_MAX
 ) {
     session.channelFactory.openFile(sourcePath).use { source ->
@@ -322,7 +322,7 @@ suspend fun AdbDeviceServices.syncRecv(
     device: DeviceSelector,
     remoteFilePath: String,
     destinationChannel: AdbOutputChannel,
-    progress: SyncProgress,
+    progress: SyncProgress? = null,
     bufferSize: Int = SYNC_DATA_MAX
 ) {
     sync(device).use {
@@ -345,7 +345,7 @@ suspend fun AdbDeviceServices.syncRecv(
     device: DeviceSelector,
     remoteFilePath: String,
     destinationPath: Path,
-    progress: SyncProgress,
+    progress: SyncProgress? = null,
     bufferSize: Int = SYNC_DATA_MAX
 ) {
     session.channelFactory.createFile(destinationPath).use { destination ->

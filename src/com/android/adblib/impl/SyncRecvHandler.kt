@@ -25,8 +25,8 @@ import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.TimeoutTracker
-import kotlinx.coroutines.withContext
 import com.android.adblib.withPrefix
+import kotlinx.coroutines.withContext
 import java.nio.ByteOrder
 
 /**
@@ -69,7 +69,7 @@ internal class SyncRecvHandler(
     suspend fun recv(
         remoteFilePath: String,
         destinationChannel: AdbOutputChannel,
-        progress: SyncProgress
+        progress: SyncProgress?
     ) {
         withContext(host.ioDispatcher) {
             logger.info { "\"$remoteFilePath\" -> $destinationChannel" }
@@ -92,8 +92,8 @@ internal class SyncRecvHandler(
         }
     }
 
-    private suspend fun startRecvRequest(remoteFilePath: String, progress: SyncProgress) {
-        progress.transferStarted(remoteFilePath)
+    private suspend fun startRecvRequest(remoteFilePath: String, progress: SyncProgress?) {
+        progress?.transferStarted(remoteFilePath)
 
         logger.debug { "sending \"RECV\" command to device $device" }
         // Bytes 0-3: 'RECV'
@@ -112,7 +112,7 @@ internal class SyncRecvHandler(
     private suspend fun receiveFileContents(
         remoteFilePath: String,
         destinationChannel: AdbOutputChannel,
-        progress: SyncProgress
+        progress: SyncProgress?
     ): Long {
         var totalBytesSoFar = 0L
         while (true) {
@@ -153,7 +153,7 @@ internal class SyncRecvHandler(
                     )
 
                     totalBytesSoFar += chunkLength
-                    progress.transferProgress(remoteFilePath, totalBytesSoFar)
+                    progress?.transferProgress(remoteFilePath, totalBytesSoFar)
                 }
 
                 // Bytes 0-3: 'FAIL'
@@ -189,9 +189,9 @@ internal class SyncRecvHandler(
         remoteFilePath: String,
         destinationChannel: AdbOutputChannel,
         byteCount: Long,
-        progress: SyncProgress
+        progress: SyncProgress?
     ) {
         destinationChannel.close()
-        progress.transferDone(remoteFilePath, byteCount)
+        progress?.transferDone(remoteFilePath, byteCount)
     }
 }

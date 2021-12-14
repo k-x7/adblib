@@ -41,7 +41,9 @@ interface AdbDeviceSyncServices : AutoCloseable {
     val transportId: Long?
 
     /**
-     * Sends the contents of an [AdbInputChannel] to file on the remote device (`SEND` command)
+     * Sends the contents of an [AdbInputChannel] to file on the remote device (`SEND` command).
+     *
+     * If [remoteFileTime] is not provided, it defaults to the current system time.
      *
      * Note: If the directory for [remoteFilePath] does not exist on the device, an attempt
      * is made to create this directory (and its parent). This may fail for various
@@ -49,14 +51,14 @@ interface AdbDeviceSyncServices : AutoCloseable {
      *
      * @throws AdbFailResponseException if the ADB daemon cannot process the file contents
      * @throws AdbProtocolErrorException if there is an unexpected ADB protocol error
-     * @throws IOException if there any I/O error
+     * @throws IOException if there is an I/O error
      */
     suspend fun send(
         sourceChannel: AdbInputChannel,
         remoteFilePath: String,
         remoteFileMode: RemoteFileMode,
-        remoteFileTime: FileTime,
-        progress: SyncProgress,
+        remoteFileTime: FileTime?,
+        progress: SyncProgress?,
         bufferSize: Int = SYNC_DATA_MAX
     )
 
@@ -66,12 +68,12 @@ interface AdbDeviceSyncServices : AutoCloseable {
      *
      * @throws AdbFailResponseException if the ADB daemon cannot send the file contents
      * @throws AdbProtocolErrorException if there is an unexpected ADB protocol error
-     * @throws IOException if there any I/O error
+     * @throws IOException if there is an I/O error
      */
     suspend fun recv(
         remoteFilePath: String,
         destinationChannel: AdbOutputChannel,
-        progress: SyncProgress,
+        progress: SyncProgress?,
         bufferSize: Int = SYNC_DATA_MAX
     )
 }
@@ -98,4 +100,16 @@ interface SyncProgress {
      * Invoked just after the file transfer has successfully finished
      */
     suspend fun transferDone(remotePath: String, totalBytes: Long)
+}
+
+/**
+ * Trivial implementation of the [SyncProgress] interface.
+ */
+open class SyncProgressAdapter : SyncProgress {
+
+    override suspend fun transferStarted(remotePath: String) {}
+
+    override suspend fun transferProgress(remotePath: String, totalBytesSoFar: Long) {}
+
+    override suspend fun transferDone(remotePath: String, totalBytes: Long) {}
 }
