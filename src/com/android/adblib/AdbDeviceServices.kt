@@ -238,24 +238,33 @@ fun AdbDeviceServices.shellV2AsLines(
 }
 
 /**
- * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellV2AsLines]
+ * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellV2AsLines].
  */
 sealed class ShellCommandOutputElement {
     /**
-     * A `stdout` text line of the shell command
+     * A `stdout` text line of the shell command.
      */
-    class StdoutLine(val contents: String) : ShellCommandOutputElement()
+    class StdoutLine(val contents: String) : ShellCommandOutputElement() {
+        // Returns the contents of the stdout line.
+        override fun toString(): String = contents
+    }
 
     /**
-     * A `stderr` text line of the shell command
+     * A `stderr` text line of the shell command.
      */
-    class StderrLine(val contents: String) : ShellCommandOutputElement()
+    class StderrLine(val contents: String) : ShellCommandOutputElement() {
+        // Returns the contents of the stdout line.
+        override fun toString(): String = contents
+    }
 
     /**
      * The exit code of the shell command. This is always the last entry of the [Flow] returned by
      * [AdbDeviceServices.shellV2AsLines].
      */
-    class ExitCode(val exitCode: Int) : ShellCommandOutputElement()
+    class ExitCode(val exitCode: Int) : ShellCommandOutputElement() {
+        // Returns the exit code in a text form.
+        override fun toString(): String = exitCode.toString()
+    }
 }
 
 /**

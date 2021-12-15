@@ -52,6 +52,7 @@ import java.nio.file.attribute.PosixFilePermission.OWNER_WRITE
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import kotlin.test.assertEquals
 
 class AdbDeviceServicesTest {
 
@@ -681,6 +682,17 @@ class AdbDeviceServicesTest {
         Assert.assertEquals(expectedStdout, collectedStdout.joinToString(separator = "\n"))
         Assert.assertEquals(expectedStderr, collectedStderr.joinToString(separator = "\n"))
         Assert.assertEquals(10, collectedExitCode)
+    }
+
+    // Checks public contract of the ShellCommandOutputElement.*.toString methods.
+    @Test
+    fun testShellCommandOutputElement() {
+        assertEquals("contents",
+                     ShellCommandOutputElement.StdoutLine("contents").toString())
+        assertEquals("contents",
+                     ShellCommandOutputElement.StderrLine("contents").toString())
+        assertEquals("42",
+                     ShellCommandOutputElement.ExitCode(42).toString())
     }
 
     @Test
