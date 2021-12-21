@@ -87,9 +87,9 @@ fun AdbLogger.withPrefix(prefix: String): AdbLogger {
 }
 
 /**
- * Creates an [AdbLogger] for the class of this instance
+ * Creates an [AdbLogger] for the class of this instance.
  */
-inline fun <reified T : Any> @Suppress("unused") T.thisLogger(host: AdbLibHost): AdbLogger {
+internal inline fun <reified T : Any> T.thisLogger(host: AdbLibHost): AdbLogger {
     return host.loggerFactory.createLogger(T::class.java)
 }
 
@@ -97,7 +97,7 @@ inline fun <reified T : Any> @Suppress("unused") T.thisLogger(host: AdbLibHost):
  * Abstract implementation of [AdbLogger] that delegates to another [AdbLogger] instance after
  * allowing derived classes to re-format the message by implementing [formatMessage].
  */
-abstract class AdbLoggerDelegate(private val delegate: AdbLogger) : AdbLogger() {
+private abstract class AdbLoggerDelegate(private val delegate: AdbLogger) : AdbLogger() {
 
     abstract fun formatMessage(message: String): String
 
