@@ -16,7 +16,7 @@ import kotlin.coroutines.resumeWithException
 /**
  * Helper class for implementors of [AdbInputChannel.readExactly]
  */
-abstract class AsynchronousChannelReadExactlyOperation(
+internal abstract class AsynchronousChannelReadExactlyOperation(
     protected val host: AdbLibHost,
     private val timeout: TimeoutTracker
 ) : CompletionHandler<Int, CancellableContinuation<Unit>> {

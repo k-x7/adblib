@@ -34,7 +34,7 @@ private val SHORT_LINE_PATTERN = Pattern.compile(
             "(" + SHORT_LINE_STATE_PATTERN + ")$"
 )
 
-class DeviceListParser {
+internal class DeviceListParser {
 
     fun parse(format: DeviceInfoFormat, responseText: CharSequence): DeviceList {
         val oneLineParser = when (format) {

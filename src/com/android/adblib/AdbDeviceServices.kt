@@ -22,6 +22,12 @@ const val DEFAULT_SHELL_BUFFER_SIZE = 8_192
  * Exposes services that are executed by the ADB daemon of a given device
  */
 interface AdbDeviceServices {
+
+    /**
+     * The session this [AdbDeviceServices] instance belongs to.
+     */
+    val session: AdbLibSession
+
     /**
      * Returns a [Flow] that, when collected, executes a shell command on a device
      * ("<device-transport>:shell" query) and emits the output of the command to the [Flow].
@@ -161,7 +167,6 @@ fun AdbDeviceServices.shellAsLines(
  * [commandOutputTimeout].
  */
 fun <T> AdbDeviceServices.shellWithIdleMonitoring(
-    host: AdbLibHost,
     device: DeviceSelector,
     command: String,
     stdoutCollector: ShellCollector<T>,
@@ -171,7 +176,6 @@ fun <T> AdbDeviceServices.shellWithIdleMonitoring(
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): Flow<T> {
     return ShellWithIdleMonitoring(
-        host,
         this,
         device,
         command,
@@ -299,7 +303,6 @@ suspend fun AdbDeviceServices.syncSend(
  * @see [AdbDeviceSyncServices.send]
  */
 suspend fun AdbDeviceServices.syncSend(
-    session: AdbLibSession,
     device: DeviceSelector,
     sourcePath: Path,
     remoteFilePath: String,
@@ -350,7 +353,6 @@ suspend fun AdbDeviceServices.syncRecv(
  * @see [AdbDeviceSyncServices.recv]
  */
 suspend fun AdbDeviceServices.syncRecv(
-    session: AdbLibSession,
     device: DeviceSelector,
     remoteFilePath: String,
     destinationPath: Path,

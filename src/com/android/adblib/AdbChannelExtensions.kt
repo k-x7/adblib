@@ -11,10 +11,11 @@ import java.nio.ByteBuffer
  * Forwards the contents of this [AdbInputChannel] to an [AdbOutputChannel]
  */
 suspend fun AdbInputChannel.forwardTo(
-    host: AdbLibHost,
+    session: AdbLibSession,
     outputChannel: AdbOutputChannel,
     bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ) {
+    val host = session.host
     host.logger.info { "forwardChannel - Forwarding input channel to output channel using buffer of size $bufferSize bytes" }
     val buffer = ByteBuffer.allocate(bufferSize)
     while (true) {
@@ -33,16 +34,16 @@ suspend fun AdbInputChannel.forwardTo(
 }
 
 fun InputStream.asAdbInputChannel(
-    host: AdbLibHost,
+    session: AdbLibSession,
     bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ): AdbInputChannel {
-    return AdbInputStreamChannel(host, this, bufferSize)
+    return AdbInputStreamChannel(session.host, this, bufferSize)
 }
 
 fun String.asAdbInputChannel(
-    host: AdbLibHost,
+    session: AdbLibSession,
     bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ): AdbInputChannel {
     //TODO: This is inefficient as `byteInputStream` creates an in-memory copy of the whole string
-    return byteInputStream(AdbProtocolUtils.ADB_CHARSET).asAdbInputChannel(host, bufferSize)
+    return byteInputStream(AdbProtocolUtils.ADB_CHARSET).asAdbInputChannel(session, bufferSize)
 }

@@ -3,6 +3,7 @@ package com.android.adblib.impl
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbLibSession
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ShellCollector
 import kotlinx.coroutines.channels.Channel
@@ -20,7 +21,6 @@ import java.nio.ByteBuffer
 import java.time.Duration
 
 internal class ShellWithIdleMonitoring<T>(
-    private val host: AdbLibHost,
     private val deviceServices: AdbDeviceServices,
     private val device: DeviceSelector,
     private val command: String,
@@ -30,6 +30,9 @@ internal class ShellWithIdleMonitoring<T>(
     private val commandOutputTimeout: Duration,
     private val bufferSize: Int
 ) {
+
+    private val host: AdbLibHost
+        get() = deviceServices.session.host
 
     fun flow(): Flow<T> = flow {
         // To detect a command that does not produce any output for the given timeout:

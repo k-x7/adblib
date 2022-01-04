@@ -15,7 +15,7 @@ import kotlin.coroutines.resumeWithException
 /**
  * Helper class for implementors of [AdbOutputChannel.write]
  */
-abstract class AsynchronousChannelWriteOperation(
+internal abstract class AsynchronousChannelWriteOperation(
     protected val host: AdbLibHost,
     private val timeout: TimeoutTracker
 ) : CompletionHandler<Int, CancellableContinuation<Int>> {

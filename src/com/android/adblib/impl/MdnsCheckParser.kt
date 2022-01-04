@@ -19,7 +19,7 @@ import com.android.adblib.MdnsCheckResult
 import com.android.adblib.MdnsStatus
 import com.android.adblib.utils.AdbProtocolUtils.ADB_NEW_LINE
 
-class MdnsCheckParser {
+internal class MdnsCheckParser {
 
     fun parse(text: CharSequence): MdnsCheckResult {
         // ADB Host code, Bonjour implementation

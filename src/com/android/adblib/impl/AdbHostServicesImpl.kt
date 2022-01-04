@@ -4,6 +4,7 @@ import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbHostServices
 import com.android.adblib.AdbHostServices.DeviceInfoFormat
 import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbLibSession
 import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.DeviceAddress
 import com.android.adblib.DeviceList
@@ -18,17 +19,17 @@ import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.flow.Flow
 import java.io.EOFException
-import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 
 internal class AdbHostServicesImpl(
-    private val host: AdbLibHost,
+    override val session: AdbLibSession,
     channelProvider: AdbChannelProvider,
     private val timeout: Long,
     private val unit: TimeUnit
 ) : AdbHostServices {
-
-    private val serviceRunner = AdbServiceRunner(host, channelProvider)
+    private val host: AdbLibHost
+        get() = session.host
+    private val serviceRunner = AdbServiceRunner(session, channelProvider)
     private val deviceParser = DeviceListParser()
     private val mdnsCheckParser = MdnsCheckParser()
     private val mdnsServicesParser = MdnsServiceListParser()

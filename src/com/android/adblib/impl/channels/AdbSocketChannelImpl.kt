@@ -22,7 +22,7 @@ import kotlin.coroutines.resumeWithException
 /**
  * Implementation of [AdbChannel] over an [AsynchronousSocketChannel] socket connection
  */
-class AdbSocketChannelImpl(
+internal class AdbSocketChannelImpl(
     private val host: AdbLibHost,
     private val socketChannel: AsynchronousSocketChannel
 ) : AdbChannel {

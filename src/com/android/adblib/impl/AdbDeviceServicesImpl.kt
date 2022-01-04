@@ -6,6 +6,7 @@ import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbLibSession
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ShellCollector
 import com.android.adblib.ShellV2Collector
@@ -24,13 +25,16 @@ import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 internal class AdbDeviceServicesImpl(
-    private val host: AdbLibHost,
+    override val session: AdbLibSession,
     channelProvider: AdbChannelProvider,
     private val timeout: Long,
     private val unit: TimeUnit
 ) : AdbDeviceServices {
 
-    private val serviceRunner = AdbServiceRunner(host, channelProvider)
+    private val host: AdbLibHost
+        get() = session.host
+
+    private val serviceRunner = AdbServiceRunner(session, channelProvider)
 
     override fun <T> shell(
         device: DeviceSelector,
@@ -218,7 +222,7 @@ internal class AdbDeviceServicesImpl(
         stdInput: AdbInputChannel,
         bufferSize: Int
     ) {
-        stdInput.forwardTo(host, shellCommandChannel, bufferSize)
+        stdInput.forwardTo(session, shellCommandChannel, bufferSize)
         host.logger.info { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
         shellCommandChannel.shutdownOutput()
     }

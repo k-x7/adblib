@@ -42,7 +42,7 @@ private const val PORT = "[0-9]+"
 private const val SERVICE_LINE_PATTERN =
     "(${ALL_BUT_TAB})${TAB}(${ALL_BUT_TAB})${TAB}(${ALL_BUT_TAB})"
 
-class MdnsServiceListParser {
+internal class MdnsServiceListParser {
 
     private val lineRegex = Regex(SERVICE_LINE_PATTERN)
 

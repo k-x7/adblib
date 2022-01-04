@@ -12,6 +12,11 @@ import kotlinx.coroutines.flow.Flow
 interface AdbHostServices {
 
     /**
+     * The session this [AdbHostServices] instance belongs to.
+     */
+    val session: AdbLibSession
+
+    /**
      * Returns the internal version of the ADB server ("host:version" query).
      *
      * The internal version is an integer value that is incremented when newer builds of ADB

@@ -12,7 +12,7 @@ import java.nio.ByteBuffer
 /**
  * Implementation of [AdbOutputChannel] over a [OutputStream]
  */
-class AdbOutputStreamChannel(
+internal class AdbOutputStreamChannel(
     private val host: AdbLibHost,
     private val stream: OutputStream,
     bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE

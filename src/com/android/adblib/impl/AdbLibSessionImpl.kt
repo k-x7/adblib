@@ -61,7 +61,7 @@ internal class AdbLibSessionImpl(
 
     private fun createHostServices(): AdbHostServices {
         return AdbHostServicesImpl(
-            host,
+            this,
             channelProvider,
             connectionTimeoutMillis,
             TimeUnit.MILLISECONDS
@@ -70,7 +70,7 @@ internal class AdbLibSessionImpl(
 
     private fun createDeviceServices(): AdbDeviceServices {
         return AdbDeviceServicesImpl(
-            host,
+            this,
             channelProvider,
             connectionTimeoutMillis,
             TimeUnit.MILLISECONDS
