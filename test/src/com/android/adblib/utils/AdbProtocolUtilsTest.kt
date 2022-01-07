@@ -35,7 +35,7 @@ class AdbProtocolUtilsTest {
         val result = AdbProtocolUtils.bufferToByteDumpString(buffer)
 
         // Assert
-        assertEquals("0x313233343536373839 (\"123456789\")", result)
+        assertEquals("313233343536373839 123456789", result)
         assertEquals(positionBefore, buffer.position())
         assertEquals(limitBefore, buffer.limit())
     }
@@ -51,7 +51,7 @@ class AdbProtocolUtilsTest {
         val result = AdbProtocolUtils.bufferToByteDumpString(buffer)
 
         // Assert
-        assertEquals("0x31323334353637383961626364656667 (\"123456789abcdefg\")", result)
+        assertEquals("3132333435363738396162636465666768696a6b6c6d6e6f 123456789abcdefghijklmno [truncated]", result)
         assertEquals(positionBefore, buffer.position())
         assertEquals(limitBefore, buffer.limit())
     }
@@ -69,7 +69,7 @@ class AdbProtocolUtilsTest {
         val result = AdbProtocolUtils.bufferToByteDumpString(buffer)
 
         // Assert
-        assertEquals("0x3132 (\"12\")", result)
+        assertEquals("3132 12", result)
         assertEquals(positionBefore, buffer.position())
         assertEquals(limitBefore, buffer.limit())
     }

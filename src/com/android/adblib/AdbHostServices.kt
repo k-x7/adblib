@@ -102,4 +102,46 @@ interface AdbHostServices {
      */
     suspend fun features(device: DeviceSelector): List<String>
 
+    /**
+     * Returns the list of all forward socket connections ("`host:list-forward`" query)
+     * as a [list][ForwardSocketList] of [ForwardSocketInfo].
+     */
+    suspend fun listForward(): ForwardSocketList
+
+    /**
+     * Creates a forward socket connection from [local] to [remote]
+     * ("`<device-prefix>:forward(:norebind)`" query).
+     *
+     * This method tells the ADB server to open a [server socket][SocketSpec] on the local machine,
+     * forwarding all client connections made to that server socket to a
+     * [remote socket][SocketSpec] on the specified [device].
+     *
+     * When invoking this method, the ADB Server does not validate the format of the [remote]
+     * socket specification, nor does it connect to the [device]. A connection to the device
+     * (ADB Daemon) is made only when a client connects to the local server socket. At that point,
+     * if [remote] is invalid, the new client connection is immediately closed.
+     *
+     * This method fails if there is already a forward connection from [local], unless
+     * [rebind] is `true`.
+     *
+     * Returns the ADB Server reply to the request, typically a TCP port number if using
+     * `tcp:0` for [local]
+     */
+    suspend fun forward(
+        device: DeviceSelector,
+        local: SocketSpec,
+        remote: SocketSpec,
+        rebind: Boolean = false
+    ): String?
+
+    /**
+     * Closes a previously created forward socket connection for the given [device]
+     * ("`<device-prefix>:kill-forward`" query).
+     */
+    suspend fun killForward(device: DeviceSelector, local: SocketSpec)
+
+    /**
+     * Closes all previously created forward socket connections for the given [device].
+     */
+    suspend fun killForwardAll(device: DeviceSelector)
 }

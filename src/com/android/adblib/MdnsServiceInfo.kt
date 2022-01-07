@@ -15,8 +15,6 @@
  */
 package com.android.adblib
 
-import java.net.InetAddress
-
 /**
  * An mDNS service as returned by ADB
  */
@@ -28,3 +26,8 @@ data class MdnsServiceInfo(
     /** The [DeviceAddress] of the service */
     val deviceAddress: DeviceAddress
 )
+
+/**
+ * A list of [MdnsServiceInfo], see [AdbHostServices.mdnsServices].
+ */
+typealias MdnsServiceList = ListWithErrors<MdnsServiceInfo>

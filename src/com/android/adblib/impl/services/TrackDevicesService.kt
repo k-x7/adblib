@@ -54,7 +54,7 @@ internal class TrackDevicesService(private val serviceRunner: AdbServiceRunner) 
             val deviceListString = AdbProtocolUtils.byteBufferToString(buffer)
             val devices = deviceParser.parse(format, deviceListString)
 
-            logger.debug { "\"${service}\" - sending list of (${devices.devices.size} device(s))" }
+            logger.debug { "\"${service}\" - sending list of (${devices.size} device(s))" }
             flowCollector.emit(devices)
         }
     }

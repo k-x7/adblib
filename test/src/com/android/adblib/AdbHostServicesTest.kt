@@ -18,7 +18,6 @@ package com.android.adblib
 import com.android.adblib.AdbHostServices.DeviceInfoFormat.LONG_FORMAT
 import com.android.adblib.AdbHostServices.DeviceInfoFormat.SHORT_FORMAT
 import com.android.adblib.DeviceState.ONLINE
-import com.android.adblib.impl.AdbHostServicesImpl
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
@@ -47,6 +46,7 @@ import java.util.concurrent.TimeUnit
 val SOCKET_CONNECT_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(2)
 
 class AdbHostServicesTest {
+
     @JvmField
     @Rule
     val closeables = CloseablesRule()
@@ -141,9 +141,9 @@ class AdbHostServicesTest {
         val deviceList = runBlocking { hostServices.devices(SHORT_FORMAT) }
 
         // Assert
-        Assert.assertEquals(1, deviceList.devices.size)
+        Assert.assertEquals(1, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
-        deviceList.devices[0].let { device ->
+        deviceList[0].let { device ->
             Assert.assertEquals("1234", device.serialNumber)
             Assert.assertEquals(ONLINE, device.deviceState)
             Assert.assertNull(device.product)
@@ -173,9 +173,9 @@ class AdbHostServicesTest {
         val deviceList = runBlocking { hostServices.devices(LONG_FORMAT) }
 
         // Assert
-        Assert.assertEquals(1, deviceList.devices.size)
+        Assert.assertEquals(1, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
-        deviceList.devices[0].let { device ->
+        deviceList[0].let { device ->
             Assert.assertEquals("1234", device.serialNumber)
             Assert.assertEquals(ONLINE, device.deviceState)
             Assert.assertEquals("test1", device.product)
@@ -211,9 +211,9 @@ class AdbHostServicesTest {
         }
 
         // Assert
-        Assert.assertEquals(1, deviceList.devices.size)
+        Assert.assertEquals(1, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
-        deviceList.devices[0].let { device ->
+        deviceList[0].let { device ->
             Assert.assertEquals("1234", device.serialNumber)
             Assert.assertEquals(ONLINE, device.deviceState)
             Assert.assertEquals("test1", device.product)
@@ -326,14 +326,14 @@ class AdbHostServicesTest {
         val result = runBlocking { hostServices.mdnsServices() }
 
         // Assert
-        Assert.assertEquals(2, result.services.size)
-        result.services[0].let { service ->
+        Assert.assertEquals(2, result.size)
+        result[0].let { service ->
             Assert.assertEquals("foo-bar", service.instanceName)
             Assert.assertEquals("service", service.serviceName)
             Assert.assertEquals("192.168.1.1:10", service.deviceAddress.address)
 
         }
-        result.services[1].let { service ->
+        result[1].let { service ->
             Assert.assertEquals("foo-bar2", service.instanceName)
             Assert.assertEquals("service", service.serviceName)
             Assert.assertEquals("192.168.1.1:11", service.deviceAddress.address)
@@ -480,6 +480,218 @@ class AdbHostServicesTest {
         Assert.assertTrue(featureList.contains("fixed_push_mkdir"))
         Assert.assertTrue(featureList.contains("push_sync"))
         Assert.assertTrue(featureList.contains("abb_exec"))
+    }
+
+    @Test
+    fun testForward() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+
+        // Act
+        val port = runBlocking {
+            hostServices.forward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        }
+
+        // Assert
+        Assert.assertTrue(port != null && port.toInt() > 0)
+    }
+
+    @Test
+    fun testForwardNoRebind() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+        val port = runBlocking {
+            hostServices.forward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        }?.toIntOrNull() ?: throw AssertionError("Port should have been an integer")
+
+        // Act
+        exceptionRule.expect(AdbFailResponseException::class.java)
+        runBlocking {
+            hostServices.forward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(port),
+                SocketSpec.Tcp(4000),
+                rebind = false
+            )
+        }
+
+        // Assert
+        Assert.fail()
+    }
+
+    @Test
+    fun testForwardRebind() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+        val port = runBlocking {
+            hostServices.forward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        }?.toIntOrNull() ?: throw AssertionError("Port should have been an integer")
+
+        // Act
+        val port2 = runBlocking {
+            hostServices.forward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(port),
+                SocketSpec.Tcp(4000),
+                rebind = true
+            )
+        }
+
+        // Assert
+        Assert.assertTrue(port2 != null && port2.toInt() == port)
+    }
+
+    @Test
+    fun testKillForward() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+        val port = runBlocking {
+            hostServices.forward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        } ?: throw Exception("`forward` command should have returned a port")
+        Assert.assertEquals(1, fakeDevice.allPortForwarders.size)
+
+        // Act
+        runBlocking {
+            hostServices.killForward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(port.toInt())
+            )
+        }
+
+        // Assert
+        Assert.assertEquals(0, fakeDevice.allPortForwarders.size)
+    }
+
+    @Test
+    fun testKillForwardAll() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+        runBlocking {
+            hostServices.forward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        }
+        Assert.assertEquals(1, fakeDevice.allPortForwarders.size)
+
+        // Act
+        runBlocking {
+            hostServices.killForwardAll(DeviceSelector.any())
+        }
+
+        // Assert
+        Assert.assertEquals(0, fakeDevice.allPortForwarders.size)
+    }
+
+    @Test
+    fun testListForward() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+        runBlocking {
+            hostServices.forward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(1000),
+                SocketSpec.Tcp(4000)
+            )
+        }
+        Assert.assertEquals(1, fakeDevice.allPortForwarders.size)
+
+        // Act
+        val forwardList = runBlocking {
+            hostServices.listForward()
+        }
+
+        // Assert
+        Assert.assertEquals(1, forwardList.size)
+        Assert.assertEquals(0, forwardList.errors.size)
+        forwardList[0].let { forwardEntry ->
+            Assert.assertEquals("1234", forwardEntry.deviceSerial)
+            Assert.assertEquals("tcp:1000", forwardEntry.local.toQueryString())
+            Assert.assertEquals("tcp:4000", forwardEntry.remote.toQueryString())
+        }
     }
 
     private fun createHostServices(fakeAdb: FakeAdbServerProvider): AdbHostServices {

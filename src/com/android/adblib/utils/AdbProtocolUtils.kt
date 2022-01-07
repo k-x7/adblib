@@ -57,14 +57,15 @@ object AdbProtocolUtils {
     fun bufferToByteDumpString(status: ByteBuffer): String {
         val sb1 = StringBuilder()
         val sb2 = StringBuilder()
-        val maxCount = 16
+        val maxCount = 24
         val position = status.position()
         for (i in 0 until min(status.remaining(), maxCount)) {
             val statusByte = status.get(i + position)
-            sb1.append(String.format("%02X", statusByte))
+            sb1.append(String.format("%02x", statusByte))
             sb2.append(String.format("%c", statusByte.toChar()))
         }
-        return String.format("0x%s (\"%s\")", sb1, sb2)
+        val overflow = if (status.remaining() > maxCount) " [truncated]" else ""
+        return "$sb1 $sb2$overflow"
     }
 
     fun createDecoder(): CharsetDecoder {

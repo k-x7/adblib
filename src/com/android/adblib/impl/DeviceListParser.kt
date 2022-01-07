@@ -1,10 +1,10 @@
 package com.android.adblib.impl
 
 import com.android.adblib.AdbHostServices.DeviceInfoFormat
-import com.android.adblib.DeviceErrorInfo
 import com.android.adblib.DeviceInfo
 import com.android.adblib.DeviceInfo.FieldEntry
 import com.android.adblib.DeviceList
+import com.android.adblib.ListWithErrors
 import com.android.adblib.utils.AdbProtocolUtils
 import java.util.regex.Pattern
 
@@ -46,11 +46,11 @@ internal class DeviceListParser {
     }
 
     private fun parserWorker(responseText: CharSequence, oneLineParser: OneLineParser): DeviceList {
-        val result = ParseResult()
+        val result = ListWithErrors.Builder<DeviceInfo>()
 
         // Special case of <no devices>
         if (responseText.isEmpty()) {
-            return result.toDeviceList()
+            return result.build()
         }
 
         // There should be one device per line
@@ -60,10 +60,14 @@ internal class DeviceListParser {
                 oneLineParser.call(result, lineIndex, line)
             }
         }
-        return result.toDeviceList()
+        return result.build()
     }
 
-    private fun parseOneShortFormatLine(result: ParseResult, lineIndex: Int, lineText: CharSequence) {
+    private fun parseOneShortFormatLine(
+        result: ListWithErrors.Builder<DeviceInfo>,
+        lineIndex: Int,
+        lineText: CharSequence
+    ) {
         // Output format in ADB Host code:
         // https://cs.android.com/android/platform/superproject/+/790d619575aea7032a4fe5f097d412adedf6623b:packages/modules/adb/transport.cpp;l=1316
         val matcher = SHORT_LINE_PATTERN.matcher(lineText)
@@ -81,10 +85,14 @@ internal class DeviceListParser {
             result.addError("Device state is empty", lineIndex, lineText)
             return
         }
-        result.addDevice(DeviceInfo(serialNumber, deviceState, emptyList()))
+        result.addEntry(DeviceInfo(serialNumber, deviceState, emptyList()))
     }
 
-    private fun parseOneLongFormatLine(result: ParseResult, lineIndex: Int, lineText: CharSequence) {
+    private fun parseOneLongFormatLine(
+        result: ListWithErrors.Builder<DeviceInfo>,
+        lineIndex: Int,
+        lineText: CharSequence
+    ) {
         // Output format in ADB Host code:
         // https://cs.android.com/android/platform/superproject/+/790d619575aea7032a4fe5f097d412adedf6623b:packages/modules/adb/transport.cpp;l=1316
         val matcher = LONG_LINE_PATTERN.matcher(lineText)
@@ -113,29 +121,15 @@ internal class DeviceListParser {
             val value = matcherFields.group(2)
             moreFields.add(FieldEntry(name, value))
         }
-        result.addDevice(DeviceInfo(serialNumber, deviceState, moreFields))
+        result.addEntry(DeviceInfo(serialNumber, deviceState, moreFields))
     }
 
     internal fun interface OneLineParser {
 
-        fun call(result: ParseResult, lineIndex: Int, lineText: CharSequence)
-    }
-
-    internal class ParseResult(
-        private val devices: MutableList<DeviceInfo> = ArrayList(),
-        private val errors: MutableList<DeviceErrorInfo> = ArrayList()
-    ) {
-
-        fun addDevice(deviceInfo: DeviceInfo) {
-            devices.add(deviceInfo)
-        }
-
-        fun addError(message: String, lineIndex: Int, rawLineText: CharSequence) {
-            errors.add(DeviceErrorInfo(message, lineIndex, rawLineText.toString()))
-        }
-
-        fun toDeviceList(): DeviceList {
-            return DeviceList(devices, errors)
-        }
+        fun call(
+            result: ListWithErrors.Builder<DeviceInfo>,
+            lineIndex: Int,
+            lineText: CharSequence
+        )
     }
 }

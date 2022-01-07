@@ -15,6 +15,7 @@ import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TimeoutTracker
 import com.android.adblib.utils.closeOnException
 import com.android.adblib.utils.withOrder
+import java.io.EOFException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -65,16 +66,102 @@ internal class AdbServiceRunner(val session: AdbLibSession, private val channelP
      * Executes a query on the ADB host that relates to a single [device][DeviceSelector]
      */
     suspend fun runHostDeviceQuery(
-        deviceSelector: DeviceSelector,
+        device: DeviceSelector,
         query: String,
         timeout: TimeoutTracker
     ): String {
-        val service = deviceSelector.hostPrefix + ":" + query
+        return runHostDeviceQuery(device, query, timeout, OkayDataExpectation.EXPECTED)
+            ?: throw AdbProtocolErrorException("Data segment expected after OKAY response")
+    }
+
+    /**
+     * Executes a query on the ADB host that relates to a single [device][DeviceSelector]
+     */
+    suspend fun runHostDeviceQuery(
+        device: DeviceSelector,
+        query: String,
+        timeout: TimeoutTracker,
+        okayData: OkayDataExpectation
+    ): String? {
         val workBuffer = newResizableBuffer()
-        startHostQuery(workBuffer, service, timeout).use { channel ->
-            val buffer = readLengthPrefixedData(channel, workBuffer, timeout)
-            logger.debug { "\"${service}\" - read ${buffer.remaining()} byte(s), timeout=$timeout" }
-            return AdbProtocolUtils.byteBufferToString(buffer)
+        val service = device.hostPrefix + ":" + query
+        return startHostQuery(workBuffer, service, timeout).use { channel ->
+            readOkayFailString(channel, workBuffer, service, timeout, okayData)
+        }
+    }
+
+    /**
+     * Executes a query on the ADB host that relates to a single [device][DeviceSelector].
+     *
+     * This method is similar to [runHostDeviceQuery], except the methods is for use with a
+     * variation of the ADB protocol where the ADB Host sends back to 2 OKAY replies
+     * (one for "connect", one for "status") instead of only one.
+     */
+    suspend fun runHostDeviceQuery2(
+        device: DeviceSelector,
+        query: String,
+        timeout: TimeoutTracker,
+        okayData: OkayDataExpectation
+    ): String? {
+        val workBuffer = newResizableBuffer()
+        val service = device.hostPrefix + ":" + query
+        return startHostQuery(workBuffer, service, timeout).use { channel ->
+            // We receive 2 OKAY answers from the ADB Host: 1st OKAY is connect, 2nd OKAY is status.
+            // See https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/adb.cpp;l=1058
+            consumeOkayFailResponse(channel, workBuffer, timeout)
+            readOkayFailString(channel, workBuffer, service, timeout, okayData)
+        }
+    }
+
+    /**
+     * Executes a `<host-prefix>` query and returns the data after the `OKAY` response
+     * as a [String].
+     */
+    suspend fun runHostQuery(service: String, timeout: TimeoutTracker): String {
+        return runHostQuery(service, timeout, OkayDataExpectation.EXPECTED)
+            ?: throw AdbProtocolErrorException("Data segment expected after OKAY response")
+    }
+
+    /**
+     * Executes a `<host-prefix>` query and returns the data after the `OKAY` response
+     * as a [String].
+     */
+    suspend fun runHostQuery(
+        service: String,
+        timeout: TimeoutTracker,
+        okayData: OkayDataExpectation
+    ): String? {
+        val workBuffer = newResizableBuffer()
+        return startHostQuery(workBuffer, service, timeout).use { channel ->
+            readOkayFailString(channel, workBuffer, service, timeout, okayData)
+        }
+    }
+
+    private suspend fun readOkayFailString(
+        channel: AdbChannel,
+        workBuffer: ResizableBuffer,
+        service: String,
+        timeout: TimeoutTracker,
+        okayData: OkayDataExpectation
+    ): String? {
+        return when (okayData) {
+            OkayDataExpectation.EXPECTED -> {
+                val buffer = readLengthPrefixedData(channel, workBuffer, timeout)
+                logger.debug { "\"${service}\" - read ${buffer.remaining()} byte(s), timeout=$timeout" }
+                AdbProtocolUtils.byteBufferToString(buffer)
+            }
+            OkayDataExpectation.NOT_EXPECTED -> {
+                null
+            }
+            OkayDataExpectation.OPTIONAL -> {
+                try {
+                    val buffer = readLengthPrefixedData(channel, workBuffer, timeout)
+                    logger.debug { "\"${service}\" - read ${buffer.remaining()} byte(s), timeout=$timeout" }
+                    AdbProtocolUtils.byteBufferToString(buffer)
+                } catch (e: EOFException) {
+                    null
+                }
+            }
         }
     }
 
@@ -107,6 +194,7 @@ internal class AdbServiceRunner(val session: AdbLibSession, private val channelP
         workBuffer.clear()
         channel.readExactly(workBuffer.forChannelRead(OKAY_FAIL_BYTE_COUNT), timeout)
         val data = workBuffer.afterChannelRead()
+        logger.debug { "Read ${data.remaining()} bytes from channel: ${AdbProtocolUtils.bufferToByteDumpString(data)}" }
         assert(data.remaining() == OKAY_FAIL_BYTE_COUNT) { "readExactly() did not read the expected number of bytes" }
 
         when {
@@ -215,7 +303,9 @@ internal class AdbServiceRunner(val session: AdbLibSession, private val channelP
             val length = lengthString.toInt(16)
             workBuffer.clear()
             channel.readExactly(workBuffer.forChannelRead(length), timeout)
-            return workBuffer.afterChannelRead()
+            val data = workBuffer.afterChannelRead()
+            logger.debug { "Read ${data.remaining()} bytes from channel: ${AdbProtocolUtils.bufferToByteDumpString(data)}" }
+            return data
         } catch (e: NumberFormatException) {
             throw AdbProtocolErrorException(
                 "Invalid format for ADB response length (\"$lengthString\")", e

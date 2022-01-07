@@ -15,8 +15,6 @@
  */
 package com.android.adblib.impl
 
-import com.android.adblib.AdbHostServices
-import com.android.adblib.DeviceState
 import org.junit.Assert
 import org.junit.Test
 
@@ -31,7 +29,7 @@ class MdnsServiceListParserTest {
         val serviceList = parser.parse("")
 
         // Assert
-        Assert.assertEquals(0, serviceList.services.size)
+        Assert.assertEquals(0, serviceList.size)
         Assert.assertEquals(0, serviceList.errors.size)
     }
 
@@ -44,7 +42,7 @@ class MdnsServiceListParserTest {
         val serviceList = parser.parse("\n\n\n")
 
         // Assert
-        Assert.assertEquals(0, serviceList.services.size)
+        Assert.assertEquals(0, serviceList.size)
         Assert.assertEquals(0, serviceList.errors.size)
     }
 
@@ -64,34 +62,34 @@ class MdnsServiceListParserTest {
         )
 
         // Assert
-        Assert.assertEquals(5, serviceList.services.size)
+        Assert.assertEquals(5, serviceList.size)
         Assert.assertEquals(1, serviceList.errors.size)
 
-        serviceList.services[0].let { service ->
+        serviceList[0].let { service ->
             Assert.assertEquals("adb-8AAY0GYQW-jBMEIf", service.instanceName)
             Assert.assertEquals("_adb-tls-connect._tcp.", service.serviceName)
             Assert.assertEquals("192.168.1.154:38103", service.deviceAddress.address)
         }
 
-        serviceList.services[1].let { service ->
+        serviceList[1].let { service ->
             Assert.assertEquals("adb-HT75B1A00212-AvY0LF", service.instanceName)
             Assert.assertEquals("_adb-tls-connect._tcp.", service.serviceName)
             Assert.assertEquals("192.168.1.90:42855", service.deviceAddress.address)
         }
 
-        serviceList.services[2].let { service ->
+        serviceList[2].let { service ->
             Assert.assertEquals("some-serial", service.instanceName)
             Assert.assertEquals("invalid-ip", service.serviceName)
             Assert.assertEquals("192.aaa:42941", service.deviceAddress.address)
         }
 
-        serviceList.services[3].let { service ->
+        serviceList[3].let { service ->
             Assert.assertEquals("adb-939AX05XBZ-vWgJpq", service.instanceName)
             Assert.assertEquals("_adb-tls-connect._tcp.", service.serviceName)
             Assert.assertEquals("192.168.1.174:42941", service.deviceAddress.address)
         }
 
-        serviceList.services[4].let { service ->
+        serviceList[4].let { service ->
             Assert.assertEquals("adb-939AX05XBZ-vWgJpq", service.instanceName)
             Assert.assertEquals("_adb-tls-pairing._tcp.", service.serviceName)
             Assert.assertEquals("192.168.1.174:40711", service.deviceAddress.address)

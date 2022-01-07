@@ -31,7 +31,7 @@ class DeviceListParserTest {
         val deviceList = parser.parse(AdbHostServices.DeviceInfoFormat.SHORT_FORMAT, "")
 
         // Assert
-        Assert.assertEquals(0, deviceList.devices.size)
+        Assert.assertEquals(0, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
     }
 
@@ -44,7 +44,7 @@ class DeviceListParserTest {
         val deviceList = parser.parse(AdbHostServices.DeviceInfoFormat.SHORT_FORMAT, "\n\n\n")
 
         // Assert
-        Assert.assertEquals(0, deviceList.devices.size)
+        Assert.assertEquals(0, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
     }
 
@@ -64,10 +64,10 @@ class DeviceListParserTest {
         )
 
         // Assert
-        Assert.assertEquals(5, deviceList.devices.size)
+        Assert.assertEquals(5, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
 
-        deviceList.devices[0].let { device ->
+        deviceList[0].let { device ->
             Assert.assertEquals("HT10X6F12345", device.serialNumber)
             Assert.assertEquals(DeviceState.ONLINE, device.deviceState)
             Assert.assertSame(DeviceState.ONLINE.toString(), device.deviceStateString)
@@ -77,7 +77,7 @@ class DeviceListParserTest {
             Assert.assertNull(device.transportId)
         }
 
-        deviceList.devices[1].let { device ->
+        deviceList[1].let { device ->
             Assert.assertEquals("adb-FAAY0QWER-jBMEIf._adb-tls-connect._tcp.", device.serialNumber)
             Assert.assertEquals(DeviceState.CONNECTING, device.deviceState)
             Assert.assertSame(DeviceState.CONNECTING.toString(), device.deviceStateString)
@@ -87,7 +87,7 @@ class DeviceListParserTest {
             Assert.assertNull(device.transportId)
         }
 
-        deviceList.devices[2].let { device ->
+        deviceList[2].let { device ->
             Assert.assertEquals("adb-HT10X6F12345-AvY0LF._adb-tls-connect._tcp.", device.serialNumber)
             Assert.assertEquals(DeviceState.OFFLINE, device.deviceState)
             Assert.assertSame(DeviceState.OFFLINE.toString(), device.deviceStateString)
@@ -97,7 +97,7 @@ class DeviceListParserTest {
             Assert.assertNull(device.transportId)
         }
 
-        deviceList.devices[3].let { device ->
+        deviceList[3].let { device ->
             Assert.assertEquals("emulator-5554", device.serialNumber)
             Assert.assertEquals(DeviceState.BOOTLOADER, device.deviceState)
             Assert.assertSame(DeviceState.BOOTLOADER.toString(), device.deviceStateString)
@@ -107,7 +107,7 @@ class DeviceListParserTest {
             Assert.assertNull(device.transportId)
         }
 
-        deviceList.devices[4].let { device ->
+        deviceList[4].let { device ->
             Assert.assertEquals("emulator-5556", device.serialNumber)
             Assert.assertEquals(DeviceState.HOST, device.deviceState)
             Assert.assertSame(DeviceState.HOST.toString(), device.deviceStateString)
@@ -127,7 +127,7 @@ class DeviceListParserTest {
         val deviceList = parser.parse(AdbHostServices.DeviceInfoFormat.LONG_FORMAT, "\n\n\n")
 
         // Assert
-        Assert.assertEquals(0, deviceList.devices.size)
+        Assert.assertEquals(0, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
     }
 
@@ -145,10 +145,10 @@ class DeviceListParserTest {
         )
 
         // Assert
-        Assert.assertEquals(3, deviceList.devices.size)
+        Assert.assertEquals(3, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
 
-        deviceList.devices[0].let { device ->
+        deviceList[0].let { device ->
             Assert.assertEquals("adb-FAAY0QWER-jBMEIf._adb-tls-connect._tcp.", device.serialNumber)
             Assert.assertEquals(DeviceState.ONLINE, device.deviceState)
             Assert.assertEquals("crosshatch", device.product)
@@ -157,7 +157,7 @@ class DeviceListParserTest {
             Assert.assertEquals("1", device.transportId)
         }
 
-        deviceList.devices[1].let { device ->
+        deviceList[1].let { device ->
             Assert.assertEquals("emulator-5554", device.serialNumber)
             Assert.assertEquals(DeviceState.ONLINE, device.deviceState)
             Assert.assertEquals("sdk_gphone_x86", device.product)
@@ -166,7 +166,7 @@ class DeviceListParserTest {
             Assert.assertEquals("3", device.transportId)
         }
 
-        deviceList.devices[2].let { device ->
+        deviceList[2].let { device ->
             Assert.assertEquals("emulator-5556", device.serialNumber)
             Assert.assertEquals(DeviceState.OFFLINE, device.deviceState)
             Assert.assertEquals(null, device.product)
@@ -191,7 +191,7 @@ class DeviceListParserTest {
         )
 
         // Assert
-        Assert.assertEquals(3, deviceList.devices.size)
+        Assert.assertEquals(3, deviceList.size)
         Assert.assertEquals(1, deviceList.errors.size)
 
         deviceList.errors[0].let { error ->
@@ -199,7 +199,7 @@ class DeviceListParserTest {
             Assert.assertEquals(1, error.lineIndex)
         }
 
-        deviceList.devices[0].let { device ->
+        deviceList[0].let { device ->
             Assert.assertEquals(
                 "adb-FAAY0QWER-jBMEIf._adb-tls-connect._tcp.",
                 device.serialNumber
@@ -211,7 +211,7 @@ class DeviceListParserTest {
             Assert.assertEquals("15", device.transportId)
         }
 
-        deviceList.devices[1].let { device ->
+        deviceList[1].let { device ->
             Assert.assertEquals("emulator-5554", device.serialNumber)
             Assert.assertEquals(DeviceState.ONLINE, device.deviceState)
             Assert.assertEquals("sdk_gphone_x86", device.product)
@@ -220,7 +220,7 @@ class DeviceListParserTest {
             Assert.assertEquals("3", device.transportId)
         }
 
-        deviceList.devices[2].let { device ->
+        deviceList[2].let { device ->
             Assert.assertEquals("emulator-5556", device.serialNumber)
             Assert.assertEquals(DeviceState.OFFLINE, device.deviceState)
             Assert.assertEquals(null, device.product)
@@ -242,10 +242,10 @@ class DeviceListParserTest {
         )
 
         // Assert
-        Assert.assertEquals(1, deviceList.devices.size)
+        Assert.assertEquals(1, deviceList.size)
         Assert.assertEquals(0, deviceList.errors.size)
 
-        deviceList.devices[0].let { device ->
+        deviceList[0].let { device ->
             Assert.assertEquals("ser-aaa", device.serialNumber)
             Assert.assertEquals(DeviceState.UNKNOWN, device.deviceState)
             Assert.assertEquals("some-weird-state", device.deviceStateString)

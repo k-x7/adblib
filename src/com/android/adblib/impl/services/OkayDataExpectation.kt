@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,15 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.adblib
+package com.android.adblib.impl.services
 
-data class MdnsServiceList(
-    /**
-     * The list of mDNS services currently active
-     */
-    val services: List<MdnsServiceInfo>,
-    /**
-     * List of entries that were not recognized
-     */
-    val errors: List<DeviceErrorInfo>
-)
+/**
+ * Defines what kind of data an ADB query is expected to send after an "OKAY" response.
+ * See [AdbServiceRunner.runHostDeviceQuery] and [AdbServiceRunner.runHostQuery].
+ */
+internal enum class OkayDataExpectation {
+    /** Data is always expected to be present */
+    EXPECTED,
+    /** No data is expected to be present */
+    NOT_EXPECTED,
+    /** Data is sometimes present, sometimes not */
+    OPTIONAL,
+}

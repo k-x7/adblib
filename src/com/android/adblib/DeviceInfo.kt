@@ -99,12 +99,7 @@ class DeviceInfo(
 }
 
 /**
- * List of [devices] as returned by [AdbHostServices.devices], as well as list of
- * [errors] in case some lines in the output from ADB were not recognized.
+ * List of [DeviceInfo] as returned by [AdbHostServices.devices], as well as list of
+ * [ErrorLine] in case some lines in the output from ADB were not recognized.
  */
-class DeviceList(val devices: List<DeviceInfo>, val errors: List<DeviceErrorInfo>)
-
-/**
- * A device definition that was not recognized during processing in [AdbHostServices.devices]
- */
-data class DeviceErrorInfo(val message: String, val lineIndex: Int, val rawLineText: String)
+typealias DeviceList = ListWithErrors<DeviceInfo>
