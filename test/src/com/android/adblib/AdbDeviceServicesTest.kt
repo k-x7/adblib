@@ -712,7 +712,7 @@ class AdbDeviceServicesTest {
         Assert.assertNotNull(fakeDevice.getFile(filePath))
         fakeDevice.getFile(filePath)?.run {
             Assert.assertEquals(filePath, path)
-            Assert.assertEquals(fileMode.modeBits, permission.toInt())
+            Assert.assertEquals(fileMode.modeBits, permission)
             Assert.assertEquals(fileDate.toMillis() / 1_000, modifiedDate.toLong())
             Assert.assertEquals(fileBytes.size, bytes.size)
         }
@@ -756,7 +756,7 @@ class AdbDeviceServicesTest {
         Assert.assertNotNull(fakeDevice.getFile(filePath))
         fakeDevice.getFile(filePath)?.run {
             Assert.assertEquals(filePath, path)
-            Assert.assertEquals(fileMode.modeBits, permission.toInt())
+            Assert.assertEquals(fileMode.modeBits, permission)
             Assert.assertEquals(fileDate.toMillis() / 1_000, modifiedDate.toLong())
             Assert.assertEquals(fileBytes.size, bytes.size)
         }
@@ -907,7 +907,7 @@ class AdbDeviceServicesTest {
         Assert.assertNotNull(fakeDevice.getFile(filePath))
         fakeDevice.getFile(filePath)?.run {
             Assert.assertEquals(filePath, path)
-            Assert.assertEquals(fileMode.modeBits, permission.toInt())
+            Assert.assertEquals(fileMode.modeBits, permission)
             Assert.assertEquals(fileDate.toMillis() / 1_000, modifiedDate.toLong())
             Assert.assertArrayEquals(fileBytes, bytes)
         }
@@ -919,7 +919,7 @@ class AdbDeviceServicesTest {
         Assert.assertNotNull(fakeDevice.getFile(filePath2))
         fakeDevice.getFile(filePath2)?.run {
             Assert.assertEquals(filePath2, path)
-            Assert.assertEquals(fileMode2.modeBits, permission.toInt())
+            Assert.assertEquals(fileMode2.modeBits, permission)
             Assert.assertEquals(fileDate2.toMillis() / 1_000, modifiedDate.toLong())
             Assert.assertArrayEquals(fileBytes2, bytes)
         }
@@ -943,7 +943,7 @@ class AdbDeviceServicesTest {
         fakeDevice.createFile(
             DeviceFileState(
                 filePath,
-                fileMode.modeBits.toString(),
+                fileMode.modeBits,
                 (fileDate.toMillis() / 1_000).toInt(),
                 fileBytes
             )
@@ -989,7 +989,7 @@ class AdbDeviceServicesTest {
         fakeDevice.createFile(
             DeviceFileState(
                 filePath,
-                fileMode.modeBits.toString(),
+                fileMode.modeBits,
                 (fileDate.toMillis() / 1_000).toInt(),
                 fileBytes
             )
@@ -1005,7 +1005,7 @@ class AdbDeviceServicesTest {
         fakeDevice.createFile(
             DeviceFileState(
                 filePath2,
-                fileMode2.modeBits.toString(),
+                fileMode2.modeBits,
                 (fileDate2.toMillis() / 1_000).toInt(),
                 fileBytes2
             )
@@ -1096,7 +1096,7 @@ class AdbDeviceServicesTest {
         Assert.assertNotNull(fakeDevice.getFile(filePath))
         fakeDevice.getFile(filePath)?.run {
             Assert.assertEquals(filePath, path)
-            Assert.assertEquals(fileMode.modeBits, permission.toInt())
+            Assert.assertEquals(fileMode.modeBits, permission)
             Assert.assertEquals(fileDate.toMillis() / 1_000, modifiedDate.toLong())
             Assert.assertArrayEquals(fileBytes, bytes)
         }
@@ -1161,7 +1161,7 @@ class AdbDeviceServicesTest {
         fakeDevice.createFile(
             DeviceFileState(
                 filePath,
-                fileMode.modeBits.toString(),
+                fileMode.modeBits,
                 (fileDate.toMillis() / 1_000).toInt(),
                 fileBytes
             )
@@ -1208,7 +1208,7 @@ class AdbDeviceServicesTest {
         fakeDevice.createFile(
             DeviceFileState(
                 filePath,
-                fileMode.modeBits.toString(),
+                fileMode.modeBits,
                 (fileDate.toMillis() / 1_000).toInt(),
                 fileBytes
             )
