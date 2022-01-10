@@ -119,6 +119,52 @@ interface AdbDeviceServices {
      * @param [device] the [DeviceSelector] corresponding to the target device
      */
     suspend fun sync(device: DeviceSelector): AdbDeviceSyncServices
+
+    /**
+     * Returns the [list][ReverseSocketList] of all
+     * [reverse socket connections][ReverseSocketInfo] currently active on the
+     * given [device] ("`<device-transport>:reverse:list-forward`" query).
+     */
+    suspend fun reverseListForward(device: DeviceSelector): ReverseSocketList
+
+    /**
+     * Creates a reverse forward socket connection from a [remote] device to the [local] host
+     * ("`<device-transport>:reverse:forward(:norebind):<remote>:<local>`" query).
+     *
+     * This method tells the ADB Daemon of the [device] to create a [server socket][SocketSpec]
+     * as specified by [remote]. The ADB Daemon listens to client connections made (on the
+     * device) to that server socket, and forwards each client connection to the [SocketSpec] on
+     * the host machine.
+     *
+     * When invoking this method, the ADB Daemon does not validate the format of the [local]
+     * socket specification. A connection to the [local] socket on the host machine is made
+     * only when a client connects to the [remote] server socket (on the device). At that point,
+     * if [local] is invalid, the new client connection is immediately closed.
+     *
+     * This method fails if the device already has a reverse connection with [remote] as the
+     * source, unless [rebind] is `true`.
+     *
+     * Returns the ADB Daemon reply to the request, typically a TCP port number if using
+     * `tcp:0` for [remote].
+     */
+    suspend fun reverseForward(
+        device: DeviceSelector,
+        remote: SocketSpec,
+        local: SocketSpec,
+        rebind: Boolean = false
+    ): String?
+
+    /**
+     * Closes a reverse socket connection on the given [device]
+     * ("`<device-transport>:reverse:killforward:<remote>`" query).
+     */
+    suspend fun reverseKillForward(device: DeviceSelector, remote: SocketSpec)
+
+    /**
+     * Closes all reverse socket connections on the given [device]
+     * ("`<device-transport>:reverse:killforward-all`" query).
+     */
+    suspend fun reverseKillForwardAll(device: DeviceSelector)
 }
 
 /**

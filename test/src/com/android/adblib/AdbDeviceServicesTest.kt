@@ -1228,6 +1228,175 @@ class AdbDeviceServicesTest {
         Assert.fail() // Should not be reached
     }
 
+    @Test
+    fun testReverseForward() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        val port = runBlocking {
+            deviceServices.reverseForward(
+                deviceSelector,
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        }
+
+        // Assert
+        Assert.assertTrue(port != null && port.toInt() > 0)
+    }
+
+    @Test
+    fun testReverseForwardNoRebind() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val port = runBlocking {
+            deviceServices.reverseForward(
+                deviceSelector,
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        }?.toIntOrNull() ?: throw AssertionError("Port should have been an integer")
+
+        // Act
+        exceptionRule.expect(AdbFailResponseException::class.java)
+        runBlocking {
+            deviceServices.reverseForward(
+                DeviceSelector.any(),
+                SocketSpec.Tcp(port),
+                SocketSpec.Tcp(4000),
+                rebind = false
+            )
+        }
+
+        // Assert
+        Assert.fail()
+    }
+
+    @Test
+    fun testReverseForwardRebind() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val port = runBlocking {
+            deviceServices.reverseForward(
+                deviceSelector,
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        }?.toIntOrNull() ?: throw AssertionError("Port should have been an integer")
+
+        // Act
+        val port2 = runBlocking {
+            deviceServices.reverseForward(
+                deviceSelector,
+                SocketSpec.Tcp(port),
+                SocketSpec.Tcp(4000),
+                rebind = true
+            )
+        }
+
+        // Assert
+        Assert.assertNull(port2)
+    }
+
+    @Test
+    fun testReverseKillForward() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val port = runBlocking {
+            deviceServices.reverseForward(
+                deviceSelector,
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        } ?: throw Exception("`forward` command should have returned a port")
+        Assert.assertEquals(1, fakeDevice.allReversePortForwarders.size)
+
+        // Act
+        runBlocking {
+            deviceServices.reverseKillForward(
+                deviceSelector,
+                SocketSpec.Tcp(port.toInt())
+            )
+        }
+
+        // Assert
+        Assert.assertEquals(0, fakeDevice.allReversePortForwarders.size)
+    }
+
+    @Test
+    fun testReverseKillForwardAll() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        runBlocking {
+            deviceServices.reverseForward(
+                deviceSelector,
+                SocketSpec.Tcp(),
+                SocketSpec.Tcp(4000)
+            )
+        }
+        Assert.assertEquals(1, fakeDevice.allReversePortForwarders.size)
+
+        // Act
+        runBlocking {
+            deviceServices.reverseKillForwardAll(deviceSelector)
+        }
+
+        // Assert
+        Assert.assertEquals(0, fakeDevice.allPortForwarders.size)
+    }
+
+    @Test
+    fun testReverseListForward() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        runBlocking {
+            deviceServices.reverseForward(
+                deviceSelector,
+                SocketSpec.Tcp(1000),
+                SocketSpec.Tcp(4000)
+            )
+        }
+        Assert.assertEquals(1, fakeDevice.allReversePortForwarders.size)
+
+        // Act
+        val reverseList = runBlocking {
+            deviceServices.reverseListForward(deviceSelector)
+        }
+
+        // Assert
+        Assert.assertEquals(1, reverseList.size)
+        Assert.assertEquals(0, reverseList.errors.size)
+        reverseList[0].let { forwardEntry ->
+            Assert.assertEquals("UsbFfs", forwardEntry.transportName)
+            Assert.assertEquals("tcp:1000", forwardEntry.remote.toQueryString())
+            Assert.assertEquals("tcp:4000", forwardEntry.local.toQueryString())
+        }
+    }
+
     open class TestSyncProgress : SyncProgress {
 
         var started = false

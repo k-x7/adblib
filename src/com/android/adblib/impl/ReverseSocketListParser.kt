@@ -1,8 +1,8 @@
 package com.android.adblib.impl
 
-import com.android.adblib.ForwardSocketInfo
-import com.android.adblib.ForwardSocketList
 import com.android.adblib.ListWithErrors
+import com.android.adblib.ReverseSocketInfo
+import com.android.adblib.ReverseSocketList
 import com.android.adblib.SocketSpec
 import com.android.adblib.utils.AdbProtocolUtils
 
@@ -17,28 +17,29 @@ private const val SPACE = " "
  * See implementation at:
  * [ADB source code](https://cs.android.com/android/platform/superproject/+/790d619575aea7032a4fe5f097d412adedf6623b:packages/modules/adb/adb_listeners.cpp;l=126)
  */
-private const val FORWARD_LINE_PATTERN =
+private const val REVERSE_LINE_PATTERN =
     "(${ALL_BUT_SPACE})${SPACE}(${ALL_BUT_SPACE})${SPACE}(${ALL_BUT_SPACE})"
 
 /**
- * Parser for the list of forward socket connection returned by the `host:forward-list` command.
+ * Parser for the list of reverse forward socket connections, as returned by the
+ * `reverse:forward-list` command.
  *
  * Input example
  *
  *  ```
- *      HT75B1A00212 tcp:51222 tcp:5000
- *      HT75B1A00212 tcp:51227 tcp:5001
- *      HT75B1A00212 tcp:51232 tcp:5002
- *      HT75B1A00212 tcp:51239 tcp:5003
- *      HT75B1A00212 tcp:51244 tcp:5004
+ *      UsbFfs tcp:5000 tcp:5003
+ *      UsbFfs tcp:5001 tcp:5003
+ *      UsbFfs tcp:5002 tcp:5003
+ *      UsbFfs tcp:5003 tcp:5003
+ *      UsbFfs tcp:5004 tcp:5003
  *  ```
  */
-internal class ForwardSocketListParser {
+internal class ReverseSocketListParser {
 
-    private val lineRegex = Regex(FORWARD_LINE_PATTERN)
+    private val lineRegex = Regex(REVERSE_LINE_PATTERN)
 
-    fun parse(input: CharSequence): ForwardSocketList {
-        val builder = ListWithErrors.Builder<ForwardSocketInfo>()
+    fun parse(input: CharSequence): ReverseSocketList {
+        val builder = ListWithErrors.Builder<ReverseSocketInfo>()
 
         // Special case of <no devices>
         if (input.isEmpty()) {
@@ -56,7 +57,7 @@ internal class ForwardSocketListParser {
     }
 
     private fun parseOneShortFormatLine(
-        builder: ListWithErrors.Builder<ForwardSocketInfo>,
+        builder: ListWithErrors.Builder<ReverseSocketInfo>,
         lineIndex: Int,
         lineText: CharSequence
     ) {
@@ -72,26 +73,26 @@ internal class ForwardSocketListParser {
             return
         }
 
-        val serialNumber = matchResult.groupValues[1]
-        if (serialNumber.isEmpty()) {
-            builder.addError("Device serial number is empty", lineIndex, lineText)
+        val transportName = matchResult.groupValues[1]
+        if (transportName.isEmpty()) {
+            builder.addError("Transport name is empty", lineIndex, lineText)
             return
         }
 
-        val local = matchResult.groupValues[2]
-        if (local.isEmpty()) {
-            builder.addError("Local address is empty", lineIndex, lineText)
-            return
-        }
-        val localAddress = SocketSpec.fromQueryString(local)
-
-        val remote = matchResult.groupValues[3]
+        val remote = matchResult.groupValues[2]
         if (remote.isEmpty()) {
             builder.addError("Remote address is empty", lineIndex, lineText)
             return
         }
         val remoteAddress = SocketSpec.fromQueryString(remote)
 
-        builder.addEntry(ForwardSocketInfo(serialNumber, localAddress, remoteAddress))
+        val local = matchResult.groupValues[3]
+        if (local.isEmpty()) {
+            builder.addError("Local address is empty", lineIndex, lineText)
+            return
+        }
+        val localAddress = SocketSpec.fromQueryString(local)
+
+        builder.addEntry(ReverseSocketInfo(transportName, remoteAddress, localAddress))
     }
 }

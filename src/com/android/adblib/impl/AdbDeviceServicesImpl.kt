@@ -8,10 +8,13 @@ import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbLibSession
 import com.android.adblib.DeviceSelector
+import com.android.adblib.ReverseSocketList
 import com.android.adblib.ShellCollector
 import com.android.adblib.ShellV2Collector
+import com.android.adblib.SocketSpec
 import com.android.adblib.forwardTo
 import com.android.adblib.impl.services.AdbServiceRunner
+import com.android.adblib.impl.services.OkayDataExpectation
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TimeoutTracker
 import com.android.adblib.utils.TimeoutTracker.Companion.INFINITE
@@ -30,6 +33,7 @@ internal class AdbDeviceServicesImpl(
     private val timeout: Long,
     private val unit: TimeUnit
 ) : AdbDeviceServices {
+    private val myReverseSocketListParser = ReverseSocketListParser()
 
     private val host: AdbLibHost
         get() = session.host
@@ -82,6 +86,62 @@ internal class AdbDeviceServicesImpl(
 
     override suspend fun sync(device: DeviceSelector): AdbDeviceSyncServices {
         return AdbDeviceSyncServicesImpl.open(serviceRunner, device, timeout, unit)
+    }
+
+    override suspend fun reverseListForward(device: DeviceSelector): ReverseSocketList {
+        // ADB Host code, service handler:
+        // https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/adb.cpp;l=986
+        // ADB client code:
+        // https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/client/commandline.cpp;l=1876
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "reverse:list-forward"
+        val data = serviceRunner.runDaemonQuery(device, service, tracker)
+        return myReverseSocketListParser.parse(data)
+    }
+
+    override suspend fun reverseForward(
+        device: DeviceSelector,
+        remote: SocketSpec,
+        local: SocketSpec,
+        rebind: Boolean
+    ): String? {
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "reverse:forward:" +
+                (if (rebind) "" else "norebind:") +
+                remote.toQueryString() +
+                ";" +
+                local.toQueryString()
+        return serviceRunner.runDaemonQuery2(device, service, tracker, OkayDataExpectation.OPTIONAL)
+    }
+
+    override suspend fun reverseKillForward(device: DeviceSelector, remote: SocketSpec) {
+        // ADB Host code, service handler:
+        // https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/adb.cpp;l=1006
+        // ADB client code:
+        // https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/client/commandline.cpp;l=1895
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "reverse:killforward:${remote.toQueryString()}"
+        serviceRunner.runDaemonQuery2(
+            device,
+            service,
+            tracker,
+            OkayDataExpectation.NOT_EXPECTED
+        )
+    }
+
+    override suspend fun reverseKillForwardAll(device: DeviceSelector) {
+        // ADB Host code, service handler:
+        // https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/adb.cpp;l=996
+        // ADB client code:
+        // https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/client/commandline.cpp;l=1895
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "reverse:killforward-all"
+        serviceRunner.runDaemonQuery2(
+            device,
+            service,
+            tracker,
+            OkayDataExpectation.NOT_EXPECTED
+        )
     }
 
     override fun <T> shellV2(
