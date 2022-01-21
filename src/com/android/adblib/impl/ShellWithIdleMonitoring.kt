@@ -86,10 +86,10 @@ internal class ShellWithIdleMonitoring<T>(
         private val logPrefix: String
             get() = this::class.java.simpleName
 
-        override suspend fun start(collector: FlowCollector<T>, transportId: Long?) {
+        override suspend fun start(collector: FlowCollector<T>) {
             host.logger.verbose { "$logPrefix.start" }
             heartbeatChannel.send(Unit)
-            delegate.start(collector, transportId)
+            delegate.start(collector)
         }
 
         override suspend fun collect(collector: FlowCollector<T>, stdout: ByteBuffer) {

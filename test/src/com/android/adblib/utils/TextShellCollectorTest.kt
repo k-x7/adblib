@@ -108,7 +108,7 @@ class TextShellCollectorTest {
         vararg values: String
     ) {
         runBlocking {
-            shellCollector.start(flowCollector, null)
+            shellCollector.start(flowCollector)
             values.forEach { value ->
                 shellCollector.collect(flowCollector, ByteBufferUtils.stringToByteBuffer(value))
             }

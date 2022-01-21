@@ -203,7 +203,7 @@ internal class AdbServiceRunner(val session: AdbLibSession, private val channelP
         okayData: OkayDataExpectation
     ): String? {
         val workBuffer = newResizableBuffer()
-        val (channel, _) = switchToTransport(device, workBuffer, timeout)
+        val channel = switchToTransport(device, workBuffer, timeout)
         return channel.use {
             sendAbdServiceRequest(channel, workBuffer, query, timeout)
             consumeOkayFailResponse(channel, workBuffer, timeout)
@@ -221,7 +221,7 @@ internal class AdbServiceRunner(val session: AdbLibSession, private val channelP
         okayData: OkayDataExpectation
     ): String? {
         val workBuffer = newResizableBuffer()
-        val channel = switchToTransport(device, workBuffer, timeout).first
+        val channel = switchToTransport(device, workBuffer, timeout)
         return channel.use {
             sendAbdServiceRequest(channel, workBuffer, query, timeout)
             // We receive 2 OKAY answers from the ADB Host: 1st OKAY is connect, 2nd OKAY is status.
@@ -374,15 +374,14 @@ internal class AdbServiceRunner(val session: AdbLibSession, private val channelP
         deviceSelector: DeviceSelector,
         workBuffer: ResizableBuffer,
         timeout: TimeoutTracker
-    ): Pair<AdbChannel, Long?> {
+    ): AdbChannel {
         val transportPrefix = deviceSelector.transportPrefix
-        var transportId: Long? = null
         startHostQuery(workBuffer, transportPrefix, timeout).closeOnException { channel ->
             if (deviceSelector.responseContainsTransportId) {
-                transportId = consumeTransportId(channel, workBuffer, timeout)
+                deviceSelector.transportId = consumeTransportId(channel, workBuffer, timeout)
             }
             logger.debug { "ADB transport was switched to \"${transportPrefix}\", timeout left is $timeout" }
-            return Pair(channel, transportId)
+            return channel
         }
     }
 

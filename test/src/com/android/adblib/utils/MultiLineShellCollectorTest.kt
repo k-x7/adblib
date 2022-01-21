@@ -107,7 +107,7 @@ class MultiLineShellCollectorTest {
         vararg values: String
     ) {
         runBlocking {
-            linesCollector.start(flowCollector, null)
+            linesCollector.start(flowCollector)
             values.forEach { value ->
                 linesCollector.collect(flowCollector, ByteBufferUtils.stringToByteBuffer(value))
             }

@@ -82,7 +82,7 @@ class AdbDeviceServicesTest {
         }
 
         // Assert
-        Assert.assertNull(collector.transportId)
+        Assert.assertNull(deviceSelector.transportId)
         val expectedOutput = """
             # This is some build info
             # This is more build info
@@ -483,7 +483,7 @@ class AdbDeviceServicesTest {
         }
 
         // Assert
-        Assert.assertNull(shellV2Result.transportId)
+        Assert.assertNull(deviceSelector.transportId)
         val expectedOutput = """
             # This is some build info
             # This is more build info
@@ -531,7 +531,7 @@ class AdbDeviceServicesTest {
         }
 
         // Assert
-        Assert.assertNull(shellV2Result.transportId)
+        Assert.assertNull(deviceSelector.transportId)
         val expectedStdout = """
             This is some text with
             split in multiple lines
@@ -546,8 +546,14 @@ class AdbDeviceServicesTest {
 
         """.trimIndent()
 
-        Assert.assertEquals(expectedStdout, AdbProtocolUtils.byteBufferToString(shellV2Result.stdout))
-        Assert.assertEquals(expectedStderr, AdbProtocolUtils.byteBufferToString(shellV2Result.stderr))
+        Assert.assertEquals(
+            expectedStdout,
+            AdbProtocolUtils.byteBufferToString(shellV2Result.stdout)
+        )
+        Assert.assertEquals(
+            expectedStderr,
+            AdbProtocolUtils.byteBufferToString(shellV2Result.stderr)
+        )
         Assert.assertEquals(10, shellV2Result.exitCode)
     }
 
@@ -655,12 +661,18 @@ class AdbDeviceServicesTest {
     // Checks public contract of the ShellCommandOutputElement.*.toString methods.
     @Test
     fun testShellCommandOutputElement() {
-        assertEquals("contents",
-                     ShellCommandOutputElement.StdoutLine("contents").toString())
-        assertEquals("contents",
-                     ShellCommandOutputElement.StderrLine("contents").toString())
-        assertEquals("42",
-                     ShellCommandOutputElement.ExitCode(42).toString())
+        assertEquals(
+            "contents",
+            ShellCommandOutputElement.StdoutLine("contents").toString()
+        )
+        assertEquals(
+            "contents",
+            ShellCommandOutputElement.StderrLine("contents").toString()
+        )
+        assertEquals(
+            "42",
+            ShellCommandOutputElement.ExitCode(42).toString()
+        )
     }
 
     @Test
@@ -1427,7 +1439,12 @@ class AdbDeviceServicesTest {
     private fun createDeviceServices(fakeAdb: FakeAdbServerProvider): AdbDeviceServices {
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val session = AdbLibSession.create(host, channelProvider, Duration.ofMillis(SOCKET_CONNECT_TIMEOUT_MS))
+        val session =
+            AdbLibSession.create(
+                host,
+                channelProvider,
+                Duration.ofMillis(SOCKET_CONNECT_TIMEOUT_MS)
+            )
         return session.deviceServices
     }
 
@@ -1448,10 +1465,8 @@ class AdbDeviceServicesTest {
     class ByteBufferShellCollector : ShellCollector<ByteBuffer> {
 
         private val buffer = ResizableBuffer()
-        var transportId: Long? = null
 
-        override suspend fun start(collector: FlowCollector<ByteBuffer>, transportId: Long?) {
-            this.transportId = transportId
+        override suspend fun start(collector: FlowCollector<ByteBuffer>) {
         }
 
         override suspend fun collect(collector: FlowCollector<ByteBuffer>, stdout: ByteBuffer) {
@@ -1467,10 +1482,8 @@ class AdbDeviceServicesTest {
 
         private val stdoutBuffer = ResizableBuffer()
         private val stderrBuffer = ResizableBuffer()
-        private var transportId: Long? = null
 
-        override suspend fun start(collector: FlowCollector<ShellV2Result>, transportId: Long?) {
-            this.transportId = transportId
+        override suspend fun start(collector: FlowCollector<ShellV2Result>) {
         }
 
         override suspend fun collectStdout(
@@ -1493,7 +1506,6 @@ class AdbDeviceServicesTest {
         ) {
             val result =
                 ShellV2Result(
-                    transportId,
                     stdoutBuffer.forChannelWrite(),
                     stderrBuffer.forChannelWrite(),
                     exitCode
@@ -1503,7 +1515,6 @@ class AdbDeviceServicesTest {
     }
 
     class ShellV2Result(
-        val transportId: Long?,
         val stdout: ByteBuffer,
         val stderr: ByteBuffer,
         val exitCode: Int

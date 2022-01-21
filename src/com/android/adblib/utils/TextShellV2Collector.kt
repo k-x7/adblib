@@ -34,9 +34,9 @@ class TextShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<ShellCo
     private val stdoutFlowCollector = StringFlowCollector()
     private val stderrFlowCollector = StringFlowCollector()
 
-    override suspend fun start(collector: FlowCollector<ShellCommandOutput>, transportId: Long?) {
-        stdoutCollector.start(stdoutFlowCollector, transportId)
-        stderrCollector.start(stderrFlowCollector, transportId)
+    override suspend fun start(collector: FlowCollector<ShellCommandOutput>) {
+        stdoutCollector.start(stdoutFlowCollector)
+        stderrCollector.start(stderrFlowCollector)
     }
 
     override suspend fun collectStdout(

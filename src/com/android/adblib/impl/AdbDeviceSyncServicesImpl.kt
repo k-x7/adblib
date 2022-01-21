@@ -40,8 +40,7 @@ internal const val REMOTE_PATH_MAX_LENGTH = 1024
 internal class AdbDeviceSyncServicesImpl private constructor(
     serviceRunner: AdbServiceRunner,
     device: DeviceSelector,
-    private val deviceChannel: AdbChannel,
-    override val transportId: Long?
+    private val deviceChannel: AdbChannel
 ) : AdbDeviceSyncServices {
 
     /**
@@ -102,8 +101,7 @@ internal class AdbDeviceSyncServicesImpl private constructor(
                 val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
                 val workBuffer = serviceRunner.newResizableBuffer()
                 // Switch the channel to the right transport (i.e. device)
-                val (channel, transportId) =
-                    serviceRunner.switchToTransport(device, workBuffer, tracker)
+                val channel = serviceRunner.switchToTransport(device, workBuffer, tracker)
                 channel.closeOnException {
                     // Start the "sync" service
                     val localService = "sync:"
@@ -112,7 +110,7 @@ internal class AdbDeviceSyncServicesImpl private constructor(
                     serviceRunner.consumeOkayFailResponse(channel, workBuffer, tracker)
 
                     // Now that everything is setup, returns the instance
-                    AdbDeviceSyncServicesImpl(serviceRunner, device, channel, transportId)
+                    AdbDeviceSyncServicesImpl(serviceRunner, device, channel)
                 }
             }
         }

@@ -28,12 +28,8 @@ interface ShellCollector<T> {
      * on the device, but before any output from `stdout` has been processed.
      *
      * [collector] The [FlowCollector] where flow elements should be emitted, if any.
-     *
-     * [transportId] The (optional) transport ID of the device if the [DeviceSelector]
-     * used to start the shell command specified that a transport ID should be returned
-     * on the channel. `null` otherwise.
      */
-    suspend fun start(collector: FlowCollector<T>, transportId: Long?)
+    suspend fun start(collector: FlowCollector<T>)
 
     /**
      * Process a single [ByteBuffer] received from `stdout` of the shell command.

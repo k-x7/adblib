@@ -41,7 +41,7 @@ class TextShellCollector(bufferCapacity: Int = 256) : ShellCollector<String> {
      */
     private val characterCollector = this::collectCharacters
 
-    override suspend fun start(collector: FlowCollector<String>, transportId: Long?) {
+    override suspend fun start(collector: FlowCollector<String>) {
         // Nothing to do
     }
 

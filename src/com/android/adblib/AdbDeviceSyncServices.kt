@@ -34,13 +34,6 @@ const val SYNC_DATA_MAX = 64 * 1024
 interface AdbDeviceSyncServices : AutoCloseable {
 
     /**
-     * The (optional) transport ID of the device if the [DeviceSelector] used to start the
-     * service specified that a transport ID should be returned on the channel.
-     * `null` otherwise.
-     */
-    val transportId: Long?
-
-    /**
      * Sends the contents of an [AdbInputChannel] to file on the remote device (`SEND` command).
      *
      * If [remoteFileTime] is not provided, it defaults to the current system time.

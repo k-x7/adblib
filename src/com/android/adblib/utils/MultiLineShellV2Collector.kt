@@ -35,12 +35,12 @@ class MultiLineShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<Sh
         ShellCommandOutputElement.StderrLine(line)
     }
 
-    override suspend fun start(collector: FlowCollector<ShellCommandOutputElement>, transportId: Long?) {
+    override suspend fun start(collector: FlowCollector<ShellCommandOutputElement>) {
         stdoutFlowCollector.forwardingFlowCollector = collector
-        stdoutCollector.start(stdoutFlowCollector, transportId)
+        stdoutCollector.start(stdoutFlowCollector)
 
         stderrFlowCollector.forwardingFlowCollector = collector
-        stderrCollector.start(stderrFlowCollector, transportId)
+        stderrCollector.start(stderrFlowCollector)
     }
 
     override suspend fun collectStdout(

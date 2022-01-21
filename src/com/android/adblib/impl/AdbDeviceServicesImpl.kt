@@ -53,7 +53,7 @@ internal class AdbDeviceServicesImpl(
         // itself can take an arbitrary amount of time.
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
         val workBuffer = serviceRunner.newResizableBuffer()
-        val (channel, transportId) = serviceRunner.switchToTransport(device, workBuffer, tracker)
+        val channel = serviceRunner.switchToTransport(device, workBuffer, tracker)
         channel.use {
             // We switched the channel to the right transport (i.e. device), now send the service request
             val service = getShellServiceString(ShellProtocol.V1, command)
@@ -75,7 +75,6 @@ internal class AdbDeviceServicesImpl(
                     channel,
                     workBuffer,
                     service,
-                    transportId,
                     bufferSize,
                     shellCollector,
                     this@flow
@@ -156,7 +155,7 @@ internal class AdbDeviceServicesImpl(
         // itself can take an arbitrary amount of time.
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
         val workBuffer = serviceRunner.newResizableBuffer()
-        val (channel, transportId) = serviceRunner.switchToTransport(device, workBuffer, tracker)
+        val channel = serviceRunner.switchToTransport(device, workBuffer, tracker)
         channel.use {
             // We switched the channel to the right transport (i.e. device), now send the service request
             val localService = getShellServiceString(ShellProtocol.V2, command)
@@ -180,7 +179,6 @@ internal class AdbDeviceServicesImpl(
                     channel,
                     workBuffer,
                     localService,
-                    transportId,
                     shellCollector,
                     this@flow
                 )
@@ -192,13 +190,12 @@ internal class AdbDeviceServicesImpl(
         channel: AdbChannel,
         workBuffer: ResizableBuffer,
         service: String,
-        transportId: Long?,
         bufferSize: Int,
         shellCollector: ShellCollector<T>,
         flowCollector: FlowCollector<T>
     ) {
         host.logger.debug { "\"${service}\" - Collecting messages from shell command output" }
-        shellCollector.start(flowCollector, transportId)
+        shellCollector.start(flowCollector)
         while (true) {
             host.logger.verbose { "\"${service}\" - Waiting for next message from shell command output" }
 
@@ -224,12 +221,11 @@ internal class AdbDeviceServicesImpl(
         channel: AdbChannel,
         workBuffer: ResizableBuffer,
         service: String,
-        transportId: Long?,
         shellCollector: ShellV2Collector<T>,
         flowCollector: FlowCollector<T>
     ) {
         host.logger.debug { "\"${service}\" - Waiting for next shell protocol packet" }
-        shellCollector.start(flowCollector, transportId)
+        shellCollector.start(flowCollector)
         val shellProtocol = ShellV2ProtocolHandler(channel, workBuffer)
 
         while (true) {

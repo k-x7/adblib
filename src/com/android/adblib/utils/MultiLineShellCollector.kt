@@ -44,7 +44,7 @@ class MultiLineShellCollector(bufferCapacity: Int = 256) : ShellCollector<String
      */
     private val lineCollector = this::collectLines
 
-    override suspend fun start(collector: FlowCollector<String>, transportId: Long?) {
+    override suspend fun start(collector: FlowCollector<String>) {
         // Nothing to do
     }
 
