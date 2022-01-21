@@ -132,18 +132,6 @@ abstract class SocketSpec {
     }
 
     /**
-     * Attaches to a device [path] on the remote device.
-     *
-     * Note: This should only be used as the "remote" parameter of [AdbHostServices.forward].
-     */
-    class Dev(public val path: String) : SocketSpec() {
-
-        override fun toQueryString(): String {
-            return "dev:$path"
-        }
-    }
-
-    /**
      * Invokes any [service] on the remote device, for example `track-jdwp`.
      *
      * Note: This should only be used as the "remote" parameter of [AdbHostServices.forward].
@@ -205,9 +193,6 @@ abstract class SocketSpec {
                 "jdwp" -> {
                     val pid = suffix.toIntOrNull()
                     return if (pid == null) PassThrough(value) else Jdwp(pid)
-                }
-                "dev" -> {
-                    return Dev(suffix)
                 }
                 else -> {
                     PassThrough(value)
