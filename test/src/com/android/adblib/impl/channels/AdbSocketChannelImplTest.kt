@@ -53,7 +53,7 @@ class AdbSocketChannelImplTest {
         val longTimeoutMs = 10_000L
         var expectedException: Throwable? = null
         runBlocking {
-            channel.connect(fakeAdb.socketAddress, host.newTimeout(longTimeoutMs, TimeUnit.MILLISECONDS))
+            channel.connect(fakeAdb.socketAddress, longTimeoutMs, TimeUnit.MILLISECONDS)
 
             // We will be attempting to read some data from the fake adb server. Since we have not
             // send any request, we should not be receiving any data, so we know we are exercising
@@ -64,7 +64,7 @@ class AdbSocketChannelImplTest {
             try {
                 withTimeout(shortTimeoutMs) {
                     val buffer = ByteBuffer.allocate(1_024)
-                    channel.read(buffer, host.newTimeout(longTimeoutMs, TimeUnit.MILLISECONDS))
+                    channel.read(buffer, longTimeoutMs, TimeUnit.MILLISECONDS)
                 }
             } catch (t: TimeoutCancellationException) {
                 expectedException = t

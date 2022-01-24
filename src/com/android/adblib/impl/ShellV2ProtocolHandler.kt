@@ -18,9 +18,9 @@ package com.android.adblib.impl
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.utils.ResizableBuffer
-import com.android.adblib.utils.TimeoutTracker
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.TimeUnit
 
 /**
  * The packet headers are 5 bytes: 1 byte for the packet kind, and 4 bytes for the packet size.
@@ -52,7 +52,7 @@ internal class ShellV2ProtocolHandler(
     suspend fun readPacket(timeout: TimeoutTracker): Pair<ShellV2PacketKind, ByteBuffer> {
         // Read header (1 byte for id, 4 bytes for data length)
         workBuffer.clear()
-        deviceChannel.readExactly(workBuffer.forChannelRead(SHELL_PACKET_HEADER_SIZE), timeout)
+        deviceChannel.readExactly(workBuffer.forChannelRead(SHELL_PACKET_HEADER_SIZE), timeout.remainingNanos, TimeUnit.NANOSECONDS)
         val buffer = workBuffer.afterChannelRead()
         assert(buffer.remaining() == SHELL_PACKET_HEADER_SIZE)
 
@@ -64,7 +64,7 @@ internal class ShellV2ProtocolHandler(
 
         // Packet data is next "length" bytes
         workBuffer.clear()
-        deviceChannel.readExactly(workBuffer.forChannelRead(packetLength), timeout)
+        deviceChannel.readExactly(workBuffer.forChannelRead(packetLength), timeout.remainingNanos, TimeUnit.NANOSECONDS)
         return Pair(packetKind, workBuffer.afterChannelRead())
     }
 
@@ -83,14 +83,14 @@ internal class ShellV2ProtocolHandler(
     /**
      * Write a packet of type [kind] using the data
      */
-    suspend fun writePreparedBuffer(kind: ShellV2PacketKind, timeout: TimeoutTracker) {
+    suspend fun writePreparedBuffer(kind: ShellV2PacketKind, timeout: TimeoutTracker = TimeoutTracker.INFINITE) {
         val buffer = workBuffer.afterChannelRead(0)
         // Buffer should contain header + data to send
         val packetLength = buffer.remaining() - SHELL_PACKET_HEADER_SIZE
         assert(packetLength >= 0)
         buffer.put(0, kind.value.toByte())
         buffer.putInt(1, packetLength)
-        deviceChannel.writeExactly(buffer, timeout)
+        deviceChannel.writeExactly(buffer, timeout.remainingNanos, TimeUnit.NANOSECONDS)
     }
 }
 

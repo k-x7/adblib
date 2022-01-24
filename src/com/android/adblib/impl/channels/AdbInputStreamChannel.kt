@@ -3,10 +3,10 @@ package com.android.adblib.impl.channels
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
 import com.android.adblib.thisLogger
-import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
 const val DEFAULT_CHANNEL_BUFFER_SIZE = 8_192
@@ -30,7 +30,8 @@ internal class AdbInputStreamChannel(
         stream.close()
     }
 
-    override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+    override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+        //TODO: Implement timeout
         // Note: Since InputStream.read is a blocking I/O operation, we use the IO dispatcher
         return withContext(host.ioDispatcher) {
             // Suppress: IJ marks the "read" call as inappropriate, but we are running this code

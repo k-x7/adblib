@@ -3,7 +3,6 @@ package com.android.adblib
 import com.android.adblib.impl.channels.AdbInputStreamChannel
 import com.android.adblib.impl.channels.DEFAULT_CHANNEL_BUFFER_SIZE
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.TimeoutTracker
 import java.io.InputStream
 import java.nio.ByteBuffer
 
@@ -20,7 +19,7 @@ suspend fun AdbInputChannel.forwardTo(
     val buffer = ByteBuffer.allocate(bufferSize)
     while (true) {
         buffer.clear()
-        val byteCount = read(buffer, TimeoutTracker.INFINITE)
+        val byteCount = read(buffer)
         if (byteCount < 0) {
             // EOF, nothing left to forward
             host.logger.info { "forwardChannel - end of input channel reached, done" }
@@ -29,7 +28,7 @@ suspend fun AdbInputChannel.forwardTo(
 
         host.logger.debug { "forwardChannel - forwarding packet of $byteCount bytes" }
         buffer.flip()
-        outputChannel.writeExactly(buffer, TimeoutTracker.INFINITE)
+        outputChannel.writeExactly(buffer)
     }
 }
 

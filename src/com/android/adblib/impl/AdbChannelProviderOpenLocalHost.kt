@@ -4,8 +4,8 @@ import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbChannelProviderFactory
 import com.android.adblib.AdbLibHost
-import com.android.adblib.utils.TimeoutTracker
 import java.net.InetSocketAddress
+import java.util.concurrent.TimeUnit
 
 /**
  * An implementation of [AdbChannelProvider] that connect to an existing ADB Host running
@@ -32,7 +32,7 @@ internal class AdbChannelProviderOpenLocalHost(
         )
     }
 
-    override suspend fun createChannel(timeout: TimeoutTracker): AdbChannel {
-        return channelProvider.createChannel(timeout)
+    override suspend fun createChannel(timeout: Long, unit: TimeUnit): AdbChannel {
+        return channelProvider.createChannel(timeout, unit)
     }
 }

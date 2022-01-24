@@ -5,6 +5,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 /**
@@ -51,6 +52,21 @@ abstract class SystemNanoTimeProvider {
                 } ?: throw TimeoutException(getTimeoutMessage(timeout))
             }
         }
+    }
+
+    /**
+     * Throws a [TimeoutException] if [block] does not complete within the specified
+     * [timeout] milliseconds.
+     *
+     * Unlike [withTimeout], a non-cancellable exception (i.e. [TimeoutException]) is thrown
+     * when a timeout occurs.
+     */
+    open suspend fun <R> withErrorTimeout(
+        timeout: Long,
+        unit: TimeUnit,
+        block: suspend CoroutineScope.() -> R
+    ): R {
+        return withErrorTimeout(TimeUnit.MILLISECONDS.convert(timeout, unit), block)
     }
 
     /**

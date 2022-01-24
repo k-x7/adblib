@@ -25,7 +25,6 @@ import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.MultiLineShellCollector
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TextShellCollector
-import com.android.adblib.utils.TimeoutTracker
 import com.android.fakeadbserver.DeviceFileState
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.devicecommandhandlers.SyncCommandHandler
@@ -267,7 +266,7 @@ class AdbDeviceServicesTest {
         val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
         val errorInputChannel = object : AdbInputChannel {
             private var firstCall = true
-            override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+            override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 if (firstCall) {
                     firstCall = false
                     buffer.put('a'.toByte())
@@ -319,7 +318,7 @@ class AdbDeviceServicesTest {
         val testInputChannel = object : AdbInputChannel {
             val lineCount = 10
             var currentLineIndex = 0
-            override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+            override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 // Wait until we are given "go-go"
                 inputOutputCoordinator.receive()
 
@@ -388,7 +387,7 @@ class AdbDeviceServicesTest {
         val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
         val slowInputChannel = object : AdbInputChannel {
             var firstCall = true
-            override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+            override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 return if (firstCall) {
                     firstCall = false
                     delay(10)
@@ -433,7 +432,7 @@ class AdbDeviceServicesTest {
         val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
         val slowInputChannel = object : AdbInputChannel {
             var callCount = 0
-            override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+            override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 // In total, this will take 20 * 10 = 200 msec, but each call is less
                 // than the inactivity timeout of 100 msec we use for the test
                 return if (callCount < 20) {
@@ -780,7 +779,7 @@ class AdbDeviceServicesTest {
         val progress = TestSyncProgress()
         val slowInputChannel = object : AdbInputChannel {
             var firstCall = true
-            override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+            override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 return if (firstCall) {
                     firstCall = false
                     buffer.putInt(5)
@@ -1216,7 +1215,7 @@ class AdbDeviceServicesTest {
         )
         val progress = TestSyncProgress()
         val outputChannel = object : AdbOutputChannel {
-            override suspend fun write(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+            override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 throw MyTestException("this stream simulates an error writing to local storage")
             }
 

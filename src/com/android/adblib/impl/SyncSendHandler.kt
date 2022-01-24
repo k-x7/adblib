@@ -24,7 +24,6 @@ import com.android.adblib.SyncProgress
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.TimeoutTracker
 import com.android.adblib.withPrefix
 import kotlinx.coroutines.withContext
 import java.nio.ByteOrder
@@ -143,7 +142,7 @@ internal class SyncSendHandler(
         )
         workBuffer.setInt(lengthPos, workBuffer.position - 8)
 
-        deviceChannel.writeExactly(workBuffer.forChannelWrite(), TimeoutTracker.INFINITE)
+        deviceChannel.writeExactly(workBuffer.forChannelWrite())
     }
 
     private suspend fun sendFileContents(
@@ -162,11 +161,7 @@ internal class SyncSendHandler(
             val lengthPosition = workBuffer.position
             workBuffer.appendInt(0) // Set later
             val headerLength = workBuffer.position
-            val byteCount =
-                sourceChannel.read(
-                    workBuffer.forChannelRead(bufferSize - headerLength),
-                    TimeoutTracker.INFINITE
-                )
+            val byteCount = sourceChannel.read(workBuffer.forChannelRead(bufferSize - headerLength))
             if (byteCount < 0) {
                 // We reached EOF, we are done
                 logger.debug { "Done reading bytes from source channel $sourceChannel" }
@@ -176,7 +171,7 @@ internal class SyncSendHandler(
             // We have data from 0 to position(8+byteCount),/ Write them all to the output
             val writeBuffer = workBuffer.afterChannelRead(0)
             workBuffer.setInt(lengthPosition, byteCount)
-            deviceChannel.writeExactly(writeBuffer, TimeoutTracker.INFINITE)
+            deviceChannel.writeExactly(writeBuffer)
 
             totalBytesSoFar += byteCount
             progress?.transferProgress(remoteFilePath, totalBytesSoFar)
@@ -199,7 +194,7 @@ internal class SyncSendHandler(
         workBuffer.clear()
         workBuffer.appendString("DONE", AdbProtocolUtils.ADB_CHARSET)
         workBuffer.appendInt(remoteFileEpoch)
-        deviceChannel.writeExactly(workBuffer.forChannelWrite(), TimeoutTracker.INFINITE)
+        deviceChannel.writeExactly(workBuffer.forChannelWrite())
 
         progress?.transferDone(remoteFilePath, byteCount)
     }

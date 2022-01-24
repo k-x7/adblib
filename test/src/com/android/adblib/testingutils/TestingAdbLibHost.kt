@@ -16,7 +16,7 @@
 package com.android.adblib.testingutils
 
 import com.android.adblib.AdbLibHost
-import com.android.adblib.utils.TimeoutTracker
+import com.android.adblib.impl.TimeoutTracker
 import java.util.concurrent.TimeUnit
 
 class TestingAdbLibHost : AdbLibHost() {
@@ -29,7 +29,7 @@ class TestingAdbLibHost : AdbLibHost() {
         logger.debug { "Testing AbbListHost closed" }
     }
 
-    fun newTimeout(timeout: Long, unit: TimeUnit): TimeoutTracker {
+    internal fun newTimeout(timeout: Long, unit: TimeUnit): TimeoutTracker {
         return TimeoutTracker(timeProvider, timeout, unit)
     }
 }

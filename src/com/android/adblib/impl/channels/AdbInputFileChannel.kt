@@ -17,12 +17,13 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
-import com.android.adblib.utils.TimeoutTracker
+import com.android.adblib.impl.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousFileChannel
 import java.nio.channels.Channel
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 
 /**
  * Implementation of [AdbInputChannel] over a [AsynchronousFileChannel]
@@ -47,8 +48,8 @@ internal class AdbInputFileChannel(
         fileChannel.close()
     }
 
-    override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
-        val count = ReadOperation(host, timeout, fileChannel, buffer, filePosition).execute()
+    override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+        val count = ReadOperation(host, timeout, unit, fileChannel, buffer, filePosition).execute()
         if (count >= 0) {
             filePosition += count
         }
@@ -57,11 +58,12 @@ internal class AdbInputFileChannel(
 
     private class ReadOperation(
         host: AdbLibHost,
-        timeout: TimeoutTracker,
+        timeout: Long,
+        unit: TimeUnit,
         private val fileChannel: AsynchronousFileChannel,
         private val buffer: ByteBuffer,
         private val filePosition: Long
-    ) : AsynchronousChannelReadOperation(host, timeout) {
+    ) : AsynchronousChannelReadOperation(host, timeout, unit) {
 
         override val channel: Channel
             get() = fileChannel
@@ -70,6 +72,7 @@ internal class AdbInputFileChannel(
             timeout: TimeoutTracker,
             continuation: CancellableContinuation<Int>
         ) {
+            //TODO: Implement timeout
             fileChannel.read(buffer, filePosition, continuation, this)
         }
     }

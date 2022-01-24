@@ -23,7 +23,6 @@ import com.android.adblib.DeviceSelector
 import com.android.adblib.RemoteFileMode
 import com.android.adblib.SyncProgress
 import com.android.adblib.impl.services.AdbServiceRunner
-import com.android.adblib.utils.TimeoutTracker
 import com.android.adblib.utils.closeOnException
 import kotlinx.coroutines.withContext
 import java.nio.file.attribute.FileTime

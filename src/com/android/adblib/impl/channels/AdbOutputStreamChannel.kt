@@ -3,11 +3,11 @@ package com.android.adblib.impl.channels
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.thisLogger
-import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import java.io.OutputStream
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 
 /**
  * Implementation of [AdbOutputChannel] over a [OutputStream]
@@ -32,7 +32,7 @@ internal class AdbOutputStreamChannel(
         stream.close()
     }
 
-    override suspend fun write(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+    override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
         return withContext(host.ioDispatcher) {
             val deferredCount = async {
                 val count = buffer.remaining()
@@ -41,7 +41,7 @@ internal class AdbOutputStreamChannel(
                 stream.write(bytes, 0, count)
                 count
             }
-            host.timeProvider.withErrorTimeout(timeout.remainingMills) {
+            host.timeProvider.withErrorTimeout(timeout, unit) {
                 deferredCount.await()
             }
         }

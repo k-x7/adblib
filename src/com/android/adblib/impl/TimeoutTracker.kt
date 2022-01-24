@@ -1,8 +1,26 @@
-package com.android.adblib.utils
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.android.adblib.impl
 
 import com.android.adblib.SystemNanoTimeProvider
+import com.android.adblib.utils.SystemNanoTime
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+
+private const val INFINITE_TIMEOUT = Long.MAX_VALUE
 
 /**
  * Utility class to keep track of how much time is left given an initial timeout. This is useful
@@ -12,7 +30,7 @@ import java.util.concurrent.TimeoutException
  * Note: The implementation keeps track of time using [System.nanoTime] units, meaning
  * this class is not suitable for timeouts longer than ~290 years.
  */
-class TimeoutTracker(
+internal class TimeoutTracker(
     /** The [SystemNanoTimeProvider] to use as source of time */
     private val nanoTimeProvider: SystemNanoTimeProvider,
     /** The timeout expressed in [timeUnit] units. */
@@ -30,11 +48,8 @@ class TimeoutTracker(
     constructor(timeout: Long, unit: TimeUnit) : this(SystemNanoTime.instance, timeout, unit)
 
     /**
-     * Returns the time until this timeout expires, in [timeUnit] units.
+     * Returns the time until this timeout expires in [TimeUnit.MILLISECONDS] units.
      */
-    val remainingTime: Long
-        get() = getRemainingTime(timeUnit)
-
     val remainingMills: Long
         get() = getRemainingTime(TimeUnit.MILLISECONDS)
 
@@ -43,17 +58,25 @@ class TimeoutTracker(
      */
     val remainingNanos: Long
         get() {
-            // This needs to handle Long.MAX_VALUE for timeout, i.e. we cannot
-            // overflow. This is ok as elapsedNanos() will never be negative.
-            return timeUnit.toNanos(timeout) - elapsedNanos(startNanos)
+            return if (timeout == INFINITE_TIMEOUT) {
+                INFINITE_TIMEOUT
+            } else {
+                // This needs to handle Long.MAX_VALUE for timeout, i.e. we cannot
+                // overflow. This is ok as elapsedNanos() will never be negative.
+                return timeUnit.toNanos(timeout) - elapsedNanos(startNanos)
+            }
         }
 
     /**
      * Returns the amount of time until this timeout expires, in [TimeUnit] units.
      */
     fun getRemainingTime(unit: TimeUnit): Long {
-        // Using TimeUnit convert() ensures overflows are taken care of
-        return unit.convert(remainingNanos, TimeUnit.NANOSECONDS)
+        return if (timeout == INFINITE_TIMEOUT) {
+            INFINITE_TIMEOUT
+        } else {
+            // Using TimeUnit convert() ensures overflows are taken care of
+            return unit.convert(remainingNanos, TimeUnit.NANOSECONDS)
+        }
     }
 
     /**
@@ -66,8 +89,8 @@ class TimeoutTracker(
 
     override fun toString(): String {
         return String.format(
-            "%,.1f msec remaining, %,.1f msec elapsed",
-            getRemainingTime(TimeUnit.MILLISECONDS).toDouble(),
+            "%s, %,.1f msec elapsed",
+            remainingTimeoutToString(remainingMills, TimeUnit.MILLISECONDS),
             getElapsedTime(TimeUnit.MILLISECONDS).toDouble()
         )
     }
@@ -77,7 +100,7 @@ class TimeoutTracker(
      */
     @Throws(TimeoutException::class)
     fun throwIfElapsed() {
-        if (remainingTime < 0) {
+        if (remainingNanos <= 0) {
             throw TimeoutException("Operation has timed out")
         }
     }
@@ -87,6 +110,18 @@ class TimeoutTracker(
     }
 
     companion object {
-        val INFINITE = TimeoutTracker(Long.MAX_VALUE, TimeUnit.NANOSECONDS)
+
+        val INFINITE = TimeoutTracker(INFINITE_TIMEOUT, TimeUnit.NANOSECONDS)
+    }
+}
+
+fun remainingTimeoutToString(timeout: Long, unit: TimeUnit): String {
+    return if (timeout == Long.MAX_VALUE) {
+        String.format("<INFINITE> msec remaining")
+    } else {
+        String.format(
+            "%,.1f msec remaining",
+            TimeUnit.MILLISECONDS.convert(timeout, unit).toDouble()
+        )
     }
 }

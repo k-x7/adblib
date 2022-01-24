@@ -20,7 +20,6 @@ import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbLibHost
 import com.android.adblib.impl.channels.AdbSocketChannelImpl
 import com.android.adblib.utils.SuppressedExceptions
-import com.android.adblib.utils.TimeoutTracker
 import com.android.adblib.utils.closeOnException
 import com.android.adblib.utils.withSuppressed
 import kotlinx.coroutines.withContext
@@ -28,6 +27,7 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.StandardSocketOptions
 import java.nio.channels.AsynchronousSocketChannel
+import java.util.concurrent.TimeUnit
 
 /**
  * An implementation of [AdbChannelProvider] that connect to an existing ADB Host running
@@ -45,14 +45,16 @@ internal class AdbChannelProviderConnectAddresses(
     private val socketAddressesSupplier: suspend () -> List<InetSocketAddress>
 ) : AdbChannelProvider {
 
-    override suspend fun createChannel(timeout: TimeoutTracker): AdbChannel {
+    override suspend fun createChannel(timeout: Long, unit: TimeUnit): AdbChannel {
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+
         // Runs code block on the IO Dispatcher to ensure caller is never blocked on this call
         return withContext(host.ioDispatcher) {
-            host.logger.debug { "Opening ADB connection on local host addresses, timeout=$timeout" }
+            host.logger.debug { "Opening ADB connection on local host addresses, timeout=$tracker" }
 
             // Acquire port from supplier before anything else
             val addresses = socketAddressesSupplier()
-            timeout.throwIfElapsed()
+            tracker.throwIfElapsed()
 
             // Try all local addresses, and collect all exceptions for later reporting
             var suppressedExceptions = SuppressedExceptions.init()
@@ -64,7 +66,7 @@ internal class AdbChannelProviderConnectAddresses(
                     socketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true)
                     val adbChannel = AdbSocketChannelImpl(host, socketChannel)
                     try {
-                        adbChannel.connect(localAddress, timeout)
+                        adbChannel.connect(localAddress, tracker.remainingNanos, TimeUnit.NANOSECONDS)
 
                         // Success, return the channel
                         return@withContext adbChannel

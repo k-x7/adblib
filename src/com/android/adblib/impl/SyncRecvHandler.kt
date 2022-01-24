@@ -24,7 +24,6 @@ import com.android.adblib.SyncProgress
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.TimeoutTracker
 import com.android.adblib.withPrefix
 import kotlinx.coroutines.withContext
 import java.nio.ByteOrder
@@ -106,7 +105,7 @@ internal class SyncRecvHandler(
         workBuffer.appendString(remoteFilePath, AdbProtocolUtils.ADB_CHARSET)
         workBuffer.setInt(lengthPos, workBuffer.position - 8)
 
-        deviceChannel.writeExactly(workBuffer.forChannelWrite(), TimeoutTracker.INFINITE)
+        deviceChannel.writeExactly(workBuffer.forChannelWrite())
     }
 
     private suspend fun receiveFileContents(
@@ -117,7 +116,7 @@ internal class SyncRecvHandler(
         var totalBytesSoFar = 0L
         while (true) {
             workBuffer.clear()
-            deviceChannel.readExactly(workBuffer.forChannelRead(8), TimeoutTracker.INFINITE)
+            deviceChannel.readExactly(workBuffer.forChannelRead(8))
             val buffer = workBuffer.afterChannelRead()
             // We can receive either 'DATA' or 'DONE' or 'FAIL'
             // https://cs.android.com/android/platform/superproject/+/fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f:packages/modules/adb/client/file_sync_client.cpp;l=1102;bpv=1;bpt=1
@@ -142,15 +141,8 @@ internal class SyncRecvHandler(
 
                     // Read chunk from channel
                     workBuffer.clear()
-                    deviceChannel.readExactly(
-                        workBuffer.forChannelRead(chunkLength),
-                        TimeoutTracker.INFINITE
-                    )
-
-                    destinationChannel.writeExactly(
-                        workBuffer.afterChannelRead(),
-                        TimeoutTracker.INFINITE
-                    )
+                    deviceChannel.readExactly(workBuffer.forChannelRead(chunkLength))
+                    destinationChannel.writeExactly(workBuffer.afterChannelRead())
 
                     totalBytesSoFar += chunkLength
                     progress?.transferProgress(remoteFilePath, totalBytesSoFar)

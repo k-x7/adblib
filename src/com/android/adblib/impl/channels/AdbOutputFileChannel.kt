@@ -18,12 +18,13 @@ package com.android.adblib.impl.channels
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.thisLogger
-import com.android.adblib.utils.TimeoutTracker
+import com.android.adblib.impl.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousFileChannel
 import java.nio.channels.Channel
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 
 /**
  * Implementation of [AdbOutputChannel] over a [AsynchronousFileChannel]
@@ -48,8 +49,8 @@ internal class AdbOutputFileChannel(
         fileChannel.close()
     }
 
-    override suspend fun write(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
-        val count = WriteOperation(host, timeout, fileChannel, buffer, filePosition).execute()
+    override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+        val count = WriteOperation(host, timeout, unit, fileChannel, buffer, filePosition).execute()
         if (count >= 0) {
             filePosition += count
         }
@@ -58,11 +59,12 @@ internal class AdbOutputFileChannel(
 
     private class WriteOperation(
         host: AdbLibHost,
-        timeout: TimeoutTracker,
+        timeout: Long,
+        unit: TimeUnit,
         private val fileChannel: AsynchronousFileChannel,
         private val buffer: ByteBuffer,
         private val filePosition: Long
-    ) : AsynchronousChannelWriteOperation(host, timeout) {
+    ) : AsynchronousChannelWriteOperation(host, timeout, unit) {
 
         override val hasRemaining: Boolean
             get() = buffer.hasRemaining()
@@ -74,6 +76,7 @@ internal class AdbOutputFileChannel(
             timeout: TimeoutTracker,
             continuation: CancellableContinuation<Int>
         ) {
+            //TODO: Implement timeout
             fileChannel.write(buffer, filePosition, continuation, this)
         }
     }

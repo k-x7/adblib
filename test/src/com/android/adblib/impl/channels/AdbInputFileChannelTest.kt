@@ -15,9 +15,11 @@
  */
 package com.android.adblib.impl.channels
 
+import com.android.adblib.read
+import com.android.adblib.readExactly
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.TestingAdbLibHost
-import com.android.adblib.utils.TimeoutTracker
+import com.android.adblib.impl.TimeoutTracker
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
 import org.junit.Rule

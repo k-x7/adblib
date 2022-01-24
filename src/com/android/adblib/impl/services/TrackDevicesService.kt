@@ -7,8 +7,8 @@ import com.android.adblib.impl.DeviceListParser
 import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.ResizableBuffer
-import com.android.adblib.utils.TimeoutTracker
-import com.android.adblib.utils.TimeoutTracker.Companion.INFINITE
+import com.android.adblib.impl.TimeoutTracker
+import com.android.adblib.impl.TimeoutTracker.Companion.INFINITE
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow

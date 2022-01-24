@@ -2,8 +2,9 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbLibHost
+import com.android.adblib.impl.TimeoutTracker
+import com.android.adblib.impl.remainingTimeoutToString
 import com.android.adblib.thisLogger
-import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -45,17 +46,17 @@ internal class AdbSocketChannelImpl(
         socketChannel.close()
     }
 
-    suspend fun connect(address: InetSocketAddress, timeout: TimeoutTracker) {
-        logger.debug { "Connecting to IP address $address, timeout=$timeout" }
-        return ConnectOperation(address, timeout).execute()
+    suspend fun connect(address: InetSocketAddress, timeout: Long, unit: TimeUnit) {
+        logger.debug { "Connecting to IP address $address, timeout=${remainingTimeoutToString(timeout, unit)}" }
+        return ConnectOperation(address, timeout, unit).execute()
     }
 
-    override suspend fun write(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
-        return WriteOperation(buffer, timeout).execute()
+    override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+        return WriteOperation(buffer, timeout, unit).execute()
     }
 
-    override suspend fun writeExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
-        return WriteExactlyOperation(buffer, timeout).execute()
+    override suspend fun writeExactly(buffer: ByteBuffer, timeout: Long, unit: TimeUnit) {
+        return WriteExactlyOperation(buffer, timeout, unit).execute()
     }
 
     override suspend fun shutdownInput() {
@@ -74,25 +75,28 @@ internal class AdbSocketChannelImpl(
         }
     }
 
-    override suspend fun read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
-        return ReadOperation(buffer, timeout).execute()
+    override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+        return ReadOperation(buffer, timeout, unit).execute()
     }
 
-    override suspend fun readExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
-        return ReadExactlyOperation(buffer, timeout).execute()
+    override suspend fun readExactly(buffer: ByteBuffer, timeout: Long, unit: TimeUnit) {
+        return ReadExactlyOperation(buffer, timeout, unit).execute()
     }
 
     private inner class ConnectOperation(
         private val address: InetSocketAddress,
-        private val timeout: TimeoutTracker,
+        timeout: Long,
+        unit: TimeUnit
     ) : CompletionHandler<Void?, CancellableContinuation<Unit>> {
+
+        private val timeout = TimeoutTracker(host.timeProvider, timeout, unit)
 
         suspend fun execute() {
             // Note: AsynchronousSocketChannel does not support connection timeout, so we use
             // the coroutine timeout support.
             // Note: We don't need to release any resource if we hit the timeout, since the socket channel
             // is wrapped in our implementation of AutoCloseable
-            return withTimeout(timeout.getRemainingTime(TimeUnit.MILLISECONDS)) {
+            return withTimeout(timeout.remainingMills) {
                 suspendCancellableCoroutine { continuation ->
                     // Ensure async operation is stopped if coroutine is cancelled
                     socketChannel.closeOnCancel(host, "connect", continuation)
@@ -116,22 +120,30 @@ internal class AdbSocketChannelImpl(
 
     private inner class ReadOperation(
         private val buffer: ByteBuffer,
-        timeout: TimeoutTracker,
-    ) : AsynchronousChannelReadOperation(host, timeout) {
+        timeout: Long,
+        unit: TimeUnit
+    ) : AsynchronousChannelReadOperation(host, timeout, unit) {
 
         override val channel: Channel
             get() = socketChannel
 
         override fun readChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Int>) {
             logger.debug { "ReadChannel of maximum ${buffer.remaining()} bytes" }
-            socketChannel.read(buffer, timeout.remainingTime, timeout.timeUnit, continuation, this)
+            socketChannel.read(
+                buffer,
+                timeout.remainingNanos,
+                TimeUnit.NANOSECONDS,
+                continuation,
+                this
+            )
         }
     }
 
     private inner class ReadExactlyOperation(
         private val buffer: ByteBuffer,
-        timeout: TimeoutTracker,
-    ) : AsynchronousChannelReadExactlyOperation(host, timeout) {
+        timeout: Long,
+        unit: TimeUnit
+    ) : AsynchronousChannelReadExactlyOperation(host, timeout, unit) {
 
         override val hasRemaining: Boolean
             get() = buffer.hasRemaining()
@@ -140,14 +152,21 @@ internal class AdbSocketChannelImpl(
             get() = socketChannel
 
         override fun readChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Unit>) {
-            socketChannel.read(buffer, timeout.remainingTime, timeout.timeUnit, continuation, this)
+            socketChannel.read(
+                buffer,
+                timeout.remainingNanos,
+                TimeUnit.NANOSECONDS,
+                continuation,
+                this
+            )
         }
     }
 
     private inner class WriteOperation(
         private val buffer: ByteBuffer,
-        timeout: TimeoutTracker,
-    ) : AsynchronousChannelWriteOperation(host, timeout) {
+        timeout: Long,
+        unit: TimeUnit
+    ) : AsynchronousChannelWriteOperation(host, timeout, unit) {
 
         override val hasRemaining: Boolean
             get() = buffer.hasRemaining()
@@ -158,8 +177,8 @@ internal class AdbSocketChannelImpl(
         override fun writeChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Int>) {
             socketChannel.write(
                 buffer,
-                timeout.remainingTime,
-                timeout.timeUnit,
+                timeout.remainingNanos,
+                TimeUnit.NANOSECONDS,
                 continuation,
                 this
             )
@@ -168,8 +187,9 @@ internal class AdbSocketChannelImpl(
 
     private inner class WriteExactlyOperation(
         private val buffer: ByteBuffer,
-        timeout: TimeoutTracker,
-    ) : AsynchronousChannelWriteExactlyOperation(host, timeout) {
+        timeout: Long,
+        unit: TimeUnit
+    ) : AsynchronousChannelWriteExactlyOperation(host, timeout, unit) {
 
         override val hasRemaining: Boolean
             get() = buffer.hasRemaining()
@@ -180,8 +200,8 @@ internal class AdbSocketChannelImpl(
         override fun writeChannel(timeout: TimeoutTracker, continuation: CancellableContinuation<Unit>) {
             socketChannel.write(
                 buffer,
-                timeout.remainingTime,
-                timeout.timeUnit,
+                timeout.remainingNanos,
+                TimeUnit.NANOSECONDS,
                 continuation,
                 this
             )

@@ -9,10 +9,13 @@ import com.android.adblib.AdbLibSession
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.DeviceSelector
+import com.android.adblib.createChannel
+import com.android.adblib.readExactly
+import com.android.adblib.writeExactly
 import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.ResizableBuffer
-import com.android.adblib.utils.TimeoutTracker
+import com.android.adblib.impl.TimeoutTracker
 import com.android.adblib.utils.closeOnException
 import com.android.adblib.utils.withOrder
 import java.io.EOFException

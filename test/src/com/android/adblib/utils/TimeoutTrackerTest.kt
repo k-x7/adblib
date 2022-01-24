@@ -1,6 +1,7 @@
 package com.android.adblib.utils
 
 import com.android.adblib.SystemNanoTimeProvider
+import com.android.adblib.impl.TimeoutTracker
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
@@ -23,7 +24,8 @@ class TimeoutTrackerTest {
         // Act (nothing, ensures tracker is initialized correctly)
 
         // Assert
-        Assert.assertEquals(1, timeout.remainingTime)
+        Assert.assertEquals(1_000, timeout.remainingMills)
+        Assert.assertEquals(1_000_000_000, timeout.remainingNanos)
         Assert.assertEquals(TimeUnit.SECONDS, timeout.timeUnit)
         Assert.assertEquals(1_000, timeout.getRemainingTime(TimeUnit.MILLISECONDS))
         Assert.assertEquals(0, timeout.getElapsedTime(TimeUnit.SECONDS))
@@ -41,7 +43,8 @@ class TimeoutTrackerTest {
         nanoProvider.advance(400, TimeUnit.MILLISECONDS)
 
         // Assert
-        Assert.assertEquals(600, timeout.remainingTime)
+        Assert.assertEquals(600, timeout.remainingMills)
+        Assert.assertEquals(600_000_000, timeout.remainingNanos)
         Assert.assertEquals(TimeUnit.MILLISECONDS, timeout.timeUnit)
         Assert.assertEquals(600_000, timeout.getRemainingTime(TimeUnit.MICROSECONDS))
         Assert.assertEquals(400_000, timeout.getElapsedTime(TimeUnit.MICROSECONDS))
@@ -59,7 +62,8 @@ class TimeoutTrackerTest {
         nanoProvider.advance(1_001, TimeUnit.MILLISECONDS)
 
         // Assert
-        Assert.assertEquals(-1, timeout.remainingTime)
+        Assert.assertEquals(-1, timeout.remainingMills)
+        Assert.assertEquals(-1_000_000, timeout.remainingNanos)
         Assert.assertEquals(TimeUnit.MILLISECONDS, timeout.timeUnit)
         Assert.assertEquals(-1_000, timeout.getRemainingTime(TimeUnit.MICROSECONDS))
         Assert.assertEquals(1_001_000, timeout.getElapsedTime(TimeUnit.MICROSECONDS))

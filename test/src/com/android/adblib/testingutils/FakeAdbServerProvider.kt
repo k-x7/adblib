@@ -20,7 +20,6 @@ import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbChannelProviderFactory
 import com.android.adblib.AdbLibHost
 import com.android.adblib.impl.channels.AdbSocketChannelImpl
-import com.android.adblib.utils.TimeoutTracker
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.DeviceState.HostConnectionType
 import com.android.fakeadbserver.FakeAdbServer
@@ -124,8 +123,8 @@ internal class FakeAdbServerProvider : AutoCloseable {
 
         var lastCreatedChannel: TestingAdbChannel? = null
 
-        override suspend fun createChannel(timeout: TimeoutTracker): AdbChannel {
-            val channel = provider.createChannel(timeout)
+        override suspend fun createChannel(timeout: Long, unit: TimeUnit): AdbChannel {
+            val channel = provider.createChannel(timeout, unit)
             return TestingAdbChannel(channel).apply {
                 lastCreatedChannel = this
             }

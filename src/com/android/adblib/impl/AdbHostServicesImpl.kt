@@ -18,7 +18,6 @@ import com.android.adblib.SocketSpec
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
 import com.android.adblib.impl.services.TrackDevicesService
-import com.android.adblib.utils.TimeoutTracker
 import kotlinx.coroutines.flow.Flow
 import java.io.EOFException
 import java.util.concurrent.TimeUnit

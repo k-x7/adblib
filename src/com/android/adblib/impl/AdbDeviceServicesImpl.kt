@@ -16,8 +16,7 @@ import com.android.adblib.forwardTo
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
 import com.android.adblib.utils.ResizableBuffer
-import com.android.adblib.utils.TimeoutTracker
-import com.android.adblib.utils.TimeoutTracker.Companion.INFINITE
+import com.android.adblib.impl.TimeoutTracker.Companion.INFINITE
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -202,7 +201,7 @@ internal class AdbDeviceServicesImpl(
             // Note: We use an infinite timeout here as shell commands can take arbitrary amount
             //       of time to execute and produce output.
             workBuffer.clear()
-            val byteCount = channel.read(workBuffer.forChannelRead(bufferSize), INFINITE)
+            val byteCount = channel.read(workBuffer.forChannelRead(bufferSize))
             if (byteCount < 0) {
                 // We are done reading from this channel
                 break
@@ -288,10 +287,6 @@ internal class AdbDeviceServicesImpl(
         stdInput: AdbInputChannel,
         bufferSize: Int
     ) {
-        // Note: We use an infinite timeout here, as the only wait to end this request is to close
-        //       the underlying ADB socket channel, or for `stdin` to reach EOF. This is by design.
-        val timeout = INFINITE
-
         val workBuffer = serviceRunner.newResizableBuffer()
         val shellProtocol = ShellV2ProtocolHandler(deviceChannel, workBuffer)
 
@@ -300,14 +295,16 @@ internal class AdbDeviceServicesImpl(
             val buffer = shellProtocol.prepareWriteBuffer(bufferSize)
 
             // Read data from stdin
-            val byteCount = stdInput.read(buffer, timeout)
+            // Note: We use an infinite timeout here, as the only wait to end this request is to close
+            //       the underlying ADB socket channel, or for `stdin` to reach EOF. This is by design.
+            val byteCount = stdInput.read(buffer)
             if (byteCount < 0) {
                 // EOF, job is finished
-                shellProtocol.writePreparedBuffer(ShellV2PacketKind.CLOSE_STDIN, timeout)
+                shellProtocol.writePreparedBuffer(ShellV2PacketKind.CLOSE_STDIN)
                 break
             }
             // Buffer contains packet header + data
-            shellProtocol.writePreparedBuffer(ShellV2PacketKind.STDIN, timeout)
+            shellProtocol.writePreparedBuffer(ShellV2PacketKind.STDIN)
         }
     }
 
