@@ -1,10 +1,8 @@
 package com.android.adblib.impl.channels
 
-import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbOutputChannel
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.thisLogger
-import kotlinx.coroutines.async
-import kotlinx.coroutines.withContext
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
@@ -33,16 +31,13 @@ internal class AdbOutputStreamChannel(
     }
 
     override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
-        return withContext(host.blockingIoDispatcher) {
-            val deferredCount = async {
+        return host.timeProvider.withErrorTimeout(timeout, unit) {
+            // Note: Since OutputStream.write is a blocking I/O operation, we use the IO dispatcher
+            runInterruptibleIO(host.blockingIoDispatcher) {
                 val count = buffer.remaining()
                 buffer.get(bytes, 0, count)
-                @Suppress("BlockingMethodInNonBlockingContext")
                 stream.write(bytes, 0, count)
                 count
-            }
-            host.timeProvider.withErrorTimeout(timeout, unit) {
-                deferredCount.await()
             }
         }
     }

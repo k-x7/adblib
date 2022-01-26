@@ -17,11 +17,10 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbSessionHost
-import com.android.adblib.impl.TimeoutTracker
+import com.android.adblib.thisLogger
 import kotlinx.coroutines.CancellableContinuation
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousFileChannel
-import java.nio.channels.Channel
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 
@@ -29,14 +28,36 @@ import java.util.concurrent.TimeUnit
  * Implementation of [AdbInputChannel] over a [AsynchronousFileChannel]
  */
 internal class AdbInputFileChannel(
-  private val host: AdbSessionHost,
-  private val file: Path,
-  private val fileChannel: AsynchronousFileChannel
+    private val host: AdbSessionHost,
+    private val file: Path,
+    private val fileChannel: AsynchronousFileChannel
 ) : AdbInputChannel {
 
-    private val loggerPrefix = javaClass.simpleName
+    private val logger = thisLogger(host)
 
     private var filePosition = 0L
+
+    private val channelReadHandler = object : ChannelReadHandler(host, fileChannel) {
+        override val supportsTimeout: Boolean
+            get() = false
+
+        override fun asyncRead(
+            buffer: ByteBuffer,
+            timeout: Long,
+            unit: TimeUnit,
+            continuation: CancellableContinuation<Int>,
+            completionHandler: ContinuationCompletionHandler<Int>
+        ) {
+            // Note: Timeout is handled by base class because [supportsTimeout] is false
+            fileChannel.read(buffer, filePosition, continuation, completionHandler)
+        }
+
+        override fun asyncReadCompleted(byteCount: Int) {
+            if (byteCount > 0) {
+                filePosition += byteCount
+            }
+        }
+    }
 
     override fun toString(): String {
         return "AdbInputFileChannel(\"$file\")"
@@ -44,36 +65,15 @@ internal class AdbInputFileChannel(
 
     @Throws(Exception::class)
     override fun close() {
-        host.logger.debug { "$loggerPrefix: closing input channel for \"$file\"" }
+        logger.debug { "closing input channel for \"$file\"" }
         fileChannel.close()
     }
 
     override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
-        val count = ReadOperation(host, timeout, unit, fileChannel, buffer, filePosition).execute()
-        if (count >= 0) {
-            filePosition += count
-        }
-        return count
+        return channelReadHandler.read(buffer, timeout, unit)
     }
 
-    private class ReadOperation(
-      host: AdbSessionHost,
-      timeout: Long,
-      unit: TimeUnit,
-      private val fileChannel: AsynchronousFileChannel,
-      private val buffer: ByteBuffer,
-      private val filePosition: Long
-    ) : AsynchronousChannelReadOperation(host, timeout, unit) {
-
-        override val channel: Channel
-            get() = fileChannel
-
-        override fun readChannel(
-            timeout: TimeoutTracker,
-            continuation: CancellableContinuation<Int>
-        ) {
-            //TODO: Implement timeout
-            fileChannel.read(buffer, filePosition, continuation, this)
-        }
+    override suspend fun readExactly(buffer: ByteBuffer, timeout: Long, unit: TimeUnit) {
+        channelReadHandler.readExactly(buffer, timeout, unit)
     }
 }

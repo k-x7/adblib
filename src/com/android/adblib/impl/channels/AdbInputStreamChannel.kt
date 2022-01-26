@@ -3,7 +3,6 @@ package com.android.adblib.impl.channels
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbSessionHost
 import com.android.adblib.thisLogger
-import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
@@ -31,18 +30,16 @@ internal class AdbInputStreamChannel(
     }
 
     override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
-        //TODO: Implement timeout
-        // Note: Since InputStream.read is a blocking I/O operation, we use the IO dispatcher
-        return withContext(host.blockingIoDispatcher) {
-            // Suppress: IJ marks the "read" call as inappropriate, but we are running this code
-            //           within the context of the IO dispatcher, so we are ok.
-            @Suppress("BlockingMethodInNonBlockingContext")
-            val count = stream.read(bytes, 0, min(bytes.size, buffer.remaining()))
-            logger.debug { "Read $count bytes from input stream" }
-            if (count > 0) {
-                buffer.put(bytes, 0, count)
+        return host.timeProvider.withErrorTimeout(timeout, unit) {
+            // Note: Since InputStream.read is a blocking I/O operation, we use the IO dispatcher
+            runInterruptibleIO(host.blockingIoDispatcher) {
+                val count = stream.read(bytes, 0, min(bytes.size, buffer.remaining()))
+                logger.debug { "Read $count bytes from input stream" }
+                if (count > 0) {
+                    buffer.put(bytes, 0, count)
+                }
+                count
             }
-            count
         }
     }
 }

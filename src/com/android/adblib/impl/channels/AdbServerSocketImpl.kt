@@ -16,20 +16,15 @@
 package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbChannel
-import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbServerSocket
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.utils.closeOnException
-import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.net.StandardSocketOptions
 import java.nio.channels.AsynchronousServerSocketChannel
 import java.nio.channels.AsynchronousSocketChannel
-import java.nio.channels.CompletionHandler
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /**
  * Coroutine-friendly wrapper around an [AsynchronousServerSocketChannel] with the suspending
@@ -40,7 +35,7 @@ internal class AdbServerSocketImpl(
     private val serverSocketChannel: AsynchronousServerSocketChannel
 ) : AdbServerSocket {
 
-    private val completionHandler = CompletionHandlerAdapter()
+    private val acceptCompletionHandler = ContinuationCompletionHandler<AsynchronousSocketChannel>()
 
     override suspend fun localAddress(): InetSocketAddress? {
         return withContext(host.ioDispatcher) {
@@ -67,33 +62,12 @@ internal class AdbServerSocketImpl(
     }
 
     private suspend fun runAccept(): AsynchronousSocketChannel {
-        return suspendCancellableCoroutine { continuation ->
-            // Ensure that the asynchronous operation is stopped if the coroutine is cancelled.
-            serverSocketChannel.closeOnCancel(host, "accept", continuation)
-
-            serverSocketChannel.accept(continuation, completionHandler)
+        return suspendChannelCoroutine(host, serverSocketChannel) { continuation ->
+            serverSocketChannel.accept(continuation, acceptCompletionHandler)
         }
     }
 
     override fun close() {
         serverSocketChannel.close()
-    }
-
-    private class CompletionHandlerAdapter :
-        CompletionHandler<AsynchronousSocketChannel, CancellableContinuation<AsynchronousSocketChannel>> {
-
-        override fun completed(
-            socketChannel: AsynchronousSocketChannel,
-            continuation: CancellableContinuation<AsynchronousSocketChannel>
-        ) {
-            continuation.resume(socketChannel)
-        }
-
-        override fun failed(
-            e: Throwable,
-            continuation: CancellableContinuation<AsynchronousSocketChannel>
-        ) {
-            continuation.resumeWithException(e)
-        }
     }
 }

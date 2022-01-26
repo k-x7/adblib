@@ -1,6 +1,7 @@
 package com.android.adblib
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -47,9 +48,13 @@ abstract class SystemNanoTimeProvider {
             if (timeout == INFINITE_TIMEOUT) {
                 block()
             } else {
-                withTimeoutOrNull(timeout) {
-                    block()
-                } ?: throw TimeoutException(getTimeoutMessage(timeout))
+                try {
+                    withTimeout(timeout) {
+                        block()
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    throw TimeoutException(getTimeoutMessage(timeout)).also { it.addSuppressed(e) }
+                }
             }
         }
     }

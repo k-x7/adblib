@@ -39,6 +39,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
+import java.nio.file.Path
 
 class AdbInputFileChannelTest {
 
@@ -64,18 +65,36 @@ class AdbInputFileChannelTest {
         val session = registerCloseable(TestingAdbSession())
         val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
-        Files.write(path, ByteArray(20))
+        writeFile(path, 20)
 
         // Act
+        val buffer1 = ByteBuffer.allocate(5)
+        val buffer2 = ByteBuffer.allocate(5)
         val count = runBlocking {
             channelFactory.openFile(path).use {
-                val buffer = ByteBuffer.allocate(5)
-                it.read(buffer, TimeoutTracker.INFINITE)
+                // 1st read to ensure we read correct data
+                val count1 = it.read(buffer1)
+                // 2nd read to ensure we are moving forward in the file
+                val count2 = it.read(buffer2)
+                count1 + count2
             }
         }
 
         // Assert
-        Assert.assertEquals(5, count)
+        Assert.assertEquals(10, count)
+
+        Assert.assertEquals('a'.toByte(), buffer1[0])
+        Assert.assertEquals('b'.toByte(), buffer1[1])
+        Assert.assertEquals('c'.toByte(), buffer1[2])
+        Assert.assertEquals('d'.toByte(), buffer1[3])
+        Assert.assertEquals('e'.toByte(), buffer1[4])
+
+        Assert.assertEquals('f'.toByte(), buffer2[0])
+        Assert.assertEquals('g'.toByte(), buffer2[1])
+        Assert.assertEquals('h'.toByte(), buffer2[2])
+        Assert.assertEquals('i'.toByte(), buffer2[3])
+        Assert.assertEquals('j'.toByte(), buffer2[4])
+
         Assert.assertTrue(Files.exists(path))
         Assert.assertEquals(20, Files.size(path))
     }
@@ -86,7 +105,7 @@ class AdbInputFileChannelTest {
         val session = registerCloseable(TestingAdbSession())
         val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
-        Files.write(path, ByteArray(5))
+        writeFile(path, 5)
 
         // Act
         val count = runBlocking {
@@ -110,12 +129,12 @@ class AdbInputFileChannelTest {
         val session = registerCloseable(TestingAdbSession())
         val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
-        Files.write(path, ByteArray(20))
+        writeFile(path, 20)
 
         // Act
+        val buffer = ByteBuffer.allocate(20)
         val count = runBlocking {
             channelFactory.openFile(path).use {
-                val buffer = ByteBuffer.allocate(20)
                 it.readExactly(buffer, TimeoutTracker.INFINITE)
                 buffer.flip()
                 buffer.remaining()
@@ -124,6 +143,10 @@ class AdbInputFileChannelTest {
 
         // Assert
         Assert.assertEquals(20, count)
+        var ch = 'a'.toByte()
+        for (i in 0 until count) {
+            Assert.assertEquals(ch++, buffer[i])
+        }
         Assert.assertTrue(Files.exists(path))
         Assert.assertEquals(20, Files.size(path))
     }
@@ -416,5 +439,15 @@ class AdbInputFileChannelTest {
             list.add(this.readLine() ?: break)
         }
         return list
+    }
+
+    private fun writeFile(path: Path, count: Int) {
+        val bytes = ByteArray(count)
+        for (i in 0 until count) {
+            val ch = ('a' + (i % 26)).toByte()
+            bytes[i] = ch
+        }
+
+        Files.write(path, bytes)
     }
 }
