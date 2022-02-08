@@ -35,6 +35,8 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
@@ -1408,6 +1410,47 @@ class AdbDeviceServicesTest {
         }
     }
 
+    @Test
+    fun testTrackJdwp() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        addClient(fakeDevice, 50) // Add a single client to start with
+
+        // Act: Collect 4 times, adding 1 client each time
+        val changeCount = 4
+        val lists = runBlocking {
+            val flow = deviceServices.trackJdwp(deviceSelector)
+            flow.takeSome(changeCount) { index, _ ->
+                addClient(fakeDevice, 100 + index * 2)
+            }.toList()
+        }
+
+        // Assert: We should have 4 lists of 1, 2, 3 and 4 elements
+        Assert.assertEquals(changeCount, lists.size)
+        Assert.assertEquals(listOf(50), lists[0].toList())
+        Assert.assertEquals(listOf(50, 100), lists[1].toList())
+        Assert.assertEquals(listOf(50, 100, 102), lists[2].toList())
+        Assert.assertEquals(listOf(50, 100, 102, 104), lists[3].toList())
+    }
+
+    /**
+     * Similar to [Flow.take], but allows for a [block] to process each collected element.
+     */
+    private suspend fun <T> Flow<T>.takeSome(count: Int, block: suspend (Int, T) -> Unit): Flow<T> {
+        var consumed = 0
+        return takeWhile {
+            if (consumed < count) {
+                block(consumed++, it)
+                true
+            } else {
+                false
+            }
+        }
+    }
+
     open class TestSyncProgress : SyncProgress {
 
         var started = false
@@ -1459,6 +1502,16 @@ class AdbDeviceServicesTest {
             )
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
         return fakeDevice
+    }
+
+    private fun addClient(fakeDevice: DeviceState, pid: Int) {
+        fakeDevice.startClient(
+            pid,
+            pid * 2,
+            "package-$pid",
+            "app-$pid",
+            true
+        )
     }
 
     class ByteBufferShellCollector : ShellCollector<ByteBuffer> {

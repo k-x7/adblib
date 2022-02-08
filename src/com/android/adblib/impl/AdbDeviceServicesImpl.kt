@@ -1,3 +1,18 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.android.adblib.impl
 
 import com.android.adblib.AdbChannel
@@ -8,6 +23,7 @@ import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbLibSession
 import com.android.adblib.DeviceSelector
+import com.android.adblib.ProcessIdList
 import com.android.adblib.ReverseSocketList
 import com.android.adblib.ShellCollector
 import com.android.adblib.ShellV2Collector
@@ -17,6 +33,7 @@ import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.impl.TimeoutTracker.Companion.INFINITE
+import com.android.adblib.impl.services.TrackJdwpService
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -38,6 +55,7 @@ internal class AdbDeviceServicesImpl(
         get() = session.host
 
     private val serviceRunner = AdbServiceRunner(session, channelProvider)
+    private val trackJdwpService = TrackJdwpService(serviceRunner)
 
     override fun <T> shell(
         device: DeviceSelector,
@@ -51,15 +69,8 @@ internal class AdbDeviceServicesImpl(
         // Note: We only track the time to launch the shell command, since command execution
         // itself can take an arbitrary amount of time.
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
-        val workBuffer = serviceRunner.newResizableBuffer()
-        val channel = serviceRunner.switchToTransport(device, workBuffer, tracker)
-        channel.use {
-            // We switched the channel to the right transport (i.e. device), now send the service request
-            val service = getShellServiceString(ShellProtocol.V1, command)
-            host.logger.debug { "\"${service}\" - sending local service request to ADB daemon, timeout: $tracker" }
-            serviceRunner.sendAbdServiceRequest(channel, workBuffer, service, tracker)
-            serviceRunner.consumeOkayFailResponse(channel, workBuffer, tracker)
-
+        val service = getShellServiceString(ShellProtocol.V1, command)
+        serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
             host.timeProvider.withErrorTimeout(commandTimeout) {
                 // Forward `stdin` from channel to adb (in a new coroutine so that we
                 // can also collect `stdout` concurrently)
@@ -142,6 +153,10 @@ internal class AdbDeviceServicesImpl(
         )
     }
 
+    override fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList> {
+        return trackJdwpService.invoke(device, timeout, unit)
+    }
+
     override fun <T> shellV2(
         device: DeviceSelector,
         command: String,
@@ -153,15 +168,9 @@ internal class AdbDeviceServicesImpl(
         // Note: We only track the time to launch the shell command, since command execution
         // itself can take an arbitrary amount of time.
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
-        val workBuffer = serviceRunner.newResizableBuffer()
-        val channel = serviceRunner.switchToTransport(device, workBuffer, tracker)
-        channel.use {
-            // We switched the channel to the right transport (i.e. device), now send the service request
-            val localService = getShellServiceString(ShellProtocol.V2, command)
-            host.logger.debug { "\${localService}\" - sending local service request to ADB daemon, timeout: $tracker" }
-            serviceRunner.sendAbdServiceRequest(channel, workBuffer, localService, tracker)
-            serviceRunner.consumeOkayFailResponse(channel, workBuffer, tracker)
-
+        // We switched the channel to the right transport (i.e. device), now send the service request
+        val service = getShellServiceString(ShellProtocol.V2, command)
+        serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
             host.timeProvider.withErrorTimeout(commandTimeout) {
                 // Forward `stdin` from channel to adb (in a new coroutine so that we
                 // can also collect `stdout` concurrently)
@@ -177,7 +186,7 @@ internal class AdbDeviceServicesImpl(
                 collectShellCommandOutputV2Format(
                     channel,
                     workBuffer,
-                    localService,
+                    service,
                     shellCollector,
                     this@flow
                 )

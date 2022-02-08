@@ -165,7 +165,23 @@ interface AdbDeviceServices {
      * ("`<device-transport>:reverse:killforward-all`" query).
      */
     suspend fun reverseKillForwardAll(device: DeviceSelector)
+
+    /**
+     * Returns a [Flow] that emits a new [ProcessIdList] everytime the set of active JDWP processes
+     * on the device has changed ("`<device-transport>:track-jdwp`" query).
+     *
+     * Once activated, the flow remains active until cancellation (exceptional or not) occurs from
+     * either the flow collector or the flow implementation, e.g. [IOException] from the
+     * underlying [AdbChannel].
+     */
+    fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList>
 }
+
+/**
+ * List of process IDs as returned by [AdbDeviceServices.trackJdwp], as well as list of
+ * [ErrorLine] in case some lines in the output from ADB were not recognized.
+ */
+typealias ProcessIdList = ListWithErrors<Int>
 
 /**
  * Similar to [AdbDeviceServices.shell] but captures the command output as a single
