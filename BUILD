@@ -17,9 +17,9 @@ iml_module(
 
 # Build adblib as a standalone library, with side effect of ensuring that adblib does not
 # use unwanted dependencies from "studio-sdk" in the iml_module rule above
-# Build with: bazel build //tools/base/adblib:tools.adblib
+# Build with: bazel build //tools/base/adblib:adblib
 kotlin_library(
-    name = "tools.adblib",
+    name = "adblib",
     srcs = glob([
         "src/**/*.kt",
         "src/**/*.java",
@@ -34,19 +34,19 @@ kotlin_library(
 
 # Test adblib as a standalone library, with side effect of ensuring that adblib does not
 # use unwanted dependencies from "studio-sdk" in the iml_module rule above
-# Run tests with: bazel test //tools/base/adblib:tools.adblib.tests.test
+# Run tests with: bazel test //tools/base/adblib:adblib.tests.test
 kotlin_test(
-    name = "tools.adblib.tests",
+    name = "adblib.tests",
     srcs = glob([
         "test/src/**/*.kt",
         "test/src/**/*.java",
     ]),
     # So that we can use adblib "internal" classes/functions from Unit Tests
-    friends = [":tools.adblib"],
-    jvm_flags = ["-Dtest.suite.jar=tools.adblib.tests.jar"],
+    friends = [":adblib"],
+    jvm_flags = ["-Dtest.suite.jar=adblib.tests.jar"],
     test_class = "com.android.testutils.JarTestSuite",
     deps = [
-        ":tools.adblib",
+        ":adblib",
         # For "JarTestSuite"
         "//tools/base/testutils:tools.testutils",
         # For JUnit4 support
