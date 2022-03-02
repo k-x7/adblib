@@ -38,7 +38,7 @@ import java.util.function.Supplier
  */
 val FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(2)
 
-internal class FakeAdbServerProvider : AutoCloseable {
+class FakeAdbServerProvider : AutoCloseable {
 
     val inetAddress: InetAddress
         get() = server?.inetAddress ?: throw IllegalStateException("Server not started")
@@ -116,7 +116,7 @@ internal class FakeAdbServerProvider : AutoCloseable {
         server?.awaitServerTermination()
     }
 
-    internal class TestingChannelProvider(host: AdbLibHost, portSupplier: suspend () -> Int) :
+    class TestingChannelProvider(host: AdbLibHost, portSupplier: suspend () -> Int) :
         AdbChannelProvider {
 
         private val provider = AdbChannelProviderFactory.createOpenLocalHost(host, portSupplier)
@@ -131,7 +131,7 @@ internal class FakeAdbServerProvider : AutoCloseable {
         }
     }
 
-    internal class TestingAdbChannel(private val channel: AdbChannel) : AdbChannel by channel {
+    class TestingAdbChannel(private val channel: AdbChannel) : AdbChannel by channel {
 
         val isOpen: Boolean
             get() = (channel as AdbSocketChannelImpl).isOpen

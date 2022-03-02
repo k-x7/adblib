@@ -25,7 +25,9 @@ kotlin_library(
         "src/**/*.java",
     ]),
     resource_strip_prefix = "tools/base/adblib",
-    visibility = ["//visibility:public"],
+    visibility = [
+        "//tools/base/adblib-tools:__subpackages__",
+    ],
     deps = [
         "@maven//:org.jetbrains.kotlin.kotlin-stdlib-jdk8",
         "@maven//:org.jetbrains.kotlinx.kotlinx-coroutines-core",
@@ -45,6 +47,9 @@ kotlin_test(
     friends = [":adblib"],
     jvm_flags = ["-Dtest.suite.jar=adblib.tests.jar"],
     test_class = "com.android.testutils.JarTestSuite",
+    visibility = [
+        "//tools/base/adblib-tools:__subpackages__",
+    ],
     deps = [
         ":adblib",
         # For "JarTestSuite"
