@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
@@ -188,6 +189,45 @@ internal class AdbDeviceServicesImpl(
                     shellCollector,
                     this@flow
                 )
+            }
+        }
+    }.flowOn(host.ioDispatcher)
+
+    override fun <T> abb_exec(
+        device: DeviceSelector,
+        command: List<String>,
+        shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel?,
+        commandTimeout: Duration,
+        bufferSize: Int,
+    ): Flow<T> = flow {
+        host.logger.info { "Device \"${device}\" - Start execution of abb_exec command \"$command\" (bufferSize=$bufferSize bytes)" }
+        // Note: We only track the time to launch the abb_exec command, since command execution
+        // itself can take an arbitrary amount of time.
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "abb_exec:" + command.joinToString("\u0000")
+        serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
+            host.timeProvider.withErrorTimeout(commandTimeout) {
+                channel.use {
+                    // Forward `stdin` from channel to adb (in a new coroutine so that we
+                    // can also collect `stdout` concurrently)
+                    val writerJob = stdinChannel?.let {
+                        launch {
+                            it.forwardTo(session, channel, bufferSize)
+                        }
+                    }
+
+                    // Forward `stdout` from adb to flow
+                    collectShellCommandOutput(
+                        channel,
+                        workBuffer,
+                        service,
+                        bufferSize,
+                        shellCollector,
+                        this@flow
+                    )
+                    writerJob?.join()
+                }
             }
         }
     }.flowOn(host.ioDispatcher)

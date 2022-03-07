@@ -107,6 +107,16 @@ interface AdbDeviceServices {
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
     ): Flow<T>
 
+
+    fun <T> abb_exec(
+        device: DeviceSelector,
+        command: List<String>,
+        shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel? = null,
+        commandTimeout: Duration = INFINITE_DURATION,
+        bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+    ): Flow<T>
+
     /**
      * Opens a `sync` session on a device ("<device-transport>:sync" query) and returns
      * an instance of [AdbDeviceSyncServices] that allows performing one or more file

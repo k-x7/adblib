@@ -46,6 +46,7 @@ import org.junit.Test
 import org.junit.rules.ExpectedException
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.lang.StringBuilder
 import java.nio.ByteBuffer
 import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermission.OWNER_READ
@@ -1516,6 +1517,26 @@ class AdbDeviceServicesTest {
             Assert.assertEquals("tcp:1000", forwardEntry.remote.toQueryString())
             Assert.assertEquals("tcp:4000", forwardEntry.local.toQueryString())
         }
+    }
+
+    @Test
+    fun testAbbExec() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val appId = "com.foo.bar.app"
+        val result = deviceServices.abb_exec<String>(deviceSelector, listOf("package", "path", appId), TextShellCollector())
+
+        val resp = StringBuilder()
+        runBlocking {
+            result.collect {
+                resp.append(it)
+            }
+        }
+        Assert.assertEquals("/data/app/$appId/base.apk", resp.toString())
     }
 
     @Test
