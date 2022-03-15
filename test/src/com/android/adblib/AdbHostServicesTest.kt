@@ -464,7 +464,7 @@ class AdbHostServicesTest {
                 "test1",
                 "test2",
                 "model",
-                "sdk",
+                "30", // SDK >= 30 is required for abb_exec feature.
                 DeviceState.HostConnectionType.USB
             )
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
