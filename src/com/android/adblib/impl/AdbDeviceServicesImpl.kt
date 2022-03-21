@@ -94,6 +94,41 @@ internal class AdbDeviceServicesImpl(
         }
     }.flowOn(host.ioDispatcher)
 
+    override fun <T> shellV2(
+        device: DeviceSelector,
+        command: String,
+        shellCollector: ShellV2Collector<T>,
+        stdinChannel: AdbInputChannel?,
+        commandTimeout: Duration,
+        bufferSize: Int
+    ): Flow<T> = flow {
+        // Note: We only track the time to launch the shell command, since command execution
+        // itself can take an arbitrary amount of time.
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        // We switched the channel to the right transport (i.e. device), now send the service request
+        val service = getShellServiceString(ShellProtocol.V2, command)
+        serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
+            host.timeProvider.withErrorTimeout(commandTimeout) {
+                // Forward `stdin` from channel to adb (in a new coroutine so that we
+                // can also collect `stdout` concurrently)
+                stdinChannel?.let {
+                    launchCancellable {
+                        forwardStdInputV2Format(channel, stdinChannel, bufferSize)
+                    }
+                }
+
+                // Forward `stdout` and `stderr` from adb to flow
+                collectShellCommandOutputV2Format(
+                    channel,
+                    workBuffer,
+                    service,
+                    shellCollector,
+                    this@flow
+                )
+            }
+        }
+    }.flowOn(host.ioDispatcher)
+
     override suspend fun sync(device: DeviceSelector): AdbDeviceSyncServices {
         return AdbDeviceSyncServicesImpl.open(serviceRunner, device, timeout, unit)
     }
@@ -157,41 +192,6 @@ internal class AdbDeviceServicesImpl(
     override fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList> {
         return trackJdwpService.invoke(device, timeout, unit)
     }
-
-    override fun <T> shellV2(
-        device: DeviceSelector,
-        command: String,
-        shellCollector: ShellV2Collector<T>,
-        stdinChannel: AdbInputChannel?,
-        commandTimeout: Duration,
-        bufferSize: Int
-    ): Flow<T> = flow {
-        // Note: We only track the time to launch the shell command, since command execution
-        // itself can take an arbitrary amount of time.
-        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
-        // We switched the channel to the right transport (i.e. device), now send the service request
-        val service = getShellServiceString(ShellProtocol.V2, command)
-        serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
-            host.timeProvider.withErrorTimeout(commandTimeout) {
-                // Forward `stdin` from channel to adb (in a new coroutine so that we
-                // can also collect `stdout` concurrently)
-                stdinChannel?.let {
-                    launchCancellable {
-                        forwardStdInputV2Format(channel, stdinChannel, bufferSize)
-                    }
-                }
-
-                // Forward `stdout` and `stderr` from adb to flow
-                collectShellCommandOutputV2Format(
-                    channel,
-                    workBuffer,
-                    service,
-                    shellCollector,
-                    this@flow
-                )
-            }
-        }
-    }.flowOn(host.ioDispatcher)
 
     override fun <T> abb_exec(
         device: DeviceSelector,
