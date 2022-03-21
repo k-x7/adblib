@@ -74,6 +74,17 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
         return flowOf(result as T)
     }
 
+    override fun <T> exec(
+        device: DeviceSelector,
+        command: String,
+        shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel?,
+        commandTimeout: Duration,
+        bufferSize: Int
+    ): Flow<T> {
+        TODO("Not yet implemented")
+    }
+
     override fun <T> shellV2(
         device: DeviceSelector,
         command: String,

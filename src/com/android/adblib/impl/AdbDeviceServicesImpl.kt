@@ -33,15 +33,17 @@ import com.android.adblib.impl.TimeoutTracker.Companion.INFINITE
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
 import com.android.adblib.impl.services.TrackJdwpService
+import com.android.adblib.thisLogger
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.launchCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.launch
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+
+private const val ABB_ARG_SEPARATOR = "\u0000"
 
 internal class AdbDeviceServicesImpl(
     override val session: AdbLibSession,
@@ -50,13 +52,14 @@ internal class AdbDeviceServicesImpl(
     private val unit: TimeUnit
 ) : AdbDeviceServices {
 
-    private val myReverseSocketListParser = ReverseSocketListParser()
+    private val logger = thisLogger(session.host)
 
     private val host: AdbLibHost
         get() = session.host
 
     private val serviceRunner = AdbServiceRunner(session, channelProvider)
     private val trackJdwpService = TrackJdwpService(serviceRunner)
+    private val myReverseSocketListParser = ReverseSocketListParser()
 
     override fun <T> shell(
         device: DeviceSelector,
@@ -65,34 +68,36 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-    ): Flow<T> = flow {
-        host.logger.info { "Device \"${device}\" - Start execution of shell command \"$command\" (bufferSize=$bufferSize bytes)" }
-        // Note: We only track the time to launch the shell command, since command execution
-        // itself can take an arbitrary amount of time.
-        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
-        val service = getShellServiceString(ShellProtocol.V1, command)
-        serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
-            host.timeProvider.withErrorTimeout(commandTimeout) {
-                // Forward `stdin` from channel to adb (in a new coroutine so that we
-                // can also collect `stdout` concurrently)
-                stdinChannel?.let {
-                    launchCancellable {
-                        forwardStdInput(channel, stdinChannel, bufferSize)
-                    }
-                }
+    ): Flow<T> {
+        return runServiceWithOutput(
+            device,
+            ExecService.SHELL,
+            { command },
+            shellCollector,
+            stdinChannel,
+            commandTimeout,
+            bufferSize
+        )
+    }
 
-                // Forward `stdout` from adb to flow
-                collectShellCommandOutput(
-                    channel,
-                    workBuffer,
-                    service,
-                    bufferSize,
-                    shellCollector,
-                    this@flow
-                )
-            }
-        }
-    }.flowOn(host.ioDispatcher)
+    override fun <T> exec(
+        device: DeviceSelector,
+        command: String,
+        shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel?,
+        commandTimeout: Duration,
+        bufferSize: Int,
+    ): Flow<T> {
+        return runServiceWithOutput(
+            device,
+            ExecService.EXEC,
+            { command },
+            shellCollector,
+            stdinChannel,
+            commandTimeout,
+            bufferSize
+        )
+    }
 
     override fun <T> shellV2(
         device: DeviceSelector,
@@ -106,7 +111,7 @@ internal class AdbDeviceServicesImpl(
         // itself can take an arbitrary amount of time.
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
         // We switched the channel to the right transport (i.e. device), now send the service request
-        val service = getShellServiceString(ShellProtocol.V2, command)
+        val service = getExecServiceString(ExecService.SHELL_V2, command)
         serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
             host.timeProvider.withErrorTimeout(commandTimeout) {
                 // Forward `stdin` from channel to adb (in a new coroutine so that we
@@ -200,37 +205,26 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-    ): Flow<T> = flow {
-        host.logger.info { "Device \"${device}\" - Start execution of abb_exec command \"$command\" (bufferSize=$bufferSize bytes)" }
-        // Note: We only track the time to launch the abb_exec command, since command execution
-        // itself can take an arbitrary amount of time.
-        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
-        val service = "abb_exec:" + command.joinToString("\u0000")
-        serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
-            host.timeProvider.withErrorTimeout(commandTimeout) {
-                channel.use {
-                    // Forward `stdin` from channel to adb (in a new coroutine so that we
-                    // can also collect `stdout` concurrently)
-                    val writerJob = stdinChannel?.let {
-                        launch {
-                            it.forwardTo(session, channel, bufferSize)
-                        }
-                    }
-
-                    // Forward `stdout` from adb to flow
-                    collectShellCommandOutput(
-                        channel,
-                        workBuffer,
-                        service,
-                        bufferSize,
-                        shellCollector,
-                        this@flow
-                    )
-                    writerJob?.join()
+    ): Flow<T> {
+        val commandProvider = {
+            // Check there are no embedded "NUL" characters
+            command.forEach {
+                if (it.contains(ABB_ARG_SEPARATOR)) {
+                    throw IllegalArgumentException("ABB Exec command argument cannot contain NUL separator")
                 }
             }
+            command.joinToString(ABB_ARG_SEPARATOR)
         }
-    }.flowOn(host.ioDispatcher)
+        return runServiceWithOutput(
+            device,
+            ExecService.ABB_EXEC,
+            commandProvider,
+            shellCollector,
+            stdinChannel,
+            commandTimeout,
+            bufferSize
+        )
+    }
 
     private suspend fun <T> collectShellCommandOutput(
         channel: AdbChannel,
@@ -240,10 +234,10 @@ internal class AdbDeviceServicesImpl(
         shellCollector: ShellCollector<T>,
         flowCollector: FlowCollector<T>
     ) {
-        host.logger.debug { "\"${service}\" - Collecting messages from shell command output" }
+        logger.debug { "\"${service}\" - Collecting messages from shell command output" }
         shellCollector.start(flowCollector)
         while (true) {
-            host.logger.verbose { "\"${service}\" - Waiting for next message from shell command output" }
+            logger.verbose { "\"${service}\" - Waiting for next message from shell command output" }
 
             // Note: We use an infinite timeout here as shell commands can take arbitrary amount
             //       of time to execute and produce output.
@@ -256,11 +250,11 @@ internal class AdbDeviceServicesImpl(
             val buffer = workBuffer.afterChannelRead()
             assert(buffer.remaining() == byteCount)
 
-            host.logger.verbose { "\"${service}\" - Emitting packet of $byteCount bytes" }
+            logger.verbose { "\"${service}\" - Emitting packet of $byteCount bytes" }
             shellCollector.collect(flowCollector, buffer)
         }
         shellCollector.end(flowCollector)
-        host.logger.debug { "\"${service}\" - Done collecting messages from shell command output" }
+        logger.debug { "\"${service}\" - Done collecting messages from shell command output" }
     }
 
     private suspend fun <T> collectShellCommandOutputV2Format(
@@ -270,7 +264,7 @@ internal class AdbDeviceServicesImpl(
         shellCollector: ShellV2Collector<T>,
         flowCollector: FlowCollector<T>
     ) {
-        host.logger.debug { "\"${service}\" - Waiting for next shell protocol packet" }
+        logger.debug { "\"${service}\" - Waiting for next shell protocol packet" }
         shellCollector.start(flowCollector)
         val shellProtocol = ShellV2ProtocolHandler(channel, workBuffer)
 
@@ -280,17 +274,17 @@ internal class AdbDeviceServicesImpl(
             val (packetKind, packetBuffer) = shellProtocol.readPacket(INFINITE)
             when (packetKind) {
                 ShellV2PacketKind.STDOUT -> {
-                    host.logger.debug { "Received stdout buffer of ${packetBuffer.remaining()} bytes" }
+                    logger.debug { "Received stdout buffer of ${packetBuffer.remaining()} bytes" }
                     shellCollector.collectStdout(flowCollector, packetBuffer)
                 }
                 ShellV2PacketKind.STDERR -> {
-                    host.logger.debug { "Received stderr buffer of ${packetBuffer.remaining()} bytes" }
+                    logger.debug { "Received stderr buffer of ${packetBuffer.remaining()} bytes" }
                     shellCollector.collectStderr(flowCollector, packetBuffer)
                 }
                 ShellV2PacketKind.EXIT_CODE -> {
                     // Ensure value is unsigned
                     val exitCode = packetBuffer.get().toInt() and 0xFF
-                    host.logger.debug { "Received shell command exit code=${exitCode}" }
+                    logger.debug { "Received shell command exit code=${exitCode}" }
                     shellCollector.end(flowCollector, exitCode)
 
                     // There should be no messages after the exit code
@@ -300,22 +294,10 @@ internal class AdbDeviceServicesImpl(
                 ShellV2PacketKind.CLOSE_STDIN,
                 ShellV2PacketKind.WINDOW_SIZE_CHANGE,
                 ShellV2PacketKind.INVALID -> {
-                    host.logger.warn("Skipping shell protocol packet (kind=\"${packetKind}\")")
+                    logger.warn("Skipping shell protocol packet (kind=\"${packetKind}\")")
                 }
             }
-            host.logger.debug { "\"${service}\" - packet processed successfully" }
-        }
-    }
-
-    private fun getShellServiceString(shellProtocol: ShellProtocol, command: String): String {
-        // Shell service string can look like: shell[,arg1,arg2,...]:[command].
-        // See https://cs.android.com/android/platform/superproject/+/fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f:packages/modules/adb/client/commandline.cpp;l=594;drc=fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f
-
-        // We don't escape here, just like ssh(1). http://b/20564385.
-        // See https://cs.android.com/android/platform/superproject/+/fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f:packages/modules/adb/client/commandline.cpp;l=776
-        return when (shellProtocol) {
-            ShellProtocol.V1 -> "shell:$command"
-            ShellProtocol.V2 -> "shell,v2:$command"
+            logger.debug { "\"${service}\" - packet processed successfully" }
         }
     }
 
@@ -325,7 +307,7 @@ internal class AdbDeviceServicesImpl(
         bufferSize: Int
     ) {
         stdInput.forwardTo(session, shellCommandChannel, bufferSize)
-        host.logger.info { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
+        logger.info { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
         shellCommandChannel.shutdownOutput()
     }
 
@@ -355,8 +337,61 @@ internal class AdbDeviceServicesImpl(
         }
     }
 
-    private enum class ShellProtocol {
-        V1,
-        V2
+    private fun <T> runServiceWithOutput(
+        device: DeviceSelector,
+        execService: ExecService,
+        commandProvider: () -> String,
+        shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel?,
+        commandTimeout: Duration,
+        bufferSize: Int,
+    ): Flow<T> = flow {
+        val service = getExecServiceString(execService, commandProvider())
+        logger.info { "Device \"${device}\" - Start execution of service \"$service\" (bufferSize=$bufferSize bytes)" }
+
+        // Note: We only track the time to launch the command, since the command execution
+        // itself can take an arbitrary amount of time.
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
+            host.timeProvider.withErrorTimeout(commandTimeout) {
+                // Forward `stdin` from channel to adb (in a new coroutine so that we
+                // can also collect `stdout` concurrently)
+                stdinChannel?.let {
+                    launchCancellable {
+                        forwardStdInput(channel, stdinChannel, bufferSize)
+                    }
+                }
+
+                collectShellCommandOutput(
+                    channel,
+                    workBuffer,
+                    service,
+                    bufferSize,
+                    shellCollector,
+                    this@flow
+                )
+            }
+        }
+    }.flowOn(host.ioDispatcher)
+
+    private fun getExecServiceString(service: ExecService, command: String): String {
+        // Shell service string can look like: shell[,arg1,arg2,...]:[command].
+        // See https://cs.android.com/android/platform/superproject/+/fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f:packages/modules/adb/client/commandline.cpp;l=594;drc=fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f
+
+        // We don't escape here, just like ssh(1). http://b/20564385.
+        // See https://cs.android.com/android/platform/superproject/+/fbe41e9a47a57f0d20887ace0fc4d0022afd2f5f:packages/modules/adb/client/commandline.cpp;l=776
+        return when (service) {
+            ExecService.SHELL -> "shell:$command"
+            ExecService.SHELL_V2 -> "shell,v2:$command"
+            ExecService.EXEC -> "exec:$command"
+            ExecService.ABB_EXEC -> "abb_exec:$command"
+        }
+    }
+
+    private enum class ExecService {
+        SHELL,
+        EXEC,
+        SHELL_V2,
+        ABB_EXEC
     }
 }

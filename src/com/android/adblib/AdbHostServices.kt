@@ -99,6 +99,8 @@ interface AdbHostServices {
 
     /**
      * Returns the list of features of the [device] ("<device-prefix>:features" query).
+     *
+     * See [AdbFeatures] for a (subset of the) list of possible features.
      */
     suspend fun features(device: DeviceSelector): List<String>
 

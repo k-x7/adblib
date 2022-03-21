@@ -30,7 +30,17 @@ interface AdbDeviceServices {
 
     /**
      * Returns a [Flow] that, when collected, executes a shell command on a device
-     * ("<device-transport>:shell" query) and emits the output of the command to the [Flow].
+     * ("<device-transport>:shell" query) and emits the `stdout` and `stderr` output from of
+     * the command to the [Flow].
+     *
+     * This is the equivalent of running "`/system/bin/sh -c `[command]" on the [device], meaning
+     * [command] can be any arbitrary shell invocation, including pipes and redirections, as
+     * opposed to executing a single process.
+     *
+     * __Note__: When collecting the command output, there is no way to distinguish between
+     * `stdout` or `stderr`, i.e. both streams are merged. There is also no way to know
+     * the `exit code` of the shell command. It is recommended to use [shellV2] instead for
+     * devices that support [AdbFeatures.SHELL_V2].
      *
      * The returned [Flow] elements are collected and emitted through a [ShellCollector],
      * which enables advanced use cases for collecting, mapping, filtering and joining
@@ -54,8 +64,33 @@ interface AdbDeviceServices {
      *   device connection has been successfully established. If the command takes more time than
      *   the timeout, a [TimeoutException] is thrown and the underlying [AdbChannel] is closed.
      * @param [bufferSize] the size of the buffer used to receive data from the shell command output
+     *
+     * @see [shellV2]
      */
     fun <T> shell(
+        device: DeviceSelector,
+        command: String,
+        shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel? = null,
+        commandTimeout: Duration = INFINITE_DURATION,
+        bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+    ): Flow<T>
+
+    /**
+     * Returns a [Flow] that, when collected, executes a shell command on a device
+     * ("<device-transport>:exec" query) and emits the `stdout` output from of
+     * the command to the [Flow].
+     *
+     * See [shell] for a more detailed description. The main difference with [shell] is this
+     * service only captures `stdout` and ignores `stderr`.
+     *
+     * __Note__: When collecting the command output, there is no way to access the contents
+     * of `stderr`. There is also no way to know the `exit code` of the shell command.
+     * It is recommended to use [shellV2] instead for devices that support [AdbFeatures.SHELL_V2].
+     *
+     * @see [shellV2]
+     */
+    fun <T> exec(
         device: DeviceSelector,
         command: String,
         shellCollector: ShellCollector<T>,
@@ -83,7 +118,7 @@ interface AdbDeviceServices {
      *
      * __Note__: Support for the "shell v2" protocol was added in Android API 24 (Nougat).
      *   To verify the protocol is supported by the target device, call the
-     *   [AdbHostServices.features] method and look for the "shell_v2" element in the
+     *   [AdbHostServices.features] method and look for the [AdbFeatures.SHELL_V2] element in the
      *   resulting [List]. If protocol is not supported by the device, the returned [Flow] throws
      *   an [AdbFailResponseException].
      *
@@ -107,7 +142,46 @@ interface AdbDeviceServices {
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
     ): Flow<T>
 
-
+    /**
+     * Returns a [Flow] that, when collected, executes a "Android Binder Bridge" command on
+     * a device ("<device-transport>:abb_exec" query) and emits the `stdout` output from of
+     * the command to the [Flow]. This is the equivalent of running "`cmd `[command]" using
+     * [exec], except throughput is much higher.
+     *
+     * __Note__: To verify the "abb" protocol is supported by the target device, callers
+     * should invoke the [AdbHostServices.features] method and look for the
+     * [AdbFeatures.ABB_EXEC] element in the resulting [List]. If protocol is not supported
+     * by the device, the returned [Flow] throws an [AdbFailResponseException] and callers
+     * should fall back to using [shellV2] or [exec] with the equivalent "`cmd`" shell command.
+     *
+     * __Note__: When collecting the command output, there is no way to access the contents
+     * of `stderr`. There is also no way to know the `exit code` of the command.
+     *
+     * The returned [Flow] elements are collected and emitted through a [ShellCollector],
+     * which enables advanced use cases for collecting, mapping, filtering and joining
+     * the command output which is initially collected as [ByteBuffer]. A typical use
+     * case is to use a [ShellCollector] that decodes the output as a [Flow] of [String],
+     * one for each line of the output.
+     *
+     * The flow is active until an exception is thrown, cancellation is requested by
+     * the flow consumer, or the shell command is terminated.
+     *
+     * The flow can throw [AdbProtocolErrorException], [AdbFailResponseException],
+     * [IOException] or any [Exception] thrown by [shellCollector]
+     *
+     * @param [device] the [DeviceSelector] corresponding to the target device
+     * @param [command] the "abb" command to execute
+     * @param [shellCollector] The [ShellCollector] invoked to collect the shell command output
+     *   and emit elements to the resulting [Flow]
+     * @param [stdinChannel] is an optional [AdbChannel] providing bytes to send to the `stdin`
+     *   of the shell command
+     * @param [commandTimeout] timeout tracking the command execution, tracking starts *after* the
+     *   device connection has been successfully established. If the command takes more time than
+     *   the timeout, a [TimeoutException] is thrown and the underlying [AdbChannel] is closed.
+     * @param [bufferSize] the size of the buffer used to receive data from the shell command output
+     *
+     * @see [shellV2]
+     */
     fun <T> abb_exec(
         device: DeviceSelector,
         command: List<String>,

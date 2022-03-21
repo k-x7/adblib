@@ -508,6 +508,35 @@ class AdbDeviceServicesTest {
     }
 
     @Test
+    fun testExec() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val device = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(device.deviceId)
+        val collector = ByteBufferShellCollector()
+
+        // Act
+        val bytes = runBlocking {
+            deviceServices.exec(deviceSelector, "getprop", collector).first()
+        }
+
+        // Assert
+        Assert.assertNull(deviceSelector.transportId)
+        val expectedOutput = """
+            # This is some build info
+            # This is more build info
+
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
+            [ro.build.version.release]: [model]
+            [ro.build.version.sdk]: [sdk]
+
+        """.trimIndent()
+        Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
+    }
+
+    @Test
     fun testShellV2Works() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
