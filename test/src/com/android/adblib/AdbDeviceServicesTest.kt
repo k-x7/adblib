@@ -28,6 +28,7 @@ import com.android.adblib.utils.TextShellCollector
 import com.android.fakeadbserver.DeviceFileState
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.devicecommandhandlers.SyncCommandHandler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -286,6 +287,42 @@ class AdbDeviceServicesTest {
 
         // Act
         exceptionRule.expect(MyTestException::class.java)
+        /*val ignored = */runBlocking {
+            deviceServices.shellAsText(deviceSelector, "cat", stdinChannel = errorInputChannel)
+        }
+
+        // Assert
+        Assert.fail() // Should not reach
+    }
+
+    @Test
+    fun testShellWithCancelledStdinMaintainsCancellation() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val errorInputChannel = object : AdbInputChannel {
+            private var firstCall = true
+            override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+                if (firstCall) {
+                    firstCall = false
+                    buffer.put('a'.toByte())
+                    buffer.put('a'.toByte())
+                    return 2
+                } else {
+                    // We force a cancellation after the first call
+                    throw CancellationException("hello")
+                }
+            }
+
+            override fun close() {
+                // Nothing
+            }
+        }
+
+        // Act
+        exceptionRule.expect(CancellationException::class.java)
         /*val ignored = */runBlocking {
             deviceServices.shellAsText(deviceSelector, "cat", stdinChannel = errorInputChannel)
         }
@@ -556,6 +593,77 @@ class AdbDeviceServicesTest {
             AdbProtocolUtils.byteBufferToString(shellV2Result.stderr)
         )
         Assert.assertEquals(10, shellV2Result.exitCode)
+    }
+
+    @Test
+    fun testShellV2WithErroneousStdinMaintainsInitialException() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val errorInputChannel = object : AdbInputChannel {
+            private var firstCall = true
+            override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+                if (firstCall) {
+                    firstCall = false
+                    buffer.put('a'.toByte())
+                    buffer.put('a'.toByte())
+                    return 2
+                } else {
+                    throw MyTestException("hello")
+                }
+            }
+
+            override fun close() {
+                // Nothing
+            }
+        }
+
+        // Act
+        exceptionRule.expect(MyTestException::class.java)
+        /*val ignored = */runBlocking {
+            deviceServices.shellV2AsText(deviceSelector, "cat", stdinChannel = errorInputChannel)
+        }
+
+        // Assert
+        Assert.fail() // Should not reach
+    }
+
+    @Test
+    fun testShellV2WithCancelledStdinMaintainsCancellation() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val errorInputChannel = object : AdbInputChannel {
+            private var firstCall = true
+            override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+                if (firstCall) {
+                    firstCall = false
+                    buffer.put('a'.toByte())
+                    buffer.put('a'.toByte())
+                    return 2
+                } else {
+                    // We force a cancellation after the first call
+                    throw CancellationException("hello")
+                }
+            }
+
+            override fun close() {
+                // Nothing
+            }
+        }
+
+        // Act
+        exceptionRule.expect(CancellationException::class.java)
+        /*val ignored = */runBlocking {
+            deviceServices.shellV2AsText(deviceSelector, "cat", stdinChannel = errorInputChannel)
+        }
+
+        // Assert
+        Assert.fail() // Should not reach
     }
 
     @Test

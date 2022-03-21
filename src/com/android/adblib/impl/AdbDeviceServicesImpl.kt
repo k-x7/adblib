@@ -29,17 +29,16 @@ import com.android.adblib.ShellCollector
 import com.android.adblib.ShellV2Collector
 import com.android.adblib.SocketSpec
 import com.android.adblib.forwardTo
+import com.android.adblib.impl.TimeoutTracker.Companion.INFINITE
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
-import com.android.adblib.utils.ResizableBuffer
-import com.android.adblib.impl.TimeoutTracker.Companion.INFINITE
 import com.android.adblib.impl.services.TrackJdwpService
-import kotlinx.coroutines.coroutineScope
+import com.android.adblib.utils.ResizableBuffer
+import com.android.adblib.utils.launchCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.launch
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
@@ -49,6 +48,7 @@ internal class AdbDeviceServicesImpl(
     private val timeout: Long,
     private val unit: TimeUnit
 ) : AdbDeviceServices {
+
     private val myReverseSocketListParser = ReverseSocketListParser()
 
     private val host: AdbLibHost
@@ -75,7 +75,7 @@ internal class AdbDeviceServicesImpl(
                 // Forward `stdin` from channel to adb (in a new coroutine so that we
                 // can also collect `stdout` concurrently)
                 stdinChannel?.let {
-                    launch {
+                    launchCancellable {
                         forwardStdInput(channel, stdinChannel, bufferSize)
                     }
                 }
@@ -175,10 +175,8 @@ internal class AdbDeviceServicesImpl(
                 // Forward `stdin` from channel to adb (in a new coroutine so that we
                 // can also collect `stdout` concurrently)
                 stdinChannel?.let {
-                    coroutineScope {
-                        launch {
-                            forwardStdInputV2Format(channel, stdinChannel, bufferSize)
-                        }
+                    launchCancellable {
+                        forwardStdInputV2Format(channel, stdinChannel, bufferSize)
                     }
                 }
 
