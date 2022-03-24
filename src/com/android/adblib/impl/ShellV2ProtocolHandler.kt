@@ -77,7 +77,7 @@ internal class ShellV2ProtocolHandler(
         workBuffer.appendByte(0) // Kind will be set later
         workBuffer.appendInt(0) // Length will be set later
         assert(workBuffer.position == SHELL_PACKET_HEADER_SIZE)
-        return workBuffer.forChannelRead(bufferSize)
+        return workBuffer.forChannelRead(bufferSize - SHELL_PACKET_HEADER_SIZE)
     }
 
     /**

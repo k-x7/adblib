@@ -24,6 +24,12 @@ object AdbFeatures {
 
     /**
      * If the result of [AdbHostServices.features] contains this value, the
+     * [AdbDeviceServices.abb] invocation is supported by the specified device.
+     */
+    const val ABB = "abb"
+
+    /**
+     * If the result of [AdbHostServices.features] contains this value, the
      * [AdbDeviceServices.abb_exec] invocation is supported by the specified device.
      */
     const val ABB_EXEC = "abb_exec"

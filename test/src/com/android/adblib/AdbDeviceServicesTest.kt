@@ -25,6 +25,7 @@ import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.MultiLineShellCollector
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TextShellCollector
+import com.android.adblib.utils.TextShellV2Collector
 import com.android.fakeadbserver.DeviceFileState
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.devicecommandhandlers.SyncCommandHandler
@@ -46,7 +47,6 @@ import org.junit.Test
 import org.junit.rules.ExpectedException
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.lang.StringBuilder
 import java.nio.ByteBuffer
 import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermission.OWNER_READ
@@ -1555,17 +1555,100 @@ class AdbDeviceServicesTest {
         val fakeDevice = addFakeDevice(fakeAdb)
         val deviceServices = createDeviceServices(fakeAdb)
         val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
-
         val appId = "com.foo.bar.app"
-        val result = deviceServices.abb_exec<String>(deviceSelector, listOf("package", "path", appId), TextShellCollector())
 
+        // Act
         val resp = StringBuilder()
+        val flow = deviceServices.abb_exec(
+            deviceSelector,
+            listOf("package", "path", appId),
+            TextShellCollector()
+        )
         runBlocking {
-            result.collect {
+            flow.collect {
                 resp.append(it)
             }
         }
+
+        // Assert
         Assert.assertEquals("/data/app/$appId/base.apk", resp.toString())
+    }
+
+    @Test
+    fun testAbb() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val appId = "com.foo.bar.app"
+
+        // Act
+        val shellOutput = runBlocking {
+            val flow = deviceServices.abb(
+                deviceSelector,
+                listOf("package", "path", appId),
+                TextShellV2Collector()
+            )
+            // With TextShellV2Collector, there is always a single result
+            flow.first()
+        }
+
+        // Assert
+        Assert.assertEquals("/data/app/$appId/base.apk", shellOutput.stdout)
+    }
+
+    @Test
+    fun testAbbProvidesStderrAndExitCode() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        val shellOutput = runBlocking {
+            val flow = deviceServices.abb(
+                deviceSelector,
+                listOf("invalid_service_name"),
+                TextShellV2Collector()
+            )
+            // With TextShellV2Collector, there is always a single result
+            flow.first()
+        }
+
+        // Assert
+        Assert.assertEquals("", shellOutput.stdout)
+        Assert.assertEquals("Error: Service 'invalid_service_name' is not supported", shellOutput.stderr)
+        Assert.assertEquals(5, shellOutput.exitCode)
+    }
+
+    @Test
+    fun testAbbWithStdin() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val dataToSend = ByteArray(1_000_000)
+        val stdin = AdbInputStreamChannel(deviceServices.session.host, dataToSend.inputStream())
+
+        // Act
+        val shellOutput = runBlocking {
+            val flow = deviceServices.abb(
+                deviceSelector,
+                listOf("package", "install-write", "-S", dataToSend.size.toString(), "-"),
+                TextShellV2Collector(),
+                stdinChannel = stdin
+            )
+            // With TextShellV2Collector, there is always a single result
+            flow.first()
+        }
+
+        // Assert
+        Assert.assertEquals("Success: streamed ${dataToSend.size} bytes\n", shellOutput.stdout)
+        Assert.assertEquals("", shellOutput.stderr)
+        Assert.assertEquals(0, shellOutput.exitCode)
     }
 
     @Test

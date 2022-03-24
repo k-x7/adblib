@@ -106,12 +106,33 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int
+    ): Flow<T> {
+        return runServiceWithShellV2Collector(
+            device,
+            ExecService.SHELL_V2,
+            { command },
+            shellCollector,
+            stdinChannel,
+            commandTimeout,
+            bufferSize
+        )
+    }
+
+    private fun <T> runServiceWithShellV2Collector(
+        device: DeviceSelector,
+        execService: ExecService,
+        commandProvider: () -> String,
+        shellCollector: ShellV2Collector<T>,
+        stdinChannel: AdbInputChannel?,
+        commandTimeout: Duration,
+        bufferSize: Int,
     ): Flow<T> = flow {
-        // Note: We only track the time to launch the shell command, since command execution
+        val service = getExecServiceString(execService, commandProvider())
+        logger.info { "Device '${device}' - Start execution of service '$service' (bufferSize=$bufferSize bytes)" }
+
+        // Note: We only track the time to launch the command, since the command execution
         // itself can take an arbitrary amount of time.
         val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
-        // We switched the channel to the right transport (i.e. device), now send the service request
-        val service = getExecServiceString(ExecService.SHELL_V2, command)
         serviceRunner.runDaemonService(device, service, tracker) { channel, workBuffer ->
             host.timeProvider.withErrorTimeout(commandTimeout) {
                 // Forward `stdin` from channel to adb (in a new coroutine so that we
@@ -200,30 +221,52 @@ internal class AdbDeviceServicesImpl(
 
     override fun <T> abb_exec(
         device: DeviceSelector,
-        command: List<String>,
+        args: List<String>,
         shellCollector: ShellCollector<T>,
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
     ): Flow<T> {
-        val commandProvider = {
-            // Check there are no embedded "NUL" characters
-            command.forEach {
-                if (it.contains(ABB_ARG_SEPARATOR)) {
-                    throw IllegalArgumentException("ABB Exec command argument cannot contain NUL separator")
-                }
-            }
-            command.joinToString(ABB_ARG_SEPARATOR)
-        }
         return runServiceWithOutput(
             device,
             ExecService.ABB_EXEC,
-            commandProvider,
+            { joinAbbArgs(args) },
             shellCollector,
             stdinChannel,
             commandTimeout,
             bufferSize
         )
+    }
+
+    override fun <T> abb(
+        device: DeviceSelector,
+        args: List<String>,
+        shellCollector: ShellV2Collector<T>,
+        stdinChannel: AdbInputChannel?,
+        commandTimeout: Duration,
+        bufferSize: Int,
+    ): Flow<T> {
+        return runServiceWithShellV2Collector(
+            device,
+            ExecService.ABB,
+            { joinAbbArgs(args) },
+            shellCollector,
+            stdinChannel,
+            commandTimeout,
+            bufferSize
+        )
+    }
+
+    private fun joinAbbArgs(abbArgs: List<String>): String {
+        // Check there are no embedded "NUL" characters
+        abbArgs.forEach {
+            if (it.contains(ABB_ARG_SEPARATOR)) {
+                throw IllegalArgumentException("ABB Exec command argument cannot contain NUL separator")
+            }
+        }
+
+        // Join all arguments into a single string
+        return abbArgs.joinToString(ABB_ARG_SEPARATOR)
     }
 
     private suspend fun <T> collectShellCommandOutput(
@@ -385,6 +428,7 @@ internal class AdbDeviceServicesImpl(
             ExecService.SHELL_V2 -> "shell,v2:$command"
             ExecService.EXEC -> "exec:$command"
             ExecService.ABB_EXEC -> "abb_exec:$command"
+            ExecService.ABB -> "abb:$command"
         }
     }
 
@@ -392,6 +436,7 @@ internal class AdbDeviceServicesImpl(
         SHELL,
         EXEC,
         SHELL_V2,
-        ABB_EXEC
+        ABB_EXEC,
+        ABB
     }
 }

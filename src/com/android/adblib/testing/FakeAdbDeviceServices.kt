@@ -101,8 +101,19 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
 
     override fun <T> abb_exec(
         device: DeviceSelector,
-        command: List<String>,
+        args: List<String>,
         shellCollector: ShellCollector<T>,
+        stdinChannel: AdbInputChannel?,
+        commandTimeout: Duration,
+        bufferSize: Int
+    ): Flow<T> {
+        TODO("Not yet implemented")
+    }
+
+    override fun <T> abb(
+        device: DeviceSelector,
+        args: List<String>,
+        shellCollector: ShellV2Collector<T>,
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int
