@@ -26,23 +26,43 @@ import com.android.adblib.MdnsCheckResult
 import com.android.adblib.MdnsServiceList
 import com.android.adblib.PairResult
 import com.android.adblib.SocketSpec
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.consumeAsFlow
+import java.io.Closeable
 
 /**
  * A fake implementation of [AdbHostServices] for tests.
  */
-class FakeAdbHostServices(override val session: AdbLibSession) : AdbHostServices {
+class FakeAdbHostServices(override val session: AdbLibSession) : AdbHostServices, Closeable {
 
-    var devicesList = DeviceList(emptyList(), emptyList())
-    var devicesTrackingData = listOf<DeviceList>()
+    /**
+     * The response of the [devices] method.
+     */
+    var devices = DeviceList(emptyList(), emptyList())
+    private val trackDevicesChannel = Channel<DeviceList>(10)
+
+    /**
+     * Controls the [trackDevices] call by sending a [DeviceList] to the flow (via a channel).
+     */
+    suspend fun sendDeviceList(deviceList: DeviceList) {
+        trackDevicesChannel.send(deviceList)
+    }
+
+    fun closeTrackDevicesFlow(e: Throwable? = null) {
+        trackDevicesChannel.close(e)
+    }
+    override fun close() {
+        closeTrackDevicesFlow()
+    }
 
     override suspend fun version(): Int = 0
 
-    override suspend fun devices(format: AdbHostServices.DeviceInfoFormat): DeviceList = devicesList
+    override suspend fun devices(format: AdbHostServices.DeviceInfoFormat): DeviceList =
+        DeviceList(devices, emptyList())
 
     override fun trackDevices(format: AdbHostServices.DeviceInfoFormat): Flow<DeviceList> =
-        devicesTrackingData.asFlow()
+        trackDevicesChannel.consumeAsFlow()
 
     override suspend fun hostFeatures(): List<String> {
         TODO("Not yet implemented")
@@ -100,5 +120,4 @@ class FakeAdbHostServices(override val session: AdbLibSession) : AdbHostServices
     override suspend fun killForwardAll(device: DeviceSelector) {
         TODO("Not yet implemented")
     }
-
 }
