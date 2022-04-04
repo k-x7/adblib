@@ -11,6 +11,7 @@ iml_module(
     # do not sort: must match IML order
     deps = [
         "//prebuilts/studio/intellij-sdk:studio-sdk",
+        "//tools/adt/idea/.idea/libraries:kotlin-test[test]",
         "//tools/base/fakeadbserver:studio.android.sdktools.fakeadbserver[module, test]",
     ],
 )
