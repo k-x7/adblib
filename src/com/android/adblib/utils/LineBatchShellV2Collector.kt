@@ -15,7 +15,10 @@
  */
 package com.android.adblib.utils
 
-import com.android.adblib.ShellCommandOutputElement
+import com.android.adblib.BatchShellCommandOutputElement
+import com.android.adblib.BatchShellCommandOutputElement.ExitCode
+import com.android.adblib.BatchShellCommandOutputElement.StderrLine
+import com.android.adblib.BatchShellCommandOutputElement.StdoutLine
 import com.android.adblib.ShellV2Collector
 import kotlinx.coroutines.flow.FlowCollector
 import java.nio.ByteBuffer
@@ -24,18 +27,14 @@ import java.nio.ByteBuffer
  * A [ShellV2Collector] implementation that collects `stdout` and `stderr` as sequences of
  * [text][String] lines
  */
-class MultiLineShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<ShellCommandOutputElement> {
+class LineBatchShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<BatchShellCommandOutputElement> {
 
-    private val stdoutCollector = MultiLineShellCollector(bufferCapacity)
-    private val stderrCollector = MultiLineShellCollector(bufferCapacity)
-    private val stdoutFlowCollector = MultiLineFlowCollector { line ->
-        ShellCommandOutputElement.StdoutLine(line)
-    }
-    private val stderrFlowCollector = MultiLineFlowCollector { line ->
-        ShellCommandOutputElement.StderrLine(line)
-    }
+    private val stdoutCollector = LineBatchShellCollector(bufferCapacity)
+    private val stderrCollector = LineBatchShellCollector(bufferCapacity)
+    private val stdoutFlowCollector = LineBatchFlowCollector { lines -> StdoutLine(lines) }
+    private val stderrFlowCollector = LineBatchFlowCollector { lines -> StderrLine(lines) }
 
-    override suspend fun start(collector: FlowCollector<ShellCommandOutputElement>) {
+    override suspend fun start(collector: FlowCollector<BatchShellCommandOutputElement>) {
         stdoutFlowCollector.forwardingFlowCollector = collector
         stdoutCollector.start(stdoutFlowCollector)
 
@@ -44,7 +43,7 @@ class MultiLineShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<Sh
     }
 
     override suspend fun collectStdout(
-        collector: FlowCollector<ShellCommandOutputElement>,
+        collector: FlowCollector<BatchShellCommandOutputElement>,
         stdout: ByteBuffer
     ) {
         stdoutFlowCollector.forwardingFlowCollector = collector
@@ -52,30 +51,33 @@ class MultiLineShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<Sh
     }
 
     override suspend fun collectStderr(
-        collector: FlowCollector<ShellCommandOutputElement>,
+        collector: FlowCollector<BatchShellCommandOutputElement>,
         stderr: ByteBuffer
     ) {
         stderrFlowCollector.forwardingFlowCollector = collector
         stderrCollector.collect(stderrFlowCollector, stderr)
     }
 
-    override suspend fun end(collector: FlowCollector<ShellCommandOutputElement>, exitCode: Int) {
+    override suspend fun end(
+        collector: FlowCollector<BatchShellCommandOutputElement>,
+        exitCode: Int
+    ) {
         stdoutFlowCollector.forwardingFlowCollector = collector
         stdoutCollector.end(stdoutFlowCollector)
 
         stderrFlowCollector.forwardingFlowCollector = collector
         stderrCollector.end(stderrFlowCollector)
 
-        collector.emit(ShellCommandOutputElement.ExitCode(exitCode))
+        collector.emit(ExitCode(exitCode))
     }
 
-    class MultiLineFlowCollector(
-        private val builder: (String) -> ShellCommandOutputElement
-    ) : FlowCollector<String> {
+    class LineBatchFlowCollector(
+        private val builder: (List<String>) -> BatchShellCommandOutputElement
+    ) : FlowCollector<List<String>> {
 
-        var forwardingFlowCollector: FlowCollector<ShellCommandOutputElement>? = null
+        var forwardingFlowCollector: FlowCollector<BatchShellCommandOutputElement>? = null
 
-        override suspend fun emit(value: String) {
+        override suspend fun emit(value: List<String>) {
             forwardingFlowCollector?.emit(builder(value))
         }
     }

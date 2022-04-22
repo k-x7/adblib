@@ -2,8 +2,8 @@ package com.android.adblib
 
 import com.android.adblib.impl.ShellWithIdleMonitoring
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.MultiLineShellCollector
-import com.android.adblib.utils.MultiLineShellV2Collector
+import com.android.adblib.utils.LineShellCollector
+import com.android.adblib.utils.LineShellV2Collector
 import com.android.adblib.utils.TextShellCollector
 import com.android.adblib.utils.TextShellV2Collector
 import kotlinx.coroutines.flow.Flow
@@ -346,7 +346,7 @@ fun AdbDeviceServices.shellAsLines(
     commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): Flow<String> {
-    val collector = MultiLineShellCollector()
+    val collector = LineShellCollector()
     return shell(device, command, collector, stdinChannel, commandTimeout, bufferSize)
 }
 
@@ -426,7 +426,7 @@ fun AdbDeviceServices.shellV2AsLines(
     commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): Flow<ShellCommandOutputElement> {
-    val collector = MultiLineShellV2Collector()
+    val collector = LineShellV2Collector()
     return this.shellV2(device, command, collector, stdinChannel, commandTimeout, bufferSize)
 }
 
@@ -455,6 +455,30 @@ sealed class ShellCommandOutputElement {
      * [AdbDeviceServices.shellV2AsLines].
      */
     class ExitCode(val exitCode: Int) : ShellCommandOutputElement() {
+        // Returns the exit code in a text form.
+        override fun toString(): String = exitCode.toString()
+    }
+}
+
+/**
+ * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellV2AsLineBatches].
+ */
+sealed class BatchShellCommandOutputElement {
+    /**
+     * A `stdout` text lines of the shell command.
+     */
+    class StdoutLine(val lines: List<String>) : BatchShellCommandOutputElement()
+
+    /**
+     * A `stderr` text lines of the shell command.
+     */
+    class StderrLine(val lines: List<String>) : BatchShellCommandOutputElement()
+
+    /**
+     * The exit code of the shell command. This is always the last entry of the [Flow] returned by
+     * [AdbDeviceServices.shellV2AsLineBatches].
+     */
+    class ExitCode(val exitCode: Int) : BatchShellCommandOutputElement() {
         // Returns the exit code in a text form.
         override fun toString(): String = exitCode.toString()
     }

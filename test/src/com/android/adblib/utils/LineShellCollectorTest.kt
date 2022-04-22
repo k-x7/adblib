@@ -21,12 +21,12 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert
 import org.junit.Test
 
-class MultiLineShellCollectorTest {
+class LineShellCollectorTest {
 
     @Test
     fun testNoOutputIsOneLine() {
         // Prepare
-        val linesCollector = MultiLineShellCollector()
+        val linesCollector = LineShellCollector()
         val flowCollector = LinesFlowCollector()
 
         // Act
@@ -39,7 +39,7 @@ class MultiLineShellCollectorTest {
     @Test
     fun testEmptyStringIsOneLine() {
         // Prepare
-        val linesCollector = MultiLineShellCollector()
+        val linesCollector = LineShellCollector()
         val flowCollector = LinesFlowCollector()
 
         // Act
@@ -52,7 +52,7 @@ class MultiLineShellCollectorTest {
     @Test
     fun testSingleNewLineIsTwoLine() {
         // Prepare
-        val linesCollector = MultiLineShellCollector()
+        val linesCollector = LineShellCollector()
         val flowCollector = LinesFlowCollector()
 
         // Act
@@ -65,7 +65,7 @@ class MultiLineShellCollectorTest {
     @Test
     fun testSingleCharacterIsOneLine() {
         // Prepare
-        val linesCollector = MultiLineShellCollector()
+        val linesCollector = LineShellCollector()
         val flowCollector = LinesFlowCollector()
 
         // Act
@@ -76,9 +76,9 @@ class MultiLineShellCollectorTest {
     }
 
     @Test
-    fun testTrailingNewLineIsOneLine() {
+    fun testTrailingNewLineIsTwoLines() {
         // Prepare
-        val linesCollector = MultiLineShellCollector()
+        val linesCollector = LineShellCollector()
         val flowCollector = LinesFlowCollector()
 
         // Act
@@ -91,7 +91,7 @@ class MultiLineShellCollectorTest {
     @Test
     fun testOverlappingChunksAreMerged() {
         // Prepare
-        val linesCollector = MultiLineShellCollector(10)
+        val linesCollector = LineShellCollector(10)
         val flowCollector = LinesFlowCollector()
 
         // Act
@@ -102,7 +102,7 @@ class MultiLineShellCollectorTest {
     }
 
     private fun collectStrings(
-        linesCollector: MultiLineShellCollector,
+        linesCollector: LineShellCollector,
         flowCollector: FlowCollector<String>,
         vararg values: String
     ) {

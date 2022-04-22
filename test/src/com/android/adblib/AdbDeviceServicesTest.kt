@@ -22,7 +22,7 @@ import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
 import com.android.adblib.testingutils.TestingAdbLogger
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.MultiLineShellCollector
+import com.android.adblib.utils.LineShellCollector
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TextShellCollector
 import com.android.adblib.utils.TextShellV2Collector
@@ -452,7 +452,7 @@ class AdbDeviceServicesTest {
             deviceServices.shellWithIdleMonitoring(
                 deviceSelector,
                 "cat",
-                MultiLineShellCollector(),
+                LineShellCollector(),
                 slowInputChannel,
                 commandTimeout = INFINITE_DURATION,
                 commandOutputTimeout = Duration.ofMillis(100)
