@@ -15,7 +15,14 @@
  */
 package com.android.adblib
 
+import com.android.adblib.AdbLibSession.Companion.create
 import com.android.adblib.impl.AdbLibSessionImpl
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.Duration
 
 /**
@@ -30,24 +37,56 @@ interface AdbLibSession : AutoCloseable {
     /**
      * The [AdbLibHost] implementation provided by the hosting application for environment
      * specific configuration.
+     *
+     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
      */
     val host: AdbLibHost
 
     /**
      * An [AdbChannelFactory] that can be used to create various implementations of
      * [AdbChannel], [AdbInputChannel] and [AdbOutputChannel] for files, streams, etc.
+     *
+     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
      */
     val channelFactory: AdbChannelFactory
 
     /**
      * An [AdbHostServices] implementation for this session.
+     *
+     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
      */
     val hostServices: AdbHostServices
 
     /**
      * An [AdbDeviceServices] implementation for this session.
+     *
+     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
      */
     val deviceServices: AdbDeviceServices
+
+    /**
+     * [CoroutineScope] that remains active until the session is [closed][close].
+     *
+     * Useful when creating coroutines, e.g. with [CoroutineScope.launch], that need to be
+     * automatically cancelled when the session is [closed][close].
+     *
+     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
+     */
+    val scope: CoroutineScope
+
+    /**
+     * Thread safe in-memory cache to store objects for as long this [AdbLibSession] is active.
+     * Any value added to the cache that implements [AutoCloseable] is
+     * [closed][AutoCloseable.close] when this [AdbLibSession] is closed.
+     *
+     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
+     */
+    val cache: SessionCache
+
+    /**
+     * Throws [ClosedSessionException] if this [AdbLibSession] has been [closed][close].
+     */
+    fun throwIfClosed()
 
     companion object {
 
@@ -67,5 +106,101 @@ interface AdbLibSession : AutoCloseable {
         ): AdbLibSession {
             return AdbLibSessionImpl(host, channelProvider, connectionTimeout.toMillis())
         }
+    }
+}
+
+/**
+ * Exception thrown when accessing services of an [AdbLibSession] that has been closed.
+ */
+class ClosedSessionException(message: String) : IllegalStateException(message)
+
+/**
+ * Returns a [StateFlow] that emits a new [TrackedDeviceList] everytime a device state change
+ * is detected by the ADB Host.
+ *
+ * The implementation uses a [stateIn] operator with the following characteristics:
+ *
+ * * The initial value of the returned [StateFlow] is always an empty [TrackedDeviceList]
+ *   of type [isTrackerConnecting]. This is because it may take some time to collect
+ *   the initial list of devices.
+ *
+ * * The upstream flow is a [AdbHostServices.trackDevices] that is [retried][retryWithDelay]
+ *   after a delay of [retryDelay] in case of error.
+ *
+ *  * In case of error in the upstream flow, an empty [TrackedDeviceList] (of type
+ *   [isTrackerDisconnected]) is emitted to downstream flows and the
+ *   [TrackedDeviceList.connectionId] is incremented.
+ *
+ * * The returned [StateFlow] is unique to this [AdbLibSession], meaning all collectors of
+ *   the returned flow share a single underlying [AdbHostServices.trackDevices] connection.
+ *
+ * * The returned [StateFlow] activates a [AdbHostServices.trackDevices] connection only when
+ *   there are active downstream flows, see [SharingStarted.WhileSubscribed].
+ *
+ * * The returned [StateFlow] runs in a separate coroutine in the [AdbLibSession.scope].
+ *   If the scope is cancelled, the [StateFlow] stops emitting new values, but downstream
+ *   flows are not terminated. It is up to the caller to use an appropriate [CoroutineScope]
+ *   when collecting the returned flow. A typical usage would be to use the
+ *   [AdbLibSession.scope] when collecting, for example:
+ *
+ *   ```
+ *     val session: AdbLibSession
+ *     session.scope.launch {
+ *         session.trackDevices.flowOn(Dispatchers.Default).collect {
+ *             // Collect until session scope is cancelled.
+ *         }
+ *     }
+ *   ```
+ *
+ * * Downstream flows may not be able to collect all values produced by the [StateFlow],
+ *   because [StateFlow] use the [BufferOverflow.DROP_OLDEST] strategy. Downstream flows
+ *   should keep track of [TrackedDeviceList.connectionId] to determine if
+ *   [DeviceInfo.serialNumber] values can be compared against previously collected
+ *   serial numbers.
+ *
+ * * Because the [StateFlow] use the [BufferOverflow.DROP_OLDEST] strategy, slow downstream
+ *   flows don't prevent other (more efficient) downstream flows from collecting new
+ *   values when available.
+ *
+ * **Note**: [DeviceInfo] entries of the [DeviceList] are always of the
+ * [long format][AdbHostServices.DeviceInfoFormat.LONG_FORMAT].
+ */
+fun AdbLibSession.trackDevices(
+    retryDelay: Duration = Duration.ofSeconds(2)
+): StateFlow<TrackedDeviceList> {
+    data class MyKey(val duration: Duration) :
+        SessionCache.Key<StateFlow<TrackedDeviceList>>("trackDevices")
+
+    return this.cache.getOrPut(MyKey(retryDelay)) {
+        SessionDeviceTracker(this).createStateFlow(retryDelay)
+    }
+}
+
+/**
+ * A [list][DeviceList] of [DeviceInfo] as collected by the [state flow][StateFlow]
+ * returned by [AdbLibSession.trackDevices].
+ */
+class TrackedDeviceList(
+    /**
+     * Connection id, unique to each underlying [AdbHostServices.trackDevices] connection.
+     * [DeviceInfo.serialNumber] may not uniquely identify a device if their connection ids
+     * are not the same.
+     */
+    val connectionId: Int,
+    /**
+     * The [list][DeviceList] of [DeviceInfo], the list is always empty if the underlying
+     * connection to ADB failed.
+     */
+    val devices: DeviceList,
+    /**
+     * The last [Throwable] collected when the underlying ADB connection failed, or `null`
+     * if the underlying ADB connection is active.
+     */
+    val throwable: Throwable?
+) {
+
+    override fun toString(): String {
+        return "${this::class.simpleName}: connectionId=$connectionId, " +
+                "device count=${devices.size}, throwable=$throwable"
     }
 }

@@ -21,16 +21,25 @@ import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbHostServices
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbLibSession
+import com.android.adblib.ClosedSessionException
+import com.android.adblib.SessionCache
 import com.android.adblib.impl.channels.AdbChannelFactoryImpl
+import com.android.adblib.thisLogger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.EmptyCoroutineContext
 
 internal class AdbLibSessionImpl(
     override val host: AdbLibHost,
     val channelProvider: AdbChannelProvider,
     private val connectionTimeoutMillis: Long
 ) : AdbLibSession {
+    private val logger = thisLogger(host)
 
     private var closed = false
+
+    override val scope = CoroutineScope(EmptyCoroutineContext)
 
     override val channelFactory: AdbChannelFactory = AdbChannelFactoryImpl(host)
         get() {
@@ -50,13 +59,31 @@ internal class AdbLibSessionImpl(
             return field
         }
 
+    private val _cache = SessionCacheImpl()
+    override val cache: SessionCache
+        get() {
+            throwIfClosed()
+            return _cache
+        }
+
+    override fun throwIfClosed() {
+        if (closed) {
+            throw ClosedSessionException("Session has been closed")
+        }
+    }
+
     override fun close() {
-        //TODO: Figure out if it would be worthwhile and efficient enough to implement a
-        //      way to track and release all resources acquired from this session. For example,
-        //      we may want to close all connections to the ADB server that were opened
-        //      from this session.
-        host.logger.debug { "Closing session" }
-        closed = true
+        if (!closed) {
+            closed = true
+
+            //TODO: Figure out if it would be worthwhile and efficient enough to implement a
+            //      way to track and release all resources acquired from this session. For example,
+            //      we may want to close all connections to the ADB server that were opened
+            //      from this session.
+            logger.debug { "Closing session and cancelling session scope" }
+            _cache.close()
+            scope.cancel("adblib session has been cancelled")
+        }
     }
 
     private fun createHostServices(): AdbHostServices {
@@ -75,11 +102,5 @@ internal class AdbLibSessionImpl(
             connectionTimeoutMillis,
             TimeUnit.MILLISECONDS
         )
-    }
-
-    private fun throwIfClosed() {
-        if (closed) {
-            throw IllegalStateException("Session has been closed")
-        }
     }
 }

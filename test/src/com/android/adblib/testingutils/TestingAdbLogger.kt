@@ -22,8 +22,10 @@ import java.time.temporal.ChronoUnit
 
 class TestingAdbLoggerFactory : AdbLoggerFactory {
 
+    var minLevel: AdbLogger.Level = AdbLogger.Level.WARN
+
     override val logger: AdbLogger by lazy {
-        TestingAdbLogger()
+        TestingAdbLogger(this)
     }
 
     override fun createLogger(cls: Class<*>): AdbLogger {
@@ -31,12 +33,12 @@ class TestingAdbLoggerFactory : AdbLoggerFactory {
     }
 
     override fun createLogger(category: String): AdbLogger {
-        return TestingAdbLoggerWithPrefix(category)
+        return TestingAdbLoggerWithPrefix(this, category)
     }
 }
 
 open class TestingAdbLogger(
-    override var minLevel: Level = Level.VERBOSE,
+    private val factory: TestingAdbLoggerFactory,
     var logDeltaTime: Boolean = true
 ) : AdbLogger() {
 
@@ -45,6 +47,9 @@ open class TestingAdbLogger(
     private var previousInstant: Instant? = null
 
     private val threadNameWidth = 35
+
+    override val minLevel: Level
+        get() = factory.minLevel
 
     override fun log(level: Level, message: String) {
         if (level >= minLevel) {
@@ -101,4 +106,7 @@ open class TestingAdbLogger(
     }
 }
 
-class TestingAdbLoggerWithPrefix(override val prefix: String) : TestingAdbLogger()
+class TestingAdbLoggerWithPrefix(
+    factory: TestingAdbLoggerFactory,
+    override val prefix: String
+) : TestingAdbLogger(factory)

@@ -18,23 +18,35 @@ package com.android.adblib.testing
 import com.android.adblib.AdbChannelFactory
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbLibSession
+import com.android.adblib.SessionCache
+import com.android.adblib.impl.SessionCacheImpl
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 /**
  * A fake implementation of [FakeAdbLibSession] for tests.
  */
 class FakeAdbLibSession : AdbLibSession {
-  override val hostServices = FakeAdbHostServices(this)
 
-  override val deviceServices = FakeAdbDeviceServices(this)
+    override val scope = CoroutineScope(Dispatchers.IO)
 
+    override val cache: SessionCache = SessionCacheImpl()
 
-  override val host: AdbLibHost
-    get() = TODO("Not yet implemented")
+    override fun throwIfClosed() {
+        // Not yet implemented
+    }
 
-  override val channelFactory: AdbChannelFactory
-    get() = TODO("Not yet implemented")
+    override val hostServices = FakeAdbHostServices(this)
 
-  override fun close() {
-    TODO("Not yet implemented")
-  }
+    override val deviceServices = FakeAdbDeviceServices(this)
+
+    override val host: AdbLibHost
+        get() = TODO("Not yet implemented")
+
+    override val channelFactory: AdbChannelFactory
+        get() = TODO("Not yet implemented")
+
+    override fun close() {
+        cache.close()
+    }
 }

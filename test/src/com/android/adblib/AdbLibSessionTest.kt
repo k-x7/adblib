@@ -18,11 +18,24 @@ package com.android.adblib
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
+import com.android.adblib.testingutils.setTestLoggerMinLevel
+import com.android.fakeadbserver.DeviceState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExpectedException
+import java.io.IOException
+import java.time.Duration
+import java.util.Collections
 
 class AdbLibSessionTest {
 
@@ -33,6 +46,8 @@ class AdbLibSessionTest {
     @JvmField
     @Rule
     var exceptionRule: ExpectedException = ExpectedException.none()
+
+    private lateinit var channelProvider: FakeAdbServerProvider.TestingChannelProvider
 
     private fun <T : AutoCloseable> registerCloseable(item: T): T {
         return closeables.register(item)
@@ -78,10 +93,241 @@ class AdbLibSessionTest {
 
         // Act
         session.close()
-        exceptionRule.expect(IllegalStateException::class.java)
+        exceptionRule.expect(ClosedSessionException::class.java)
         /*val services = */ session.hostServices
 
         // Assert
         Assert.fail("Should be unreachable")
     }
+
+    @Test
+    fun testTrackDevicesRetriesOnError() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+
+        // Act
+        val deviceListArray = runBlocking {
+            val flow = hostServices.session.trackDevices(retryDelay = Duration.ofMillis(100))
+
+            // Collect first list of devices, restart adb server, collect another list of devices
+            val result = ArrayList<TrackedDeviceList>()
+            launch {
+                flow.collect { trackedDeviceList ->
+                    hostServices.session.host.logger.debug { "Collected: $trackedDeviceList" }
+                    result.add(trackedDeviceList)
+                    if (trackedDeviceList.devices.size > 0) {
+                        if (result.count { it.devices.isNotEmpty() } == 1) {
+                            // Simulate ADB server killed and restarted
+                            fakeAdb.restart()
+                        }
+                        if (result.count { it.devices.isNotEmpty() } == 2) {
+                            // Cancel
+                            currentCoroutineContext().cancel()
+                        }
+                    }
+                }
+            }.join()
+            result
+        }
+
+        // Assert
+        // Note: Given how `stateIn` behaves, i.e. it runs a coroutine concurrently that does not
+        // guarantee all values are delivered to all collectors, there is no guarantee that our
+        // test collector collects the initial state as well as the error state (between retries),
+        // however if we collect empty device list, we know for sure they should be one of these
+        // states.
+        Assert.assertTrue(deviceListArray.size >= 2)
+        Assert.assertEquals(2, deviceListArray.count { it.devices.isNotEmpty() })
+        var previousConnectionId: Int? = null
+        var isTrackerDisconnectedSeen = false
+        deviceListArray.forEach { deviceList ->
+            if (previousConnectionId != null) {
+                Assert.assertNotEquals(deviceList.connectionId, previousConnectionId)
+            }
+            previousConnectionId = deviceList.connectionId
+            Assert.assertNotNull(deviceList)
+            if (deviceList.devices.isEmpty()) {
+                Assert.assertTrue(deviceList.isTrackerConnecting || deviceList.isTrackerDisconnected)
+                if (deviceList.isTrackerConnecting) {
+                    Assert.assertFalse(isTrackerDisconnectedSeen)
+                } else if (deviceList.isTrackerDisconnected) {
+                    isTrackerDisconnectedSeen = true
+                }
+            } else {
+                Assert.assertEquals(1, deviceList.devices.size)
+                Assert.assertEquals(0, deviceList.devices.errors.size)
+                deviceList.devices[0].let { device ->
+                    Assert.assertEquals("1234", device.serialNumber)
+                    Assert.assertEquals(com.android.adblib.DeviceState.ONLINE, device.deviceState)
+                    Assert.assertEquals("test1", device.product)
+                    Assert.assertEquals("test2", device.model)
+                    Assert.assertEquals("model", device.device)
+                    Assert.assertEquals(fakeDevice.transportId.toString(), device.transportId)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun testTrackDevicesOpensOnlyOneAdbConnection() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+
+        // Act
+        runBlocking {
+            val flow = hostServices.session.trackDevices(retryDelay = Duration.ofMillis(100))
+
+            val started = Array(10) { false }
+            suspend fun waitAllStarted() {
+                while (!started.all { it }) {
+                    delay(10)
+                }
+            }
+
+            fun launchCollector(scope: CoroutineScope, index: Int): Job {
+                return scope.launch {
+                    flow.collect { trackedDeviceList ->
+                        hostServices.session.host.logger.debug { "Collected: $trackedDeviceList" }
+                        if (trackedDeviceList.devices.size == 1) {
+                            started[index] = true
+                            // Wait for the other collector
+                            waitAllStarted()
+                        }
+                    }
+                }
+            }
+
+            // Ensure we have all collectors active at the same time
+            val job = launch {
+                // Launch collectors concurrently
+                val jobs = started.mapIndexed { index, _ ->
+                    launchCollector(this, index)
+                }
+
+                // Wait for all collectors to have collected at least one element
+                waitAllStarted()
+
+                // Cancel all collector jobs so this scope can finish
+                jobs.forEach { it.cancel() }
+            }
+            job.join()
+        }
+
+        // Assert
+        Assert.assertEquals(1, channelProvider.createdChannels.size)
+    }
+
+    @Test
+    fun testTrackDevicesKeepsWorkingAfterExceptionsInDownstreamCollector() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+
+        // Act
+        val exceptions = Collections.synchronizedList(ArrayList<MyTestException>())
+        runBlocking {
+            val flow = hostServices.session
+                .trackDevices(retryDelay = Duration.ofMillis(100))
+
+            val started = Array(10) { false }
+
+            suspend fun waitAllStarted() {
+                while (!started.all { it }) {
+                    delay(10)
+                }
+            }
+
+            // Every other collector throws an exception after receiving the first list
+            suspend fun launchCollector(index: Int): Job {
+                return launch {
+                    try {
+                        flow.collect { trackedDeviceList ->
+                            hostServices.session.host.logger.debug { "Collected: $trackedDeviceList" }
+                            if (trackedDeviceList.devices.size == 1) {
+                                // Wait for the other collectors so we all remain active
+                                started[index] = true
+                                waitAllStarted()
+
+                                // Half the collectors throw an exception
+                                if (index.mod(2) == 0) {
+                                    throw MyTestException("Test")
+                                } else {
+                                    cancel()
+                                }
+                            }
+                        }
+                    } catch (e: MyTestException) {
+                        exceptions.add(e)
+                    }
+                }
+            }
+
+            val job = launch {
+                // Launch collectors concurrently
+                started.mapIndexed { index, _ ->
+                    launchCollector(index)
+                }
+
+                // Wait for all collectors to have collected at least one element
+                waitAllStarted()
+            }
+            job.join()
+        }
+
+        // Assert
+        Assert.assertEquals(1, channelProvider.createdChannels.size)
+        Assert.assertEquals(5, exceptions.size)
+    }
+
+    private fun createHostServices(fakeAdb: FakeAdbServerProvider): AdbHostServices {
+        val host = registerCloseable(TestingAdbLibHost())
+        channelProvider = fakeAdb.createChannelProvider(host)
+        val session = registerCloseable(createSession(host, channelProvider))
+        return session.hostServices
+    }
+
+    private fun createSession(
+        host: AdbLibHost,
+        channelProvider: AdbChannelProvider
+    ): AdbLibSession {
+        return AdbLibSession.create(
+            host,
+            channelProvider,
+            Duration.ofMillis(SOCKET_CONNECT_TIMEOUT_MS)
+        )
+    }
+
+    class MyTestException(message: String) : IOException(message)
 }

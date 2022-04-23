@@ -21,6 +21,8 @@ import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
 import com.android.adblib.testingutils.TestingAdbLogger
+import com.android.adblib.testingutils.TestingAdbLoggerFactory
+import com.android.adblib.testingutils.setTestLoggerMinLevel
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.LineShellCollector
 import com.android.adblib.utils.ResizableBuffer
@@ -256,8 +258,8 @@ class AdbDeviceServicesTest {
         val fakeDevice = addFakeDevice(fakeAdb)
         val deviceServices = createDeviceServices(fakeAdb)
         // To ensure we don't spam the log during this test
-        (deviceServices.session.host.logger as TestingAdbLogger).minLevel =
-            deviceServices.session.host.logger.minLevel.coerceAtLeast(AdbLogger.Level.INFO)
+        deviceServices.session.host.setTestLoggerMinLevel(
+            deviceServices.session.host.logger.minLevel.coerceAtLeast(AdbLogger.Level.INFO))
         val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
         val input = """
             This is some text with
