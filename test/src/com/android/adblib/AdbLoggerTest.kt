@@ -116,7 +116,7 @@ class AdbLoggerTest {
             entries.add(Entry(level, message, null))
         }
 
-        override fun log(level: Level, exception: Throwable, message: String) {
+        override fun log(level: Level, exception: Throwable?, message: String) {
             entries.add(Entry(level, message, exception))
         }
 

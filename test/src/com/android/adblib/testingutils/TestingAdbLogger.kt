@@ -44,6 +44,8 @@ open class TestingAdbLogger(
 
     private var previousInstant: Instant? = null
 
+    private val threadNameWidth = 35
+
     override fun log(level: Level, message: String) {
         if (level >= minLevel) {
             if (logDeltaTime) {
@@ -53,10 +55,10 @@ open class TestingAdbLogger(
                     previousInstant = newInstant
                     println(
                         String.format(
-                            "[%s%s] [%-15s] %7s - %30s - %s",
+                            "[%s%s] [%-${threadNameWidth}s] %7s - %30s - %s",
                             formatInstant(newInstant),
                             if (logDeltaTime) deltaInstant(newInstant, prevInstant) else "",
-                            Thread.currentThread().name.takeLast(15),
+                            Thread.currentThread().name.takeLast(threadNameWidth),
                             level.toString().takeLast(7),
                             prefix.takeLast(30),
                             message
@@ -66,8 +68,8 @@ open class TestingAdbLogger(
             } else {
                 println(
                     String.format(
-                        "[%-15s] %7s - %30s - %s",
-                        Thread.currentThread().name.takeLast(15),
+                        "[%-${threadNameWidth}s] %7s - %30s - %s",
+                        Thread.currentThread().name.takeLast(threadNameWidth),
                         level.toString().takeLast(7),
                         prefix.takeLast(30),
                         message
@@ -91,10 +93,10 @@ open class TestingAdbLogger(
     private fun formatInstant(newInstant: Instant) =
         newInstant.toString().replace('T', ' ').dropLast(4)
 
-    override fun log(level: Level, exception: Throwable, message: String) {
+    override fun log(level: Level, exception: Throwable?, message: String) {
         if (level >= minLevel) {
             log(level, message)
-            exception.printStackTrace()
+            exception?.printStackTrace()
         }
     }
 }

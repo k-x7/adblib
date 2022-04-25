@@ -15,7 +15,7 @@ abstract class AdbLogger {
     abstract val minLevel: Level
 
     abstract fun log(level: Level, message: String)
-    abstract fun log(level: Level, exception: Throwable, message: String)
+    abstract fun log(level: Level, exception: Throwable?, message: String)
 
     inline fun logIf(level: Level, message: () -> String) {
         if (minLevel <= level) {
@@ -23,7 +23,7 @@ abstract class AdbLogger {
         }
     }
 
-    inline fun logIf(level: Level, exception: Throwable, message: () -> String) {
+    inline fun logIf(level: Level, exception: Throwable?, message: () -> String) {
         if (minLevel <= level) {
             log(level, exception, message())
         }
@@ -33,7 +33,7 @@ abstract class AdbLogger {
         logIf(Level.VERBOSE, message)
     }
 
-    inline fun verbose(exception: Throwable, message: () -> String) {
+    inline fun verbose(exception: Throwable?, message: () -> String) {
         logIf(Level.VERBOSE, exception, message)
     }
 
@@ -41,7 +41,7 @@ abstract class AdbLogger {
         logIf(Level.DEBUG, message)
     }
 
-    inline fun debug(exception: Throwable, message: () -> String) {
+    inline fun debug(exception: Throwable?, message: () -> String) {
         logIf(Level.DEBUG, exception, message)
     }
 
@@ -49,7 +49,7 @@ abstract class AdbLogger {
         logIf(Level.INFO, message)
     }
 
-    inline fun info(exception: Throwable, message: () -> String) {
+    inline fun info(exception: Throwable?, message: () -> String) {
         logIf(Level.INFO, exception, message)
     }
 
@@ -57,7 +57,7 @@ abstract class AdbLogger {
         log(Level.WARN, message)
     }
 
-    fun warn(exception: Throwable, message: String) {
+    fun warn(exception: Throwable?, message: String) {
         log(Level.WARN, exception, message)
     }
 
@@ -65,7 +65,7 @@ abstract class AdbLogger {
         log(Level.ERROR, message)
     }
 
-    fun error(exception: Throwable, message: String) {
+    fun error(exception: Throwable?, message: String) {
         log(Level.ERROR, exception, message)
     }
 
@@ -89,8 +89,15 @@ fun AdbLogger.withPrefix(prefix: String): AdbLogger {
 /**
  * Creates an [AdbLogger] for the class of this instance.
  */
+internal inline fun <reified T : Any> T.thisLogger(loggerFactory: AdbLoggerFactory): AdbLogger {
+    return loggerFactory.createLogger(T::class.java)
+}
+
+/**
+ * Creates an [AdbLogger] for the class of this instance.
+ */
 internal inline fun <reified T : Any> T.thisLogger(host: AdbLibHost): AdbLogger {
-    return host.loggerFactory.createLogger(T::class.java)
+    return thisLogger(host.loggerFactory)
 }
 
 /**
@@ -108,7 +115,7 @@ private abstract class AdbLoggerDelegate(private val delegate: AdbLogger) : AdbL
         delegate.log(level, formatMessage(message))
     }
 
-    override fun log(level: Level, exception: Throwable, message: String) {
+    override fun log(level: Level, exception: Throwable?, message: String) {
         delegate.log(level, exception, formatMessage(message))
     }
 }
