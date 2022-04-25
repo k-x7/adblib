@@ -64,6 +64,7 @@ interface AdbDeviceServices {
      *   device connection has been successfully established. If the command takes more time than
      *   the timeout, a [TimeoutException] is thrown and the underlying [AdbChannel] is closed.
      * @param [bufferSize] the size of the buffer used to receive data from the shell command output
+     * @param [shutdownOutput] shutdown device channel output end after piping [stdinChannel]
      *
      * @see [shellV2]
      */
@@ -74,6 +75,7 @@ interface AdbDeviceServices {
         stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+        shutdownOutput : Boolean = true
     ): Flow<T>
 
     /**
@@ -97,6 +99,7 @@ interface AdbDeviceServices {
         stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+        shutdownOutput : Boolean = true
     ): Flow<T>
 
     /**
@@ -180,6 +183,7 @@ interface AdbDeviceServices {
      *   device connection has been successfully established. If the command takes more time than
      *   the timeout, a [TimeoutException] is thrown and the underlying [AdbChannel] is closed.
      * @param [bufferSize] the size of the buffer used to receive data from the shell command output
+     * @param [shutdownOutput] shutdown device channel output end after piping [stdinChannel]
      *
      * @see [abb]
      */
@@ -190,6 +194,7 @@ interface AdbDeviceServices {
         stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+        shutdownOutput : Boolean = true
     ): Flow<T>
 
     /**

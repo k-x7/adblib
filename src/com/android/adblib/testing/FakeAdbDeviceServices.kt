@@ -98,6 +98,7 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
+        shutdownOutput : Boolean
     ): Flow<T> {
         shellRequests.add(ShellRequest(device.toString(), command, commandTimeout, bufferSize))
         val output = shellCommands[device.transportPrefix]?.get(command)
@@ -115,7 +116,8 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
         shellCollector: ShellCollector<T>,
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
-        bufferSize: Int
+        bufferSize: Int,
+        shutdownOutput : Boolean
     ): Flow<T> {
         TODO("Not yet implemented")
     }
@@ -145,7 +147,8 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
         shellCollector: ShellCollector<T>,
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
-        bufferSize: Int
+        bufferSize: Int,
+        shutdownOutput : Boolean
     ): Flow<T> {
         TODO("Not yet implemented")
     }

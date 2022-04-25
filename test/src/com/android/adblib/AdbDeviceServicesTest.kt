@@ -227,6 +227,29 @@ class AdbDeviceServicesTest {
     }
 
     @Test
+    fun testShellWithNoShutdownOutput() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = "foo"
+
+        // Act
+        runBlocking {
+            val collector = TextShellCollector()
+            val stdinChannel =  input.asAdbInputChannel(deviceServices.session)
+            stdinChannel.use {
+                val timeout = Duration.ofSeconds(2)
+                val flow = deviceServices.shell(deviceSelector, "cat", collector, stdinChannel = it, timeout, shutdownOutput = false )
+                exceptionRule.expect(TimeoutException::class.java)
+                flow.first()
+                Assert.fail("Call to 'cat' should have timed out")
+            }
+        }
+    }
+
+    @Test
     fun testShellWithLargeInputAndSmallBufferSize() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())

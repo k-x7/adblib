@@ -68,6 +68,7 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
+        shutdownOutput : Boolean
     ): Flow<T> {
         return runServiceWithOutput(
             device,
@@ -76,7 +77,8 @@ internal class AdbDeviceServicesImpl(
             shellCollector,
             stdinChannel,
             commandTimeout,
-            bufferSize
+            bufferSize,
+            shutdownOutput
         )
     }
 
@@ -87,6 +89,7 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
+        shutdownOutput : Boolean
     ): Flow<T> {
         return runServiceWithOutput(
             device,
@@ -95,7 +98,8 @@ internal class AdbDeviceServicesImpl(
             shellCollector,
             stdinChannel,
             commandTimeout,
-            bufferSize
+            bufferSize,
+            shutdownOutput
         )
     }
 
@@ -226,6 +230,7 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
+        shutdownOutput : Boolean
     ): Flow<T> {
         return runServiceWithOutput(
             device,
@@ -234,7 +239,8 @@ internal class AdbDeviceServicesImpl(
             shellCollector,
             stdinChannel,
             commandTimeout,
-            bufferSize
+            bufferSize,
+            shutdownOutput
         )
     }
 
@@ -347,11 +353,14 @@ internal class AdbDeviceServicesImpl(
     private suspend fun forwardStdInput(
         shellCommandChannel: AdbChannel,
         stdInput: AdbInputChannel,
-        bufferSize: Int
+        bufferSize: Int,
+        shutdownOutput : Boolean
     ) {
         stdInput.forwardTo(session, shellCommandChannel, bufferSize)
-        logger.info { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
-        shellCommandChannel.shutdownOutput()
+        if (shutdownOutput) {
+            logger.info { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
+            shellCommandChannel.shutdownOutput()
+        }
     }
 
     private suspend fun forwardStdInputV2Format(
@@ -388,6 +397,7 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
+        shutdownOutput : Boolean
     ): Flow<T> = flow {
         val service = getExecServiceString(execService, commandProvider())
         logger.info { "Device \"${device}\" - Start execution of service \"$service\" (bufferSize=$bufferSize bytes)" }
@@ -401,7 +411,7 @@ internal class AdbDeviceServicesImpl(
                 // can also collect `stdout` concurrently)
                 stdinChannel?.let {
                     launchCancellable {
-                        forwardStdInput(channel, stdinChannel, bufferSize)
+                        forwardStdInput(channel, stdinChannel, bufferSize, shutdownOutput)
                     }
                 }
 
