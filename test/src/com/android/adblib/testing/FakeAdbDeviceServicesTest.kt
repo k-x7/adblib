@@ -23,6 +23,7 @@ import com.android.adblib.shellAsLines
 import com.android.adblib.shellAsText
 import com.android.adblib.shellV2AsLines
 import com.android.adblib.shellV2AsText
+import com.android.adblib.testing.FakeAdbDeviceServices.ShellRequest
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -45,6 +46,10 @@ class FakeAdbDeviceServicesTest {
         val actual = deviceServices.shellAsText(deviceSelector, "command")
 
         assertEquals("output", actual)
+        assertContentEquals(
+            listOf(ShellRequest(deviceSelector.toString(), "command")),
+            deviceServices.shellRequests
+        )
     }
 
     @Test
@@ -54,17 +59,28 @@ class FakeAdbDeviceServicesTest {
         val actual = deviceServices.shellAsText(deviceSelector, "command", bufferSize = 4)
 
         assertEquals("command output", actual)
+        assertContentEquals(
+            listOf(ShellRequest(deviceSelector.toString(), "command", bufferSize = 4)),
+            deviceServices.shellRequests
+        )
     }
 
     @Test
     fun shellAsText_runTwice(): Unit = runBlocking {
-        deviceServices.configureShellCommand(deviceSelector, "command", "output")
+        deviceServices.configureShellCommand(deviceSelector, "command1", "output")
+        deviceServices.configureShellCommand(deviceSelector, "command2", "output")
 
-        deviceServices.shellAsText(deviceSelector, "command")
-        val actual = deviceServices.shellAsText(deviceSelector, "command")
+        deviceServices.shellAsText(deviceSelector, "command1")
+        val actual = deviceServices.shellAsText(deviceSelector, "command2")
         assertEquals("output", actual)
+        assertContentEquals(
+            listOf(
+                ShellRequest(deviceSelector.toString(), "command1"),
+                ShellRequest(deviceSelector.toString(), "command2"),
+            ),
+            deviceServices.shellRequests
+        )
     }
-
 
     @Test
     fun shellAsLines(): Unit = runBlocking {
@@ -84,6 +100,10 @@ class FakeAdbDeviceServicesTest {
             listOf("line1", "line2", "line3"),
             actual,
         )
+        assertContentEquals(
+            listOf(ShellRequest(deviceSelector.toString(), "command")),
+            deviceServices.shellRequests
+        )
     }
 
     @Test
@@ -101,6 +121,10 @@ class FakeAdbDeviceServicesTest {
         assertEquals("output", actual.stdout)
         assertEquals("error", actual.stderr)
         assertEquals(1, actual.exitCode)
+        assertContentEquals(
+            listOf(ShellRequest(deviceSelector.toString(), "command")),
+            deviceServices.shellV2Requests
+        )
     }
 
     @Test
@@ -118,6 +142,10 @@ class FakeAdbDeviceServicesTest {
         assertEquals("command output", actual.stdout)
         assertEquals("command error", actual.stderr)
         assertEquals(1, actual.exitCode)
+        assertContentEquals(
+            listOf(ShellRequest(deviceSelector.toString(), "command", bufferSize = 4)),
+            deviceServices.shellV2Requests
+        )
     }
 
     @Test
@@ -136,8 +164,14 @@ class FakeAdbDeviceServicesTest {
         assertEquals("output", actual.stdout)
         assertEquals("error", actual.stderr)
         assertEquals(1, actual.exitCode)
+        assertContentEquals(
+            listOf(
+                ShellRequest(deviceSelector.toString(), "command"),
+                ShellRequest(deviceSelector.toString(), "command"),
+            ),
+            deviceServices.shellV2Requests
+        )
     }
-
 
     @Test
     fun shellV2AsLines(): Unit = runBlocking {
@@ -174,5 +208,9 @@ class FakeAdbDeviceServicesTest {
         )
         // And it's the last entry
         assertEquals(actual.last().javaClass, ExitCode::class.java)
+        assertContentEquals(
+            listOf(ShellRequest(deviceSelector.toString(), "command")),
+            deviceServices.shellV2Requests
+        )
     }
 }

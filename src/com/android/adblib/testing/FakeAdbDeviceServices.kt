@@ -20,6 +20,7 @@ import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibSession
 import com.android.adblib.DeviceSelector
+import com.android.adblib.INFINITE_DURATION
 import com.android.adblib.ProcessIdList
 import com.android.adblib.ReverseSocketList
 import com.android.adblib.ShellCollector
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.nio.ByteBuffer
 import java.time.Duration
+import java.util.concurrent.LinkedBlockingDeque
 import kotlin.math.min
 
 /**
@@ -48,6 +50,16 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
     private val shellV2Commands = mutableMapOf<String, ShellV2Commands>()
 
     /**
+     * A record of all calls to [shell]
+     */
+    val shellRequests = LinkedBlockingDeque<ShellRequest>()
+
+    /**
+     * A record of all calls to [shellV2]
+     */
+    val shellV2Requests = LinkedBlockingDeque<ShellRequest>()
+
+    /**
      * Configure a [shell] service request.
      *
      * @param deviceSelector A device the command is executed on
@@ -60,7 +72,7 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
     }
 
     /**
-     * Configure a [shell] service request.
+     * Configure a [shellV2] service request.
      *
      * @param deviceSelector A device the command is executed on
      * @param command a command executed on a device
@@ -87,6 +99,7 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
         commandTimeout: Duration,
         bufferSize: Int,
     ): Flow<T> {
+        shellRequests.add(ShellRequest(device.toString(), command, commandTimeout, bufferSize))
         val output = shellCommands[device.transportPrefix]?.get(command)
             ?: throw IllegalStateException("""Command not setup for $device: "$command"""")
         return flow {
@@ -115,6 +128,7 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
         commandTimeout: Duration,
         bufferSize: Int,
     ): Flow<T> {
+        shellV2Requests.add(ShellRequest(device.toString(), command, commandTimeout, bufferSize))
         val output = shellV2Commands[device.transportPrefix]?.get(command)
             ?: throw IllegalStateException("""Command not setup for $device: "$command"""")
         return flow {
@@ -206,6 +220,16 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
 
         fun get(command: String): ShellV2Output? = commands[command]
     }
+
+    /**
+     * Details of a call to [shell] or [shellV2]
+     */
+    data class ShellRequest(
+        val deviceSelector: String,
+        val command: String,
+        val commandTimeout: Duration = INFINITE_DURATION,
+        val bufferSize: Int = DEFAULT_BUFFER_SIZE,
+    )
 }
 
 private fun String.toByteBuffer() = ByteBuffer.wrap(toByteArray(ADB_CHARSET))
