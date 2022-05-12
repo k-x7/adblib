@@ -20,6 +20,7 @@ import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbLibSession
 import com.android.adblib.SessionCache
 import com.android.adblib.impl.SessionCacheImpl
+import com.android.adblib.impl.channels.AdbChannelFactoryImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
@@ -42,8 +43,7 @@ class FakeAdbLibSession : AdbLibSession {
 
     override val host: AdbLibHost = FakeAdbLibHost()
 
-    override val channelFactory: AdbChannelFactory
-        get() = TODO("Not yet implemented")
+    override val channelFactory: AdbChannelFactory = AdbChannelFactoryImpl(host)
 
     override fun close() {
         cache.close()
