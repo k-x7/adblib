@@ -40,8 +40,7 @@ class FakeAdbLibSession : AdbLibSession {
 
     override val deviceServices = FakeAdbDeviceServices(this)
 
-    override val host: AdbLibHost
-        get() = TODO("Not yet implemented")
+    override val host: AdbLibHost = FakeAdbLibHost()
 
     override val channelFactory: AdbChannelFactory
         get() = TODO("Not yet implemented")
