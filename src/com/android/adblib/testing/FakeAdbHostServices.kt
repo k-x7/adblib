@@ -29,7 +29,11 @@ import com.android.adblib.SocketSpec
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.Channel.Factory.UNLIMITED
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.yield
 import java.io.Closeable
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -47,6 +51,12 @@ class FakeAdbHostServices(override val session: AdbLibSession) : AdbHostServices
     //@GuardedBy("itself")
     private var trackDevicesChannels =
         CopyOnWriteArrayList<Channel<DeviceList>>()
+
+    suspend fun awaitConnection() {
+        while (trackDevicesChannels.filter { !it.isClosedForSend }.isEmpty()) {
+            yield()
+        }
+    }
 
     /**
      * Controls the [trackDevices] call by sending a [DeviceList] to the flow (via a channel).
@@ -97,11 +107,18 @@ class FakeAdbHostServices(override val session: AdbLibSession) : AdbHostServices
         DeviceList(devices, emptyList())
 
     override fun trackDevices(format: AdbHostServices.DeviceInfoFormat): Flow<DeviceList> {
-        return Channel<DeviceList>(UNLIMITED).let {
-            synchronized(trackDevicesChannels) {
-                trackDevicesChannels.add(it)
+        return flow {
+            val devices = this@FakeAdbHostServices.devices
+            val channel = Channel<DeviceList>(UNLIMITED).apply {
+                synchronized(trackDevicesChannels) {
+                    trackDevicesChannels.add(this)
+                }
             }
-            it.consumeAsFlow()
+
+            this.emit(devices)
+            channel.receiveAsFlow().collect {
+                this.emit(it)
+            }
         }
     }
 
