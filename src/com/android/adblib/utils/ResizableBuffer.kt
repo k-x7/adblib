@@ -22,11 +22,20 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
 
     private var buffer: ByteBuffer = ByteBuffer.allocate(initialCapacity)
 
+    /**
+     * Returns the current reading or writing position (e.g. for [appendInt]).
+     */
     val position: Int
         get() = buffer.position()
 
     /**
-     * Clears this buffer so it is ready for adding data or for `channel read` operation (see
+     * Returns the current size (in bytes) of allocated memory for this [ResizableBuffer].
+     */
+    val capacity: Int
+        get() = buffer.capacity()
+
+    /**
+     * Clears this buffer, so it is ready for adding data or for `channel read` operation (see
      * [forChannelRead].
      *
      * * If the buffer is needed for writing data to a channel, call the various

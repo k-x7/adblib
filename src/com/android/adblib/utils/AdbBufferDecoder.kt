@@ -17,6 +17,7 @@ package com.android.adblib.utils
 
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
+import java.nio.charset.Charset
 import java.nio.charset.CharsetDecoder
 import java.nio.charset.CodingErrorAction
 
@@ -28,12 +29,12 @@ private const val MAX_CHAR_SEQUENCE_BYTES = 10
  *
  * Any unmappable character (or malformed sequence) results in a "?" character in the stream.
  */
-class AdbBufferDecoder(bufferCapacity: Int = 256) {
+class AdbBufferDecoder(bufferCapacity: Int = 256, charset: Charset = AdbProtocolUtils.ADB_CHARSET) {
 
     /**
      * The decoder used across calls to [decodeBuffer]
      */
-    private val decoder: CharsetDecoder = AdbProtocolUtils.createDecoder()
+    private val decoder: CharsetDecoder = charset.newDecoder()
         .onMalformedInput(CodingErrorAction.REPLACE)
         .onUnmappableCharacter(CodingErrorAction.REPLACE)
         .replaceWith("?")

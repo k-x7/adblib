@@ -16,8 +16,14 @@
 package com.android.adblib
 
 import com.android.adblib.impl.TimeoutTracker
+import com.android.adblib.impl.channels.AdbInputChannelReader
+import com.android.adblib.impl.channels.AdbChannelReaderToReceiveChannel
+import com.android.adblib.utils.AdbProtocolUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.ReceiveChannel
 import java.io.EOFException
 import java.nio.ByteBuffer
+import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -32,7 +38,11 @@ interface AdbInputChannel : AutoCloseable {
      * Throws an [java.io.IOException] in case of error, or a [TimeoutException]
      * in case no data is available before the timeout expires.
      */
-    suspend fun read(buffer: ByteBuffer, timeout: Long = Long.MAX_VALUE, unit: TimeUnit = TimeUnit.MILLISECONDS): Int
+    suspend fun read(
+        buffer: ByteBuffer,
+        timeout: Long = Long.MAX_VALUE,
+        unit: TimeUnit = TimeUnit.MILLISECONDS
+    ): Int
 
     /**
      * Reads exactly [ByteBuffer.remaining] bytes from the underlying channel.
@@ -45,7 +55,11 @@ interface AdbInputChannel : AutoCloseable {
      * Throws an [java.io.IOException] in case of error, or a [TimeoutException]
      * in case no data is available before the timeout expires.
      */
-    suspend fun readExactly(buffer: ByteBuffer, timeout: Long = Long.MAX_VALUE, unit: TimeUnit = TimeUnit.MILLISECONDS) {
+    suspend fun readExactly(
+        buffer: ByteBuffer,
+        timeout: Long = Long.MAX_VALUE,
+        unit: TimeUnit = TimeUnit.MILLISECONDS
+    ) {
         val tracker = TimeoutTracker(timeout, unit)
         tracker.throwIfElapsed()
 
@@ -59,10 +73,44 @@ interface AdbInputChannel : AutoCloseable {
     }
 }
 
-internal suspend fun AdbInputChannel.read(buffer: ByteBuffer, timeout: TimeoutTracker) : Int {
+internal suspend fun AdbInputChannel.read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
     return read(buffer, timeout.remainingNanos, TimeUnit.NANOSECONDS)
 }
 
 internal suspend fun AdbInputChannel.readExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
     readExactly(buffer, timeout.remainingNanos, TimeUnit.NANOSECONDS)
+}
+
+/**
+ * Converts this [AdbInputChannel] to an [AdbChannelReader] for text reading operations.
+ * The returned [AdbChannelReader] should be [closed][AutoCloseable] when done to ensure the
+ * [AdbInputChannel] is [closed][AutoCloseable].
+ */
+fun AdbInputChannel.toChannelReader(
+    charset: Charset = AdbProtocolUtils.ADB_CHARSET,
+    newLine: String = AdbProtocolUtils.ADB_NEW_LINE,
+    bufferCapacity: Int = 256
+): AdbChannelReader {
+    return AdbInputChannelReader(this, charset, newLine, bufferCapacity)
+}
+
+/**
+ * Reads the contents of this [AdbInputChannel] in a concurrent coroutine of [scope]
+ * and returns a [ReceiveChannel] of [String] for each line of text as lines are decoded
+ * using the provided [charset].
+ *
+ * When the [AdbInputChannel] is fully read, the returned [ReceiveChannel] is closed without
+ * a [cause][Throwable].
+ *
+ * If there is an exception reading or decoding the contents of [AdbInputChannel], the returned
+ * [ReceiveChannel] is closed with the corresponding [Throwable] as the cause.
+ */
+fun AdbInputChannel.readLines(
+    scope: CoroutineScope,
+    charset: Charset = AdbProtocolUtils.ADB_CHARSET,
+    newLine: String = AdbProtocolUtils.ADB_NEW_LINE,
+    bufferCapacity: Int = 256
+): ReceiveChannel<String> {
+    val reader = toChannelReader(charset, newLine, bufferCapacity)
+    return AdbChannelReaderToReceiveChannel(scope, reader).start()
 }

@@ -21,9 +21,9 @@ import java.nio.CharBuffer
  * Accepts chunks of [CharBuffer] and splits them into lines. Partial lines at the end of a chunk
  * are saved to be used with the next chunk.
  */
-internal class LineCollector {
+internal class LineCollector(private val newLine: String = AdbProtocolUtils.ADB_NEW_LINE) {
     /**
-     * Store an unfinished line from the previous call to [collect]
+     * Store an unfinished line from the previous call to [collectLines]
      */
     private var previousString = StringBuilder()
 
@@ -35,7 +35,7 @@ internal class LineCollector {
     fun collectLines(charBuffer: CharBuffer) {
         var currentOffset = 0
         while (currentOffset < charBuffer.length) {
-            val index = charBuffer.indexOf(AdbProtocolUtils.ADB_NEW_LINE, currentOffset)
+            val index = charBuffer.indexOf(newLine, currentOffset)
             if (index < 0) {
                 previousString.append(charBuffer.substring(currentOffset))
                 break
@@ -43,7 +43,7 @@ internal class LineCollector {
             previousString.append(charBuffer.substring(currentOffset, index))
             lines.add(previousString.toString())
             previousString.clear()
-            currentOffset = index + AdbProtocolUtils.ADB_NEW_LINE.length
+            currentOffset = index + newLine.length
         }
     }
 
