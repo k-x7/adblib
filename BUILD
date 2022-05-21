@@ -27,6 +27,7 @@ kotlin_library(
     ]),
     resource_strip_prefix = "tools/base/adblib",
     visibility = [
+        "//tools/base/adblib-ddmlibcompatibility:__subpackages__",
         "//tools/base/adblib-tools:__subpackages__",
     ],
     deps = [
@@ -49,6 +50,7 @@ kotlin_test(
     jvm_flags = ["-Dtest.suite.jar=adblib.tests.jar"],
     test_class = "com.android.testutils.JarTestSuite",
     visibility = [
+        "//tools/base/adblib-ddmlibcompatibility:__subpackages__",
         "//tools/base/adblib-tools:__subpackages__",
     ],
     deps = [
