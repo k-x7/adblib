@@ -39,7 +39,8 @@ class FakeAdbLoggerFactory : AdbLoggerFactory {
     fun addEntry(entry: FakeAdbLoggerEntry) {
         logEntries.add(entry)
         if (printToStdout) {
-            println("[${entry.logger.name}] ${entry.level} - ${entry.message} - ${entry.exception} ")
+            val exceptionSuffix = entry.exception?.let { "- throwable=${entry.exception}" } ?: ""
+            println("[${entry.logger.name}] ${entry.level} - ${entry.message}$exceptionSuffix")
         }
     }
 }

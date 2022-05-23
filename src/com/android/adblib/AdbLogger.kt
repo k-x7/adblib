@@ -89,15 +89,22 @@ fun AdbLogger.withPrefix(prefix: String): AdbLogger {
 /**
  * Creates an [AdbLogger] for the class of this instance.
  */
-internal inline fun <reified T : Any> T.thisLogger(loggerFactory: AdbLoggerFactory): AdbLogger {
+inline fun <reified T : Any> T.thisLogger(loggerFactory: AdbLoggerFactory): AdbLogger {
     return loggerFactory.createLogger(T::class.java)
 }
 
 /**
  * Creates an [AdbLogger] for the class of this instance.
  */
-internal inline fun <reified T : Any> T.thisLogger(host: AdbLibHost): AdbLogger {
+inline fun <reified T : Any> T.thisLogger(host: AdbLibHost): AdbLogger {
     return thisLogger(host.loggerFactory)
+}
+
+/**
+ * Creates an [AdbLogger] for the class of this instance.
+ */
+inline fun <reified T : Any> T.thisLogger(session: AdbLibSession): AdbLogger {
+    return thisLogger(session.host)
 }
 
 /**
