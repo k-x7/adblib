@@ -136,6 +136,10 @@ class FakeAdbServerProvider : AutoCloseable {
         server?.awaitServerTermination()
     }
 
+    fun disconnectDevice(deviceSerial: String) {
+        server?.disconnectDevice(deviceSerial)
+    }
+
     class TestingChannelProvider(host: AdbLibHost, portSupplier: suspend () -> Int) :
         AdbChannelProvider {
 

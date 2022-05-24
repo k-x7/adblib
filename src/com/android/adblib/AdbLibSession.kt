@@ -20,8 +20,10 @@ import com.android.adblib.impl.AdbLibSessionImpl
 import com.android.adblib.impl.SessionDeviceTracker
 import com.android.adblib.impl.TrackerConnecting
 import com.android.adblib.impl.TrackerDisconnected
+import com.android.adblib.impl.DeviceInfoTracker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -225,3 +227,14 @@ val TrackedDeviceList.isTrackerConnecting: Boolean
     get() {
         return this.devices === TrackerConnecting.instance
     }
+
+/**
+ * Returns a flow of [DeviceInfo] that tracks changes to a given [device][DeviceSelector],
+ * typically changes to the [DeviceInfo.deviceState] value.
+ *
+ * The flow terminates when the device is no longer connected or when the ADB
+ * connection is terminated.
+ */
+fun AdbLibSession.trackDeviceInfo(device: DeviceSelector): Flow<DeviceInfo> {
+    return DeviceInfoTracker(this, device).createFlow()
+}

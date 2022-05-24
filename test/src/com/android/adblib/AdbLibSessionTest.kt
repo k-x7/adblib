@@ -18,15 +18,15 @@ package com.android.adblib
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
-import com.android.adblib.testingutils.setTestLoggerMinLevel
 import com.android.fakeadbserver.DeviceState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
@@ -309,6 +309,102 @@ class AdbLibSessionTest {
         // Assert
         Assert.assertEquals(1, channelProvider.createdChannels.size)
         Assert.assertEquals(5, exceptions.size)
+    }
+
+    @Test
+    fun testTrackDeviceInfoWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        val hostServices = createHostServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        val deviceInfoList = mutableListOf<DeviceInfo>()
+        runBlocking {
+            val channel = Channel<DeviceInfo>(Channel.UNLIMITED)
+            val signalTracker = Channel<Unit>()
+            val job = launch {
+                signalTracker.receive()
+                hostServices.session.trackDeviceInfo(deviceSelector).collect {
+                    channel.send(it)
+                    signalTracker.receive()
+                }
+            }
+
+            // UNAUTHORIZED device state
+            signalTracker.send(Unit)
+            fakeDevice.deviceStatus = DeviceState.DeviceStatus.UNAUTHORIZED
+            deviceInfoList.add(channel.receive())
+
+            // ONLINE device state
+            signalTracker.send(Unit)
+            fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+            deviceInfoList.add(channel.receive())
+
+            // Disconnect device
+            signalTracker.send(Unit)
+            fakeAdb.disconnectDevice(fakeDevice.deviceId)
+
+            job.join()
+        }
+
+        // Assert
+        Assert.assertEquals(2, deviceInfoList.size)
+        Assert.assertEquals(
+            listOf(
+                com.android.adblib.DeviceState.UNAUTHORIZED,
+                com.android.adblib.DeviceState.ONLINE
+            ), deviceInfoList.map { it.deviceState }
+        )
+    }
+
+    @Test
+    fun testTrackDeviceInfoEndsIfDeviceNotFound() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val hostServices = createHostServices(fakeAdb)
+        fakeAdb.connectDevice(
+            "1234",
+            "test1",
+            "test2",
+            "model",
+            "sdk",
+            DeviceState.HostConnectionType.USB
+        )
+        val deviceSelector = DeviceSelector.fromSerialNumber("abcd")
+
+        // Act
+        val deviceInfoList = runBlocking {
+            hostServices.session.trackDeviceInfo(deviceSelector).toList()
+        }
+
+        // Assert
+        Assert.assertEquals(0, deviceInfoList.size)
+    }
+
+    @Test
+    fun testTrackDeviceInfoEndsIfNoDeviceConnected() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val hostServices = createHostServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber("1234")
+
+        // Act
+        val deviceInfoList = runBlocking {
+            hostServices.session.trackDeviceInfo(deviceSelector).toList()
+        }
+
+        // Assert
+        Assert.assertEquals(0, deviceInfoList.size)
     }
 
     private fun createHostServices(fakeAdb: FakeAdbServerProvider): AdbHostServices {
