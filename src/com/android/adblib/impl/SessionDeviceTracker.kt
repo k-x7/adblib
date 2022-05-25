@@ -13,8 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.adblib
+package com.android.adblib.impl
 
+import com.android.adblib.AdbHostServices
+import com.android.adblib.AdbLibSession
+import com.android.adblib.DeviceList
+import com.android.adblib.ErrorLine
+import com.android.adblib.TrackedDeviceList
+import com.android.adblib.thisLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -71,32 +77,14 @@ private fun <T> Flow<T>.retryWithDelay(
     }
 }
 
-private object TrackerDisconnected {
+internal object TrackerDisconnected {
 
     private val error = ErrorLine("Device tracking session has been disconnected from ADB", 0, "")
     val instance = DeviceList(emptyList(), listOf(error))
 }
 
-private object TrackerConnecting {
+internal object TrackerConnecting {
 
     private val error = ErrorLine("Device tracking session has not started yet", 0, "")
     val instance = DeviceList(emptyList(), listOf(error))
 }
-
-/**
- * Returns `true` if this [TrackedDeviceList] instance has been produced by
- * [AdbLibSession.trackDevices] due to a connection failure.
- */
-val TrackedDeviceList.isTrackerDisconnected: Boolean
-    get() {
-        return this.devices === TrackerDisconnected.instance
-    }
-
-/**
- * Returns `true` if this [TrackedDeviceList] instance is the initial value produced by
- * the [StateFlow] returned by [AdbLibSession.trackDevices].
- */
-val TrackedDeviceList.isTrackerConnecting: Boolean
-    get() {
-        return this.devices === TrackerConnecting.instance
-    }

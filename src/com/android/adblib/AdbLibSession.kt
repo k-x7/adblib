@@ -17,6 +17,9 @@ package com.android.adblib
 
 import com.android.adblib.AdbLibSession.Companion.create
 import com.android.adblib.impl.AdbLibSessionImpl
+import com.android.adblib.impl.SessionDeviceTracker
+import com.android.adblib.impl.TrackerConnecting
+import com.android.adblib.impl.TrackerDisconnected
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.SharingStarted
@@ -124,7 +127,7 @@ class ClosedSessionException(message: String) : IllegalStateException(message)
  *   of type [isTrackerConnecting]. This is because it may take some time to collect
  *   the initial list of devices.
  *
- * * The upstream flow is a [AdbHostServices.trackDevices] that is [retried][retryWithDelay]
+ * * The upstream flow is a [AdbHostServices.trackDevices] that is retried
  *   after a delay of [retryDelay] in case of error.
  *
  *  * In case of error in the upstream flow, an empty [TrackedDeviceList] (of type
@@ -204,3 +207,21 @@ class TrackedDeviceList(
                 "device count=${devices.size}, throwable=$throwable"
     }
 }
+
+/**
+ * Returns `true` if this [TrackedDeviceList] instance has been produced by
+ * [AdbLibSession.trackDevices] due to a connection failure.
+ */
+val TrackedDeviceList.isTrackerDisconnected: Boolean
+    get() {
+        return this.devices === TrackerDisconnected.instance
+    }
+
+/**
+ * Returns `true` if this [TrackedDeviceList] instance is the initial value produced by
+ * the [StateFlow] returned by [AdbLibSession.trackDevices].
+ */
+val TrackedDeviceList.isTrackerConnecting: Boolean
+    get() {
+        return this.devices === TrackerConnecting.instance
+    }
