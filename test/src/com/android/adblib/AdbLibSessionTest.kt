@@ -368,6 +368,59 @@ class AdbLibSessionTest {
     }
 
     @Test
+    fun testTrackDeviceInfoStopsAfterAdbRestart() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        val hostServices = createHostServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        val deviceInfoList = mutableListOf<DeviceInfo>()
+        runBlocking {
+            val channel = Channel<DeviceInfo>(Channel.UNLIMITED)
+            val signalTracker = Channel<Unit>()
+            val job = launch {
+                signalTracker.receive()
+                hostServices.session.trackDeviceInfo(deviceSelector).collect {
+                    channel.send(it)
+                    signalTracker.receive()
+                }
+            }
+
+            // UNAUTHORIZED device state
+            signalTracker.send(Unit)
+            fakeDevice.deviceStatus = DeviceState.DeviceStatus.UNAUTHORIZED
+            deviceInfoList.add(channel.receive())
+
+            // Restart ADB to force new connection ID
+            fakeAdb.restart()
+
+            // ONLINE device state
+            signalTracker.send(Unit)
+            fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+
+            job.join()
+        }
+
+        // Assert
+        Assert.assertEquals(1, deviceInfoList.size)
+        Assert.assertEquals(
+            listOf(
+                com.android.adblib.DeviceState.UNAUTHORIZED,
+            ), deviceInfoList.map { it.deviceState }
+        )
+    }
+
+    @Test
     fun testTrackDeviceInfoEndsIfDeviceNotFound() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
