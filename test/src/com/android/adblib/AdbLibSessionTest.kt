@@ -26,9 +26,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
@@ -458,6 +460,134 @@ class AdbLibSessionTest {
 
         // Assert
         Assert.assertEquals(0, deviceInfoList.size)
+    }
+
+    @Test
+    fun testDeviceCoroutineScopeWorksForOnlineDevice() = runBlocking {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val session = createHostServices(fakeAdb).session
+
+        // Act
+        var deviceCoroutineIsRunning = false
+        // Wait for device to show up in device tracker
+        session.hostServices.trackDevices().first {
+            it.size == 1
+        }
+
+        // Create coroutine scope for device
+        val deviceScope = session.createDeviceScope(deviceSelector)
+        val job = deviceScope.launch {
+            deviceCoroutineIsRunning = true
+            try {
+                while (true) {
+                    delay(20)
+                }
+            } finally {
+                deviceCoroutineIsRunning = false
+            }
+        }
+
+        // Wait for coroutine to start
+        while (!deviceCoroutineIsRunning) {
+            yield()
+        }
+
+        // Disconnect device
+        fakeAdb.disconnectDevice(fakeDevice.deviceId)
+
+        // Wait for coroutine to stop
+        job.join()
+
+        // Assert
+        Assert.assertFalse(deviceCoroutineIsRunning)
+    }
+
+    @Test
+    fun testDeviceCoroutineScopeWorksForDisconnectedDevice() = runBlocking {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val deviceSelector = DeviceSelector.fromSerialNumber("1234")
+        val session = createHostServices(fakeAdb).session
+
+        // Act
+        var deviceCoroutineIsRunning = false
+        // Create coroutine scope for device
+        val deviceScope = session.createDeviceScope(deviceSelector)
+        val job = deviceScope.launch {
+            deviceCoroutineIsRunning = true
+            try {
+                while (true) {
+                    delay(20)
+                }
+            } finally {
+                deviceCoroutineIsRunning = false
+            }
+        }
+
+        // Wait for coroutine to stop
+        job.join()
+
+        // Assert
+        Assert.assertFalse(deviceCoroutineIsRunning)
+    }
+
+    @Test
+    fun testDeviceCoroutineScopeIsCancelledWithSessionClose() = runBlocking {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val session = createHostServices(fakeAdb).session
+
+        // Act
+        var deviceCoroutineIsRunning = false
+        // Create coroutine scope for device
+        val deviceScope = session.createDeviceScope(deviceSelector)
+        val job = deviceScope.launch {
+            deviceCoroutineIsRunning = true
+            try {
+                while (true) {
+                    delay(20)
+                }
+            } finally {
+                deviceCoroutineIsRunning = false
+            }
+        }
+
+        // Wait for coroutine to start
+        while (!deviceCoroutineIsRunning) {
+            yield()
+        }
+
+        // Close the session should cancel the device scope
+        session.close()
+
+        // Wait for coroutine to stop
+        job.join()
+
+        // Assert
+        Assert.assertFalse(deviceCoroutineIsRunning)
     }
 
     private fun createHostServices(fakeAdb: FakeAdbServerProvider): AdbHostServices {

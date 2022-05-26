@@ -17,18 +17,24 @@ package com.android.adblib
 
 import com.android.adblib.AdbLibSession.Companion.create
 import com.android.adblib.impl.AdbLibSessionImpl
+import com.android.adblib.impl.DeviceInfoTracker
 import com.android.adblib.impl.SessionDeviceTracker
 import com.android.adblib.impl.TrackerConnecting
 import com.android.adblib.impl.TrackerDisconnected
-import com.android.adblib.impl.DeviceInfoTracker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import java.time.Duration
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Provides access to various ADB services (e.g. [AdbHostServices], [AdbDeviceServices]) for
@@ -117,7 +123,7 @@ interface AdbLibSession : AutoCloseable {
 /**
  * Exception thrown when accessing services of an [AdbLibSession] that has been closed.
  */
-class ClosedSessionException(message: String) : IllegalStateException(message)
+class ClosedSessionException(message: String) : CancellationException(message)
 
 /**
  * Returns a [StateFlow] that emits a new [TrackedDeviceList] everytime a device state change
@@ -237,4 +243,34 @@ val TrackedDeviceList.isTrackerConnecting: Boolean
  */
 fun AdbLibSession.trackDeviceInfo(device: DeviceSelector): Flow<DeviceInfo> {
     return DeviceInfoTracker(this, device).createFlow()
+}
+
+/**
+ * Returns a [CoroutineScope] that can be used to run coroutines that should be cancelled
+ * when the given [device] is disconnected (or ADB connection is terminated).
+ *
+ * The returned scope is also cancelled when the [AdbLibSession] is [closed][AdbLibSession.close].
+ *
+ * The returned [CoroutineScope] uses a [CoroutineContext] with a [SupervisorJob] tied to
+ * the [device] lifecycle and a [AdbLibHost.ioDispatcher].
+ *
+ * @see [trackDeviceInfo]
+ */
+fun AdbLibSession.createDeviceScope(device: DeviceSelector): CoroutineScope {
+    val session = this
+    val parentJob = session.scope.coroutineContext.job
+    return CoroutineScope(SupervisorJob(parentJob) + session.host.ioDispatcher).also { deviceScope ->
+        // Launch a coroutine that track the device state and cancel the scope
+        // when that device disconnects.
+        deviceScope.launch {
+            try {
+                // Use device info tracking flow
+                session.trackDeviceInfo(device).collect()
+            } finally {
+                val msg = "Device $device has been disconnected, cancelling job"
+                thisLogger(session.host).debug { msg }
+                deviceScope.cancel(CancellationException(msg))
+            }
+        }
+    }
 }
