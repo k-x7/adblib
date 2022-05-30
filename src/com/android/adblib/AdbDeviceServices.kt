@@ -315,6 +315,8 @@ interface AdbDeviceServices {
  */
 typealias ProcessIdList = ListWithErrors<Int>
 
+fun emptyProcessIdList(): ProcessIdList = emptyListWithErrors()
+
 /**
  * Similar to [AdbDeviceServices.shell] but captures the command output as a single
  * string, decoded using the [AdbProtocolUtils.ADB_CHARSET]&nbsp;[Charset] character set.

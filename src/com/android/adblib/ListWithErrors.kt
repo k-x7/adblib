@@ -29,6 +29,12 @@ class ListWithErrors<E>(
     val errors: List<ErrorLine>
 ) : List<E> by entries {
 
+    override fun toString(): String {
+        return entries.joinToString(", ", "[", "]") +
+                " - " +
+                errors.joinToString(", ", "[", "]")
+    }
+
     class Builder<E> {
 
         private val entries: MutableList<E> = ArrayList()
@@ -51,6 +57,8 @@ class ListWithErrors<E>(
         }
     }
 }
+
+fun <T> emptyListWithErrors(): ListWithErrors<T> = ListWithErrors.Builder<T>().build()
 
 /**
  * An error collected from a parser producing a [ListWithErrors]
