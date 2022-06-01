@@ -104,13 +104,11 @@ abstract class DeviceSelector {
 
         override fun toString() = "serial-$serialNumber"
 
-        override val hostPrefix: String by lazy {
-            "host-serial:$serialNumber"
-        }
+        override val hostPrefix: String
+            get() = "host-serial:$serialNumber"
 
-        override val transportPrefix: String by lazy {
-            "host:transport:$serialNumber"
-        }
+        override val transportPrefix: String
+            get() = "host:transport:$serialNumber"
     }
 
     private class TransportId(private val value: Long) : DeviceSelector() {
@@ -123,13 +121,11 @@ abstract class DeviceSelector {
 
         override fun toString() = "transport-$value"
 
-        override val hostPrefix: String by lazy {
-            "host-transport-id:$value"
-        }
+        override val hostPrefix: String
+            get() = "host-transport-id:$value"
 
-        override val transportPrefix: String by lazy {
-            "host:transport-id:$value"
-        }
+        override val transportPrefix: String
+            get() = "host:transport-id:$value"
     }
 
     private object Usb : DeviceSelector() {
@@ -241,13 +237,11 @@ abstract class DeviceSelector {
 
                 override fun toString() = "serial-$serialNumber"
 
-                override val hostPrefix: String by lazy {
-                    "host-serial:$serialNumber"
-                }
+                override val hostPrefix: String
+                    get() = "host-serial:$serialNumber"
 
-                override val transportPrefix: String by lazy {
-                    "host:tport:serial:$serialNumber"
-                }
+                override val transportPrefix: String
+                    get() = "host:tport:serial:$serialNumber"
 
                 override val responseContainsTransportId: Boolean
                     get() = true
