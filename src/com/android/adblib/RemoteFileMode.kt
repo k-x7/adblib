@@ -65,10 +65,8 @@ class RemoteFileMode private constructor(
         /**
          * Default permissions, to be used as fallback ("rw-r--r--")
          */
-        val DEFAULT: RemoteFileMode by lazy {
-            // In case we fail to read on Windows we fall back to 0644 again.
-            fromModeBits("644".toInt(8))
-        }
+        val DEFAULT: RemoteFileMode
+            get() = fromModeBits("644".toInt(8))
 
         /**
          * Returns a new [RemoteFileMode] instance initialized from Linux style file mode bits
