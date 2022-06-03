@@ -92,6 +92,7 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
+            [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
@@ -119,6 +120,7 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
+            [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
@@ -146,6 +148,7 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
+            [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
