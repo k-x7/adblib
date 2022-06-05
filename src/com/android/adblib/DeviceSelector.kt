@@ -182,8 +182,10 @@ abstract class DeviceSelector {
          *       Returned instances are also not thread-safe and should not be used when
          *       invoking ADB services concurrently.
          */
+        @JvmStatic
         val factoryWithTransportIdTracking: DeviceSelectorFactory = TransportIdTrackingDeviceSelectorFactory
 
+        @JvmStatic
         /** [DeviceSelector] for the given device serial number (see [DeviceInfo.serialNumber] */
         fun fromSerialNumber(serialNumber: String): DeviceSelector = SerialNumber(serialNumber)
 
@@ -193,15 +195,19 @@ abstract class DeviceSelector {
          * Note: This can be useful to address devices that ADB detects correctly but have an
          * unknown serial number, i.e. devices not yet fully booted or in recovery mode.
          */
+        @JvmStatic
         fun fromTransportId(transportId: Long): DeviceSelector = TransportId(transportId)
 
         /** [DeviceSelector] for any single device connected via usb cable */
+        @JvmStatic
         fun usb(): DeviceSelector = Usb
 
         /** [DeviceSelector] for any single device connected locally (e.g.emulator) */
+        @JvmStatic
         fun local(): DeviceSelector = Local
 
         /** [DeviceSelector] for any single connected device */
+        @JvmStatic
         fun any(): DeviceSelector = Any
 
         interface DeviceSelectorFactory {
