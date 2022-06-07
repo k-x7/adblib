@@ -307,6 +307,22 @@ interface AdbDeviceServices {
      * underlying [AdbChannel].
      */
     fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList>
+
+    /**
+     * Open a JDWP connection to the [process ID][pid] and returns an [AdbChannel] for
+     * that connection ("`<device-transport>:jdwp:<pid>`" query).
+     *
+     * The returned [AdbChannel] must be [closed][AdbChannel.close] then the JDWP
+     * connection is not needed anymore.
+     *
+     * Note: Only **one JDWP connection** at a time can be active for a given process ID
+     *   on a given device.
+     *   * On API <= 28, opening a second connection immediately fails with an [IOException]
+     *     ("connection refused").
+     *   * On API > 29, opening a second connection is delayed until the current JDWP connection
+     *     is closed.
+     */
+    suspend fun jdwp(device: DeviceSelector, pid: Int): AdbChannel
 }
 
 /**

@@ -15,6 +15,7 @@
  */
 package com.android.adblib.testing
 
+import com.android.adblib.AdbChannel
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
@@ -190,6 +191,10 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
     }
 
     override fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList> {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun jdwp(device: DeviceSelector, pid: Int): AdbChannel {
         TODO("Not yet implemented")
     }
 

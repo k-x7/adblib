@@ -262,13 +262,29 @@ internal class AdbServiceRunner(val session: AdbLibSession, private val channelP
         block: suspend (AdbChannel, ResizableBuffer) -> Unit
     ) {
         val workBuffer = newResizableBuffer()
-        val channel = switchToTransport(device, workBuffer, timeout)
-        channel.use {
-            logger.info { "\"$service\" - sending local service request to ADB daemon, timeout: $timeout" }
-            sendAbdServiceRequest(channel, workBuffer, service, timeout)
-            consumeOkayFailResponse(channel, workBuffer, timeout)
+        startDaemonService(device, service, timeout).use { channel ->
             block(channel, workBuffer)
         }
+    }
+
+    /**
+     * Starts execution of a [service] on the ADB Daemon of the given [device][DeviceSelector],
+     * and returns a [AdbChannel] when the ADB Daemon is ready to send/receive data corresponding
+     * to the service invoked.
+     */
+    suspend fun startDaemonService(
+        device: DeviceSelector,
+        service: String,
+        timeout: TimeoutTracker,
+        workBuffer: ResizableBuffer = newResizableBuffer()
+    ): AdbChannel {
+        val channel = switchToTransport(device, workBuffer, timeout)
+        channel.closeOnException {
+            logger.debug { "\"$service\" - sending local service request to ADB daemon, timeout: $timeout" }
+            sendAbdServiceRequest(channel, workBuffer, service, timeout)
+            consumeOkayFailResponse(channel, workBuffer, timeout)
+        }
+        return channel
     }
 
     /**

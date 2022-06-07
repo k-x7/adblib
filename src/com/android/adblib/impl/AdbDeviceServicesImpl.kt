@@ -132,7 +132,7 @@ internal class AdbDeviceServicesImpl(
         bufferSize: Int,
     ): Flow<T> = flow {
         val service = getExecServiceString(execService, commandProvider())
-        logger.info { "Device '${device}' - Start execution of service '$service' (bufferSize=$bufferSize bytes)" }
+        logger.debug { "Device '${device}' - Start execution of service '$service' (bufferSize=$bufferSize bytes)" }
 
         // Note: We only track the time to launch the command, since the command execution
         // itself can take an arbitrary amount of time.
@@ -221,6 +221,12 @@ internal class AdbDeviceServicesImpl(
 
     override fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList> {
         return trackJdwpService.invoke(device, timeout, unit)
+    }
+
+    override suspend fun jdwp(device: DeviceSelector, pid: Int): AdbChannel {
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "jdwp:$pid"
+        return serviceRunner.startDaemonService(device, service, tracker)
     }
 
     override fun <T> abb_exec(
@@ -358,7 +364,7 @@ internal class AdbDeviceServicesImpl(
     ) {
         stdInput.forwardTo(session, shellCommandChannel, bufferSize)
         if (shutdownOutput) {
-            logger.info { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
+            logger.debug { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
             shellCommandChannel.shutdownOutput()
         }
     }
@@ -400,7 +406,7 @@ internal class AdbDeviceServicesImpl(
         shutdownOutput : Boolean
     ): Flow<T> = flow {
         val service = getExecServiceString(execService, commandProvider())
-        logger.info { "Device \"${device}\" - Start execution of service \"$service\" (bufferSize=$bufferSize bytes)" }
+        logger.debug { "Device \"${device}\" - Start execution of service \"$service\" (bufferSize=$bufferSize bytes)" }
 
         // Note: We only track the time to launch the command, since the command execution
         // itself can take an arbitrary amount of time.

@@ -20,14 +20,13 @@ import com.android.adblib.impl.channels.AdbOutputStreamChannel
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
-import com.android.adblib.testingutils.TestingAdbLogger
-import com.android.adblib.testingutils.TestingAdbLoggerFactory
 import com.android.adblib.testingutils.setTestLoggerMinLevel
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.LineShellCollector
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TextShellCollector
 import com.android.adblib.utils.TextShellV2Collector
+import com.android.fakeadbserver.ClientState
 import com.android.fakeadbserver.DeviceFileState
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.devicecommandhandlers.SyncCommandHandler
@@ -1705,6 +1704,27 @@ class AdbDeviceServicesTest {
         Assert.assertEquals(listOf(50, 100, 102, 104), lists[3].toList())
     }
 
+    @Test
+    fun testJdwpSessionOpens() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val pid = 10
+        addClient(fakeDevice, pid)
+
+        // Act
+        val sessionOpened = runBlocking {
+            deviceServices.jdwp(deviceSelector, pid).use {
+                true
+            }
+        }
+
+        // Assert
+        Assert.assertTrue(sessionOpened)
+    }
+
     /**
      * Similar to [Flow.take], but allows for a [block] to process each collected element.
      */
@@ -1773,8 +1793,8 @@ class AdbDeviceServicesTest {
         return fakeDevice
     }
 
-    private fun addClient(fakeDevice: DeviceState, pid: Int) {
-        fakeDevice.startClient(
+    private fun addClient(fakeDevice: DeviceState, pid: Int): ClientState {
+        return fakeDevice.startClient(
             pid,
             pid * 2,
             "package-$pid",
