@@ -18,6 +18,7 @@ package com.android.adblib
 import com.android.adblib.AdbLibSession.Companion.create
 import com.android.adblib.CoroutineScopeCache.Key
 import com.android.adblib.impl.AdbLibSessionImpl
+import com.android.adblib.impl.DeviceCacheManagerImpl
 import com.android.adblib.impl.DeviceInfoTracker
 import com.android.adblib.impl.SessionDeviceTracker
 import com.android.adblib.impl.TrackerConnecting
@@ -276,4 +277,39 @@ fun AdbLibSession.createDeviceScope(device: DeviceSelector): CoroutineScope {
             }
         }
     }
+}
+
+/**
+ * Returns the [DeviceCacheManager] associated to this session
+ */
+val AdbLibSession.deviceCacheManager: DeviceCacheManager
+    get() {
+        return this.cache.getOrPut(DeviceCacheManagerKey) {
+            DeviceCacheManagerImpl(this)
+        }.also {
+            // Note: We do this outside of the cache lookup to ensure `start`
+            // is called only on the instance stored in the cache.
+            (it as DeviceCacheManagerImpl).start()
+        }
+    }
+
+/**
+ * The [Key] used to identify the [DeviceCacheManager] in [AdbLibSession.cache].
+ */
+private object DeviceCacheManagerKey : Key<DeviceCacheManager>("DeviceCacheManager")
+
+/**
+ * Returns a [CoroutineScopeCache] that keeps entries alive until the device corresponding
+ * to [serialNumber] is disconnected.
+ */
+fun AdbLibSession.deviceCache(serialNumber: String): CoroutineScopeCache {
+    return deviceCacheManager.deviceCache(serialNumber)
+}
+
+/**
+ * Returns a [CoroutineScopeCache] that keeps entries alive until the device corresponding
+ * to [selector] is disconnected.
+ */
+suspend fun AdbLibSession.deviceCache(selector: DeviceSelector): CoroutineScopeCache {
+    return deviceCacheManager.deviceCache(selector)
 }
