@@ -15,7 +15,13 @@
  */
 package com.android.adblib
 
+import com.android.adblib.impl.channels.AdbInputChannelSliceImpl
+import com.android.adblib.impl.channels.ByteBufferAdbInputChannelImpl
+import com.android.adblib.impl.channels.ByteBufferAdbOutputChannelImpl
+import com.android.adblib.impl.channels.EmptyAdbInputChannelImpl
+import com.android.adblib.utils.ResizableBuffer
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.nio.file.Path
 
 /**
@@ -46,3 +52,45 @@ interface AdbChannelFactory {
      */
     suspend fun createNewFile(path: Path): AdbOutputChannel
 }
+
+/**
+ * Creates an [AdbInputChannel] that contains no data.
+ */
+@Suppress("FunctionName") // Mirroring coroutines API, with many functions that look like constructors.
+fun EmptyAdbInputChannel(): AdbInputChannel {
+    return EmptyAdbInputChannelImpl
+}
+
+/**
+ * Returns an [AdbInputChannel] that reads at most [length] bytes from another [AdbInputChannel].
+ */
+@Suppress("FunctionName") // Mirroring coroutines API, with many functions that look like constructors.
+fun AdbInputChannelSlice(inputChannel: AdbInputChannel, length: Int): AdbInputChannel {
+    return AdbInputChannelSliceImpl(inputChannel, length)
+}
+
+/**
+ * Returns an [AdbInputChannel] that reads bytes from a [ByteBuffer]. Once all bytes
+ * are read (i.e. [AdbInputChannel.read] returns -1), the [ByteBuffer.remaining] value
+ * is zero.
+ */
+@Suppress("FunctionName") // Mirroring coroutines API, with many functions that look like constructors.
+fun ByteBufferAdbInputChannel(buffer: ByteBuffer): AdbInputChannel {
+    return ByteBufferAdbInputChannelImpl(buffer)
+}
+
+/**
+ * Returns an [AdbOutputChannel] that appends bytes to a [ResizableBuffer]. The
+ * [ResizableBuffer][buffer] grows as needed to allow [AdbOutputChannel.write] calls
+ * to succeed.
+ *
+ * Once [AdbOutputChannel.close] is called, use [ResizableBuffer.forChannelWrite] to
+ * access the underlying [ByteBuffer] that will contain data written to the buffer
+ * from [ByteBuffer.position] `0` to [ByteBuffer.limit].
+ */
+@Suppress("FunctionName") // Mirroring coroutines API, with many functions that look like constructors.
+fun ByteBufferAdbOutputChannel(buffer: ResizableBuffer): AdbOutputChannel {
+    return ByteBufferAdbOutputChannelImpl(buffer)
+}
+
+
