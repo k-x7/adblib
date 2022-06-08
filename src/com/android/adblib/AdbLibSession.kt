@@ -180,11 +180,14 @@ fun AdbLibSession.trackDevices(
     retryDelay: Duration = Duration.ofSeconds(2)
 ): StateFlow<TrackedDeviceList> {
     data class MyKey(val duration: Duration) :
-        SessionCache.Key<StateFlow<TrackedDeviceList>>("trackDevices")
+        SessionCache.Key<SessionDeviceTracker>("trackDevices")
 
+    // Note: We return the `stateFlow` outside the cache `getOrPut` method, since
+    // `getOrPut` may create multiple instances in case
+    // of concurrent first cache hit.
     return this.cache.getOrPut(MyKey(retryDelay)) {
-        SessionDeviceTracker(this).createStateFlow(retryDelay)
-    }
+        SessionDeviceTracker(this, retryDelay)
+    }.stateFlow
 }
 
 /**

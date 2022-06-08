@@ -21,6 +21,7 @@ import com.android.adblib.testingutils.TestingAdbLibHost
 import com.android.fakeadbserver.DeviceState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Assert
 import org.junit.Rule
@@ -100,6 +102,40 @@ class AdbLibSessionTest {
 
         // Assert
         Assert.fail("Should be unreachable")
+    }
+
+    @Test
+    fun testTrackDevicesIsStartedEagerly() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = fakeAdb.connectDevice(
+            "1234",
+            "test1",
+            "test2",
+            "model",
+            "sdk",
+            DeviceState.HostConnectionType.USB
+        )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val session = createHostServices(fakeAdb).session
+
+        // Act
+        val device = runBlocking {
+            // Ensure the connected device shows in the stateFlow.value property even
+            // if nobody is consuming the flow
+            yieldUntil {
+                session.trackDevices().value.devices.isNotEmpty()
+            }
+            session.trackDevices().value.devices.first()
+        }
+
+        // Assert
+        Assert.assertEquals("1234", device.serialNumber)
+        Assert.assertEquals(com.android.adblib.DeviceState.ONLINE, device.deviceState)
+        Assert.assertEquals("test1", device.product)
+        Assert.assertEquals("test2", device.model)
+        Assert.assertEquals("model", device.device)
+        Assert.assertEquals(fakeDevice.transportId.toString(), device.transportId)
     }
 
     @Test
@@ -609,4 +645,23 @@ class AdbLibSessionTest {
     }
 
     class MyTestException(message: String) : IOException(message)
+
+    private suspend fun yieldUntil(
+        timeout: Duration = Duration.ofSeconds(5),
+        predicate: suspend () -> Boolean
+    ) {
+        try {
+            withTimeout(timeout.toMillis()) {
+                while (!predicate()) {
+                    delay(10)
+                }
+            }
+        } catch (e: TimeoutCancellationException) {
+            throw AssertionError(
+                "A yieldUntil condition was not satisfied within " +
+                        "5 seconds, there is a bug somewhere (in the test or in the tested code)", e
+            )
+        }
+    }
 }
+

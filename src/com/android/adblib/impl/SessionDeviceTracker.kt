@@ -33,18 +33,34 @@ import kotlinx.coroutines.flow.stateIn
 import java.io.EOFException
 import java.time.Duration
 
-internal class SessionDeviceTracker(val session: AdbLibSession) {
+internal class SessionDeviceTracker(
+    private val session: AdbLibSession,
+    private val retryDelay: Duration
+) {
 
     private val logger = thisLogger(session.host)
 
-    fun createStateFlow(retryDelay: Duration): StateFlow<TrackedDeviceList> {
+    /**
+     * The [StateFlow] of [TrackedDeviceList], created lazily.
+     *
+     * Note: It is important to use [LazyThreadSafetyMode.SYNCHRONIZED] since
+     *  [createStateFlow] uses the [Flow.stateIn] operator, which never terminates.
+     */
+    val stateFlow: StateFlow<TrackedDeviceList> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        createStateFlow()
+    }
+
+    private fun createStateFlow(): StateFlow<TrackedDeviceList> {
         var connectionId = 0
         return session.hostServices.trackDevices(AdbHostServices.DeviceInfoFormat.LONG_FORMAT)
             .onStart {
                 connectionId++
                 logger.debug { "trackDevices() is starting, connection id=$connectionId" }
             }
-            .map { deviceList -> TrackedDeviceList(connectionId, deviceList, null) }
+            .map { deviceList ->
+                logger.debug { "trackDevices(): mapping deviceList $deviceList" }
+                TrackedDeviceList(connectionId, deviceList, null)
+            }
             .retryWithDelay(retryDelay) { throwable ->
                 connectionId++
                 if (throwable is EOFException) {
@@ -55,7 +71,7 @@ internal class SessionDeviceTracker(val session: AdbLibSession) {
                 TrackedDeviceList(connectionId, TrackerDisconnected.instance, throwable)
             }.stateIn(
                 session.scope,
-                SharingStarted.Lazily,
+                SharingStarted.Eagerly,
                 TrackedDeviceList(connectionId, TrackerConnecting.instance, null)
             )
     }
@@ -66,14 +82,11 @@ private fun <T> Flow<T>.retryWithDelay(
     retryValue: (Throwable) -> T?
 ): Flow<T> {
     return retryWhen { throwable, _ ->
-        if (throwable is CancellationException) {
-            // Let cancellation of upstream flow propagate
-            false
-        } else {
-            retryValue(throwable)?.let { emit(it) }
-            delay(retryDelay.toMillis())
-            true
-        }
+        // The retryWhen operator does not call us for cancellation exception
+        assert(throwable !is CancellationException)
+        retryValue(throwable)?.let { emit(it) }
+        delay(retryDelay.toMillis())
+        true
     }
 }
 
