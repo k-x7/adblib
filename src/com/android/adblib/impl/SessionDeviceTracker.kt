@@ -55,7 +55,7 @@ internal class SessionDeviceTracker(val session: AdbLibSession) {
                 TrackedDeviceList(connectionId, TrackerDisconnected.instance, throwable)
             }.stateIn(
                 session.scope,
-                SharingStarted.WhileSubscribed(),
+                SharingStarted.Lazily,
                 TrackedDeviceList(connectionId, TrackerConnecting.instance, null)
             )
     }
