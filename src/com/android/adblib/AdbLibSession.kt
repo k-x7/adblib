@@ -16,6 +16,7 @@
 package com.android.adblib
 
 import com.android.adblib.AdbLibSession.Companion.create
+import com.android.adblib.CoroutineScopeCache.Key
 import com.android.adblib.impl.AdbLibSessionImpl
 import com.android.adblib.impl.DeviceInfoTracker
 import com.android.adblib.impl.SessionDeviceTracker
@@ -92,7 +93,7 @@ interface AdbLibSession : AutoCloseable {
      *
      * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
      */
-    val cache: SessionCache
+    val cache: CoroutineScopeCache
 
     /**
      * Throws [ClosedSessionException] if this [AdbLibSession] has been [closed][close].
@@ -179,8 +180,7 @@ class ClosedSessionException(message: String) : CancellationException(message)
 fun AdbLibSession.trackDevices(
     retryDelay: Duration = Duration.ofSeconds(2)
 ): StateFlow<TrackedDeviceList> {
-    data class MyKey(val duration: Duration) :
-        SessionCache.Key<SessionDeviceTracker>("trackDevices")
+    data class MyKey(val duration: Duration) : Key<SessionDeviceTracker>("trackDevices")
 
     // Note: We return the `stateFlow` outside the cache `getOrPut` method, since
     // `getOrPut` may create multiple instances in case

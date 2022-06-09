@@ -22,7 +22,7 @@ import com.android.adblib.AdbHostServices
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbLibSession
 import com.android.adblib.ClosedSessionException
-import com.android.adblib.SessionCache
+import com.android.adblib.CoroutineScopeCache
 import com.android.adblib.impl.channels.AdbChannelFactoryImpl
 import com.android.adblib.thisLogger
 import kotlinx.coroutines.CoroutineScope
@@ -59,8 +59,8 @@ internal class AdbLibSessionImpl(
             return field
         }
 
-    private val _cache = SessionCacheImpl()
-    override val cache: SessionCache
+    private val _cache = CoroutineScopeCacheImpl(scope)
+    override val cache: CoroutineScopeCache
         get() {
             throwIfClosed()
             return _cache

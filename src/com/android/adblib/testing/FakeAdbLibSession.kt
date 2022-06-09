@@ -18,8 +18,8 @@ package com.android.adblib.testing
 import com.android.adblib.AdbChannelFactory
 import com.android.adblib.AdbLibHost
 import com.android.adblib.AdbLibSession
-import com.android.adblib.SessionCache
-import com.android.adblib.impl.SessionCacheImpl
+import com.android.adblib.CoroutineScopeCache
+import com.android.adblib.impl.CoroutineScopeCacheImpl
 import com.android.adblib.impl.channels.AdbChannelFactoryImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +31,7 @@ class FakeAdbLibSession : AdbLibSession {
 
     override val scope = CoroutineScope(Dispatchers.IO)
 
-    override val cache: SessionCache = SessionCacheImpl()
+    override val cache: CoroutineScopeCache = CoroutineScopeCacheImpl(scope)
 
     override fun throwIfClosed() {
         // Not yet implemented
@@ -46,6 +46,6 @@ class FakeAdbLibSession : AdbLibSession {
     override val channelFactory: AdbChannelFactory = AdbChannelFactoryImpl(host)
 
     override fun close() {
-        cache.close()
+        (cache as CoroutineScopeCacheImpl).close()
     }
 }
