@@ -70,7 +70,7 @@ class DeviceListParserTest {
         deviceList[0].let { device ->
             Assert.assertEquals("HT10X6F12345", device.serialNumber)
             Assert.assertEquals(DeviceState.ONLINE, device.deviceState)
-            Assert.assertSame(DeviceState.ONLINE.toString(), device.deviceStateString)
+            Assert.assertSame(DeviceState.ONLINE.state, device.deviceStateString)
             Assert.assertNull(device.product)
             Assert.assertNull(device.model)
             Assert.assertNull(device.device)
@@ -80,7 +80,7 @@ class DeviceListParserTest {
         deviceList[1].let { device ->
             Assert.assertEquals("adb-FAAY0QWER-jBMEIf._adb-tls-connect._tcp.", device.serialNumber)
             Assert.assertEquals(DeviceState.CONNECTING, device.deviceState)
-            Assert.assertSame(DeviceState.CONNECTING.toString(), device.deviceStateString)
+            Assert.assertSame(DeviceState.CONNECTING.state, device.deviceStateString)
             Assert.assertNull(device.product)
             Assert.assertNull(device.model)
             Assert.assertNull(device.device)
@@ -90,7 +90,7 @@ class DeviceListParserTest {
         deviceList[2].let { device ->
             Assert.assertEquals("adb-HT10X6F12345-AvY0LF._adb-tls-connect._tcp.", device.serialNumber)
             Assert.assertEquals(DeviceState.OFFLINE, device.deviceState)
-            Assert.assertSame(DeviceState.OFFLINE.toString(), device.deviceStateString)
+            Assert.assertSame(DeviceState.OFFLINE.state, device.deviceStateString)
             Assert.assertNull(device.product)
             Assert.assertNull(device.model)
             Assert.assertNull(device.device)
@@ -100,7 +100,7 @@ class DeviceListParserTest {
         deviceList[3].let { device ->
             Assert.assertEquals("emulator-5554", device.serialNumber)
             Assert.assertEquals(DeviceState.BOOTLOADER, device.deviceState)
-            Assert.assertSame(DeviceState.BOOTLOADER.toString(), device.deviceStateString)
+            Assert.assertSame(DeviceState.BOOTLOADER.state, device.deviceStateString)
             Assert.assertNull(device.product)
             Assert.assertNull(device.model)
             Assert.assertNull(device.device)
@@ -110,7 +110,7 @@ class DeviceListParserTest {
         deviceList[4].let { device ->
             Assert.assertEquals("emulator-5556", device.serialNumber)
             Assert.assertEquals(DeviceState.HOST, device.deviceState)
-            Assert.assertSame(DeviceState.HOST.toString(), device.deviceStateString)
+            Assert.assertSame(DeviceState.HOST.state, device.deviceStateString)
             Assert.assertNull(device.product)
             Assert.assertNull(device.model)
             Assert.assertNull(device.device)

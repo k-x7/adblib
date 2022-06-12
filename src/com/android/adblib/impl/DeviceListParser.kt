@@ -2,7 +2,6 @@ package com.android.adblib.impl
 
 import com.android.adblib.AdbHostServices.DeviceInfoFormat
 import com.android.adblib.DeviceInfo
-import com.android.adblib.DeviceInfo.FieldEntry
 import com.android.adblib.DeviceList
 import com.android.adblib.ListWithErrors
 import com.android.adblib.utils.AdbProtocolUtils
@@ -85,7 +84,7 @@ internal class DeviceListParser {
             result.addError("Device state is empty", lineIndex, lineText)
             return
         }
-        result.addEntry(DeviceInfo(serialNumber, deviceState, emptyList()))
+        result.addEntry(DeviceInfo.fromParserValues(serialNumber, deviceState))
     }
 
     private fun parseOneLongFormatLine(
@@ -112,16 +111,37 @@ internal class DeviceListParser {
             result.addError("Device state is empty", lineIndex, lineText)
             return
         }
-        val moreFields: MutableList<FieldEntry> = ArrayList()
+        var product: String? = null
+        var model: String? = null
+        var device: String? = null
+        var transportId: String? = null
+        val moreFields = mutableMapOf<String, String>()
         // Each field is "name:value", see ADB Host code:
         // https://cs.android.com/android/platform/superproject/+/790d619575aea7032a4fe5f097d412adedf6623b:packages/modules/adb/transport.cpp;l=1331
         val matcherFields = ONE_FIELD_PATTERN.matcher(lineText)
         while (matcherFields.find()) {
             val name = matcherFields.group(1)
             val value = matcherFields.group(2)
-            moreFields.add(FieldEntry(name, value))
+            when (name) {
+                "product" -> product = value
+                "model" -> model = value
+                "device" -> device = value
+                "transport_id" -> transportId = value
+                else -> moreFields[name] = value
+            }
+
         }
-        result.addEntry(DeviceInfo(serialNumber, deviceState, moreFields))
+        val deviceInfo =
+            DeviceInfo.fromParserValues(
+                serialNumber,
+                deviceState,
+                product,
+                model,
+                device,
+                transportId,
+                if (moreFields.isEmpty()) emptyMap() else moreFields
+            )
+        result.addEntry(deviceInfo)
     }
 
     internal fun interface OneLineParser {
