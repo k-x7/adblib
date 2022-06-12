@@ -15,39 +15,80 @@
  */
 package com.android.adblib
 
-import kotlinx.coroutines.CoroutineScope
+import com.android.adblib.impl.InactiveCoroutineScopeCache
+import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Allow accessing a [CoroutineScopeCache] per connected device.
- * The [CoroutineScopeCache] entries of a given device are cleared when the
- * device is disconnected.
+ * Tracks devices that are currently [connected][ConnectedDevice] to the ADB server
+ * corresponding to a given [session].
  */
 interface ConnectedDevicesTracker {
 
     /**
-     * The scope used to track connected devices. This [ConnectedDevicesTracker] instance
-     * stops working when this [scope] is cancelled.
+     * The [session][AdbLibSession] this [ConnectedDevicesTracker] belongs to
      */
-    val scope: CoroutineScope
+    val session: AdbLibSession
 
     /**
-     * Returns the [CoroutineScopeCache] associated to the connected device with the
-     * given [serialNumber].
-     *
-     * If a device is disconnected and reconnected again, a new empty cache is returned
-     * and the previous cache is emptied.
-     *
-     * If the device is not connected, a "no-op" cache is returned.
+     * The [StateFlow] of currently [connected devices][ConnectedDevice]. The flow remains
+     * active as long as the [session] is active. Once the session is closed, the flow value
+     * changes to an empty list and never updates again.
      */
-    fun deviceCache(serialNumber: String): CoroutineScopeCache
+    val connectedDevices: StateFlow<List<ConnectedDevice>>
+}
 
-    /**
-     * Returns the [CoroutineScopeCache] associated to the connected device
-     * corresponding to the given [DeviceSelector]
-     *
-     * If a device is disconnected and reconnected again, a new empty cache is returned.
-     *
-     * If the device is not connected, a "no-op" cache is returned.
-     */
-    suspend fun deviceCache(selector: DeviceSelector): CoroutineScopeCache
+/**
+ * Returns a [ConnectedDevice] instance for a given [selector], or throws a
+ * [NoSuchElementException] if the device is not currently connected.
+ */
+suspend fun ConnectedDevicesTracker.device(selector: DeviceSelector): ConnectedDevice {
+    val serialNumber = try {
+        this.session.hostServices.getSerialNo(selector)
+    } catch (e: AdbFailResponseException) {
+        throw NoSuchElementException("Device $selector is not currently connected")
+    }
+    return this.device(serialNumber)
+}
+
+/**
+ * Returns a [ConnectedDevice] instance for a given [serialNumber], or throws a
+ * [NoSuchElementException] if the device is not currently connected.
+ */
+fun ConnectedDevicesTracker.device(serialNumber: String): ConnectedDevice {
+    return this.connectedDevices.value.firstOrNull { it.serialNumber == serialNumber }
+        ?: throw NoSuchElementException("Device $serialNumber is not currently connected")
+}
+
+/**
+ * Returns the [CoroutineScopeCache] associated to the connected device with the
+ * given [serialNumber]. If the device is not connected when this method is called,
+ * a "no-op" cache is returned.
+ *
+ * Note: when the device is disconnected, the cache becomes inactive, i.e. it is emptied,
+ * closed and never re-activated, even if a device with the same serial number is
+ * reconnected.
+ */
+fun ConnectedDevicesTracker.deviceCache(serialNumber: String): CoroutineScopeCache {
+    return try {
+        this.device(serialNumber).cache
+    } catch(e: NoSuchElementException) {
+        return InactiveCoroutineScopeCache
+    }
+}
+
+/**
+ * Returns the [CoroutineScopeCache] associated to the connected device with the
+ * given [selector]. If the device is not connected when this method is called,
+ * a "no-op" cache is returned.
+ *
+ * Note: when the device is disconnected, the cache becomes inactive, i.e. it is emptied,
+ * closed and never re-activated, even if a device with the same serial number is
+ * reconnected.
+ */
+suspend fun ConnectedDevicesTracker.deviceCache(selector: DeviceSelector): CoroutineScopeCache {
+    return try {
+        this.device(selector).cache
+    } catch(e: NoSuchElementException) {
+        return InactiveCoroutineScopeCache
+    }
 }

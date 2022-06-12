@@ -16,129 +16,103 @@
 package com.android.adblib.impl
 
 import com.android.adblib.AdbLibSession
-import com.android.adblib.CoroutineScopeCache
+import com.android.adblib.ConnectedDevice
 import com.android.adblib.ConnectedDevicesTracker
-import com.android.adblib.DeviceSelector
+import com.android.adblib.DeviceInfo
 import com.android.adblib.thisLogger
 import com.android.adblib.trackDevices
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import java.util.concurrent.CancellationException
 
-internal class ConnectedDevicesTrackerImpl(private val session: AdbLibSession) : ConnectedDevicesTracker {
+internal class ConnectedDevicesTrackerImpl(override val session: AdbLibSession) :
+    ConnectedDevicesTracker {
 
     private val logger = thisLogger(session)
 
+    private val connectedDevicesStateFlow = MutableStateFlow(emptyList<ConnectedDevice>())
+
+    override val connectedDevices = connectedDevicesStateFlow.asStateFlow()
+
     private val deviceMapLock = Any()
+
     //TODO: Add annotation when/if this library has the corresponding dependency
     //@GuardedBy("deviceMapLock")
-    private val deviceMap = HashMap<String, CoroutineScopeCacheImpl>()
+    private val deviceMap = HashMap<String, ConnectedDeviceImpl>()
 
     private val monitorJob: Job by lazy {
         launchDeviceTracking()
     }
-
-    internal val deviceCount: Int
-        get() {
-            synchronized(deviceMapLock) {
-                return deviceMap.size
-            }
-        }
 
     fun start() {
         // Note: We rely on "lazy" to ensure the tracking coroutine is launched only once
         monitorJob
     }
 
-    override val scope: CoroutineScope
-        get() = session.scope
-
-    override fun deviceCache(serialNumber: String): CoroutineScopeCache {
-        return synchronized(deviceMapLock) {
-            deviceMap[serialNumber] ?: inactiveCoroutineScopeCache
-        }
-    }
-
-    override suspend fun deviceCache(selector: DeviceSelector): CoroutineScopeCache {
-        return kotlin.runCatching {
-            val serialNumber = session.hostServices.getSerialNo(selector)
-            deviceCache(serialNumber)
-        }.getOrDefault(inactiveCoroutineScopeCache)
-    }
-
     private fun launchDeviceTracking(): Job {
-        logger.debug { "Starting device tracking coroutine" }
-        var connectionId: Int? = null
-        return scope.launch {
-            session.trackDevices().collect { trackedDeviceList ->
-                if (connectionId != trackedDeviceList.connectionId) {
-                    // When we have a new connection ID, we clean up everything
-                    connectionId = trackedDeviceList.connectionId
-                    updateCache(emptySet())
-                }
+        return session.scope.launch {
+            logger.debug { "Starting connected devices tracker coroutine" }
+            try {
+                var connectionId: Int? = null
+                session.trackDevices().collect { trackedDeviceList ->
+                    if (connectionId != trackedDeviceList.connectionId) {
+                        // When we have a new connection ID, we clean up everything
+                        connectionId = trackedDeviceList.connectionId
+                        updateCache(emptyMap())
+                    }
 
-                val effectiveDevices =
-                    trackedDeviceList
-                        .devices
-                        .entries
-                        .map { deviceInfo ->
-                            deviceInfo.serialNumber
-                        }.toHashSet()
-                updateCache(effectiveDevices)
+                    updateCache(trackedDeviceList.devices.associateBy { it.serialNumber })
+                }
+            } finally {
+                logger.debug { "Shutting down connected devices tracker coroutine" }
+                connectedDevicesStateFlow.value = emptyList()
             }
         }
     }
 
-    private fun updateCache(activeSerialNumbers: Set<String>) {
-        val toClose = mutableListOf<CoroutineScopeCacheImpl>()
-        synchronized(deviceMapLock) {
-            val cachedSerialNumbers = deviceMap.keys.toHashSet()
+    private fun updateCache(activeDevices: Map<String, DeviceInfo>) {
+        val toClose = mutableListOf<ConnectedDeviceImpl>()
+        val toUpdate = mutableListOf<Pair<ConnectedDeviceImpl, DeviceInfo>>()
+        val connectedDeviceList = synchronized(deviceMapLock) {
+            val activeSerialNumbers = activeDevices.keys
+            val cachedSerialNumbers = deviceMap.keys
             val added = activeSerialNumbers - cachedSerialNumbers
             val removed = cachedSerialNumbers - activeSerialNumbers
+            val updated = cachedSerialNumbers intersect activeSerialNumbers
 
             added.forEach { serial ->
-                logger.debug { "Adding device cache for device $serial" }
-                deviceMap[serial] = CoroutineScopeCacheImpl(scope)
+                logger.debug { "Adding connected device for device $serial" }
+                deviceMap[serial] =
+                    ConnectedDeviceImpl(
+                        session,
+                        CoroutineScopeCacheImpl(session.scope),
+                        activeDevices.getValue(serial)
+                    )
             }
             removed.forEach { serial ->
-                logger.debug { "Removing device cache for device $serial" }
+                logger.debug { "Removing connected device for device $serial" }
                 deviceMap.remove(serial)?.also { toClose.add(it) }
             }
+            updated.forEach { serial ->
+                toUpdate.add(Pair(deviceMap.getValue(serial), activeDevices.getValue(serial)))
+            }
+            deviceMap.values.toList()
         }
         // Close instances outside of lock to prevent potential deadlocks
         toClose.forEach {
-            logger.debug { "Closing device cache for device $it" }
+            logger.debug { "Closing connected device for device $it" }
             it.close()
         }
-    }
-
-    private val inactiveCoroutineScopeCache = object : CoroutineScopeCache {
-        val job: Job = SupervisorJob().also {
-            it.cancel(CancellationException("This device cache is inactive"))
+        // Update instances outside of lock to prevent potential deadlocks
+        toUpdate.forEach { (device, deviceInfo) ->
+            logger.debug { "Updating connected device info flow for device ${deviceInfo.serialNumber}" }
+            device.updateDeviceInfo(deviceInfo)
         }
 
-        override val scope = CoroutineScope(job)
-
-        override fun <T> getOrPut(key: CoroutineScopeCache.Key<T>, defaultValue: () -> T): T {
-            return defaultValue()
-        }
-
-        override suspend fun <T> getOrPutSuspending(
-            key: CoroutineScopeCache.Key<T>,
-            defaultValue: suspend CoroutineScope.() -> T
-        ): T {
-            return scope.defaultValue()
-        }
-
-        override fun <T> getOrPutSuspending(
-            key: CoroutineScopeCache.Key<T>,
-            fastDefaultValue: () -> T,
-            defaultValue: suspend CoroutineScope.() -> T
-        ): T {
-            return fastDefaultValue()
-        }
+        // Final step: Update the flow of connected devices
+        logger.debug { "Updating connected devices flow to ${connectedDeviceList.size} devices" }
+        connectedDevicesStateFlow.value = connectedDeviceList
     }
 }
