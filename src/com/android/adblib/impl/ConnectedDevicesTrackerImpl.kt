@@ -17,7 +17,7 @@ package com.android.adblib.impl
 
 import com.android.adblib.AdbLibSession
 import com.android.adblib.CoroutineScopeCache
-import com.android.adblib.DeviceCacheManager
+import com.android.adblib.ConnectedDevicesTracker
 import com.android.adblib.DeviceSelector
 import com.android.adblib.thisLogger
 import com.android.adblib.trackDevices
@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.concurrent.CancellationException
 
-internal class DeviceCacheManagerImpl(private val session: AdbLibSession) : DeviceCacheManager {
+internal class ConnectedDevicesTrackerImpl(private val session: AdbLibSession) : ConnectedDevicesTracker {
 
     private val logger = thisLogger(session)
 
@@ -108,7 +108,7 @@ internal class DeviceCacheManagerImpl(private val session: AdbLibSession) : Devi
                 deviceMap.remove(serial)?.also { toClose.add(it) }
             }
         }
-        // Close DeviceCache outside of lock to prevent potential deadlocks
+        // Close instances outside of lock to prevent potential deadlocks
         toClose.forEach {
             logger.debug { "Closing device cache for device $it" }
             it.close()

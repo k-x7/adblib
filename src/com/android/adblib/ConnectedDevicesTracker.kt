@@ -22,10 +22,10 @@ import kotlinx.coroutines.CoroutineScope
  * The [CoroutineScopeCache] entries of a given device are cleared when the
  * device is disconnected.
  */
-interface DeviceCacheManager {
+interface ConnectedDevicesTracker {
 
     /**
-     * The scope used to track connected devices. This [DeviceCacheManager] instance
+     * The scope used to track connected devices. This [ConnectedDevicesTracker] instance
      * stops working when this [scope] is cancelled.
      */
     val scope: CoroutineScope

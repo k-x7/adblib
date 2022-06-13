@@ -15,7 +15,7 @@
  */
 package com.android.adblib
 
-import com.android.adblib.impl.DeviceCacheManagerImpl
+import com.android.adblib.impl.ConnectedDevicesTrackerImpl
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
 import com.android.adblib.testingutils.CoroutineTestUtils.yieldUntil
@@ -24,14 +24,13 @@ import com.android.adblib.testingutils.TestingAdbLibHost
 import com.android.fakeadbserver.DeviceState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExpectedException
 import java.time.Duration
 
-class DeviceCacheManagerTest {
+class ConnectedDevicesTrackerTest {
 
     @JvmField
     @Rule
@@ -48,7 +47,7 @@ class DeviceCacheManagerTest {
     data class TestKey(val id: String) : CoroutineScopeCache.Key<Any>("test key $id")
 
     @Test
-    fun test_DeviceCacheManager_DoesNotTrackUntilStarted() = runBlockingWithTimeout {
+    fun constructorDoesNotStartTracking() = runBlockingWithTimeout {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val fakeDevice = fakeAdb.connectDevice(
@@ -63,15 +62,15 @@ class DeviceCacheManagerTest {
         val session = createSession(fakeAdb)
 
         // Act
-        val deviceCacheManager = DeviceCacheManagerImpl(session)
-        delay(100)
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
+        delay(500)
 
         // Assert
         Assert.assertEquals(0, deviceCacheManager.deviceCount)
     }
 
     @Test
-    fun test_DeviceCacheManager_TracksWhenStarted() = runBlockingWithTimeout {
+    fun startWorks() = runBlockingWithTimeout {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val fakeDevice = fakeAdb.connectDevice(
@@ -86,15 +85,17 @@ class DeviceCacheManagerTest {
         val session = createSession(fakeAdb)
 
         // Act
-        val deviceCacheManager = DeviceCacheManagerImpl(session).also { it.start() }
-        delay(100)
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        yieldUntil {
+            deviceCacheManager.deviceCount > 0
+        }
 
         // Assert
         Assert.assertEquals(1, deviceCacheManager.deviceCount)
     }
 
     @Test
-    fun test_DeviceCache_CreatesCache() = runBlockingWithTimeout {
+    fun deviceCacheCreatesCache() = runBlockingWithTimeout {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val fakeDevice = fakeAdb.connectDevice(
@@ -107,7 +108,7 @@ class DeviceCacheManagerTest {
         )
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
         val session = createSession(fakeAdb)
-        val deviceCacheManager = DeviceCacheManagerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
         val key = TestKey("foo")
 
         // Act
@@ -126,11 +127,11 @@ class DeviceCacheManagerTest {
     }
 
     @Test
-    fun test_DeviceCache_ReturnsNoOpCacheForUnknownDevice() = runBlockingWithTimeout {
+    fun deviceCacheReturnsNoOpCacheForUnknownDevice() = runBlockingWithTimeout {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val session = createSession(fakeAdb)
-        val deviceCacheManager = DeviceCacheManagerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
         val key = TestKey("foo")
 
         // Act
@@ -146,7 +147,7 @@ class DeviceCacheManagerTest {
     }
 
     @Test
-    fun test_DeviceCache_ClosesWhenDeviceDisconnected() = runBlockingWithTimeout {
+    fun deviceCacheIsClosedWhenDeviceDisconnected() = runBlockingWithTimeout {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val fakeDevice = fakeAdb.connectDevice(
@@ -159,7 +160,7 @@ class DeviceCacheManagerTest {
         )
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
         val session = createSession(fakeAdb)
-        val deviceCacheManager = DeviceCacheManagerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
         val key = TestKey("foo")
         val closeable = object : AutoCloseable {
             var closed = false

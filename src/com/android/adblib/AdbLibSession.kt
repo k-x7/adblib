@@ -18,7 +18,7 @@ package com.android.adblib
 import com.android.adblib.AdbLibSession.Companion.create
 import com.android.adblib.CoroutineScopeCache.Key
 import com.android.adblib.impl.AdbLibSessionImpl
-import com.android.adblib.impl.DeviceCacheManagerImpl
+import com.android.adblib.impl.ConnectedDevicesTrackerImpl
 import com.android.adblib.impl.DeviceInfoTracker
 import com.android.adblib.impl.SessionDeviceTracker
 import com.android.adblib.impl.TrackerConnecting
@@ -280,30 +280,30 @@ fun AdbLibSession.createDeviceScope(device: DeviceSelector): CoroutineScope {
 }
 
 /**
- * Returns the [DeviceCacheManager] associated to this session
+ * Returns the [ConnectedDevicesTracker] associated to this session
  */
-val AdbLibSession.deviceCacheManager: DeviceCacheManager
+val AdbLibSession.connectedDevicesTracker: ConnectedDevicesTracker
     get() {
-        return this.cache.getOrPut(DeviceCacheManagerKey) {
-            DeviceCacheManagerImpl(this)
+        return this.cache.getOrPut(ConnectedDevicesManagerKey) {
+            ConnectedDevicesTrackerImpl(this)
         }.also {
             // Note: We do this outside of the cache lookup to ensure `start`
             // is called only on the instance stored in the cache.
-            (it as DeviceCacheManagerImpl).start()
+            (it as ConnectedDevicesTrackerImpl).start()
         }
     }
 
 /**
- * The [Key] used to identify the [DeviceCacheManager] in [AdbLibSession.cache].
+ * The [Key] used to identify the [ConnectedDevicesTracker] in [AdbLibSession.cache].
  */
-private object DeviceCacheManagerKey : Key<DeviceCacheManager>("DeviceCacheManager")
+private object ConnectedDevicesManagerKey : Key<ConnectedDevicesTracker>(ConnectedDevicesTracker::class.java.simpleName)
 
 /**
  * Returns a [CoroutineScopeCache] that keeps entries alive until the device corresponding
  * to [serialNumber] is disconnected.
  */
 fun AdbLibSession.deviceCache(serialNumber: String): CoroutineScopeCache {
-    return deviceCacheManager.deviceCache(serialNumber)
+    return connectedDevicesTracker.deviceCache(serialNumber)
 }
 
 /**
@@ -311,5 +311,5 @@ fun AdbLibSession.deviceCache(serialNumber: String): CoroutineScopeCache {
  * to [selector] is disconnected.
  */
 suspend fun AdbLibSession.deviceCache(selector: DeviceSelector): CoroutineScopeCache {
-    return deviceCacheManager.deviceCache(selector)
+    return connectedDevicesTracker.deviceCache(selector)
 }
