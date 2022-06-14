@@ -16,6 +16,7 @@
 package com.android.adblib
 
 import com.android.adblib.testingutils.CloseablesRule
+import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
 import com.android.fakeadbserver.DeviceState
@@ -367,7 +368,7 @@ class AdbLibSessionTest {
 
         // Act
         val deviceInfoList = mutableListOf<DeviceInfo>()
-        runBlocking {
+        runBlockingWithTimeout {
             val channel = Channel<DeviceInfo>(Channel.UNLIMITED)
             val signalTracker = Channel<Unit>()
             val job = launch {
