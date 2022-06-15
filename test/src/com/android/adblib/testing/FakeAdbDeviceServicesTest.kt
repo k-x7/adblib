@@ -36,7 +36,7 @@ import kotlin.test.assertContentEquals
 @Suppress("EXPERIMENTAL_API_USAGE") // runBlocking is experimental
 class FakeAdbDeviceServicesTest {
 
-    private val deviceServices = FakeAdbDeviceServices(FakeAdbLibSession())
+    private val deviceServices = FakeAdbLibSession().deviceServices
     private val deviceSelector = DeviceSelector.fromSerialNumber("device")
 
     @Test

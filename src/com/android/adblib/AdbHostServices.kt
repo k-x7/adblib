@@ -1,5 +1,6 @@
 package com.android.adblib
 
+import com.android.adblib.utils.toImmutableList
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -28,8 +29,13 @@ interface AdbHostServices {
     /**
      * Returns the list of features supported by the ADB server ("host:host-features" query).
      *
-     * Note that these features may not be supported by the ADB daemon running on a device,
-     * use [features] to retrieve the list of features supported by a device.
+     * Note: Not all features supported by the ADB Server may be usable depending on the
+     * list of features supported by a given device (see [AdbHostServices.features]).
+     * Use [AdbHostServices.availableFeatures] to get the list of features supported
+     * by both the ADB server and a given device.
+     *
+     * @see [AdbFeatures]
+     * @see [AdbHostServices.availableFeatures]
      */
     suspend fun hostFeatures(): List<String>
 
@@ -99,8 +105,15 @@ interface AdbHostServices {
 
     /**
      * Returns the list of features of the [device] ("<device-prefix>:features" query).
-     *
      * See [AdbFeatures] for a (subset of the) list of possible features.
+     *
+     * Note: Not all features supported by a device may be usable depending on the list
+     * of features supported by ADB server (see [AdbHostServices.hostFeatures]).
+     * Use [AdbHostServices.availableFeatures] to get the list of features supported
+     * by both the device and the ADB server.
+     *
+     * @see [AdbFeatures]
+     * @see [AdbHostServices.availableFeatures]
      */
     suspend fun features(device: DeviceSelector): List<String>
 
@@ -147,3 +160,19 @@ interface AdbHostServices {
      */
     suspend fun killForwardAll(device: DeviceSelector)
 }
+
+/**
+ * Returns the list of features supported by both the [device] and the ADB server.
+ *
+ * See [AdbFeatures] for a (subset of the) list of possible features.
+ */
+suspend fun AdbHostServices.availableFeatures(device: DeviceSelector): List<String> {
+    return this.session.deviceCache(device).getOrPutSuspending(availableFeaturesKey) {
+        // We must return only the set of features common to both the host and the device.
+        val deviceFeaturesSet = features(device).toSet()
+        val hostFeaturesSet = hostFeatures().toSet()
+        hostFeaturesSet.intersect(deviceFeaturesSet).toImmutableList()
+    }
+}
+
+private val availableFeaturesKey = CoroutineScopeCache.Key<List<String>>("availableFeaturesKey")

@@ -1,14 +1,13 @@
 package com.android.adblib
 
 import com.android.adblib.impl.DevicePropertiesImpl
-import com.android.adblib.impl.ShellWithIdleMonitoring
+import com.android.adblib.impl.ShellCommandImpl
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.LineShellCollector
 import com.android.adblib.utils.LineShellV2Collector
-import com.android.adblib.utils.TextShellCollector
 import com.android.adblib.utils.TextShellV2Collector
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
@@ -85,7 +84,13 @@ interface AdbDeviceServices {
      * the command to the [Flow].
      *
      * See [shell] for a more detailed description. The main difference with [shell] is this
-     * service only captures `stdout` and ignores `stderr`.
+     * service only captures `stdout` and ignores `stderr`, in addition to allowing binary
+     * data transfer without mangling data.
+     *
+     * This service has been available since API 21, but is **not** reported as an [AdbFeatures]
+     * from [AdbHostServices.features].
+     *
+     * See [git commit](https://android.googlesource.com/platform/system/core/+/5d9d434efadf1c535c7fea634d5306e18c68ef1f)
      *
      * __Note__: When collecting the command output, there is no way to access the contents
      * of `stderr`. There is also no way to know the `exit code` of the shell command.
@@ -335,6 +340,29 @@ typealias ProcessIdList = ListWithErrors<Int>
 fun emptyProcessIdList(): ProcessIdList = emptyListWithErrors()
 
 /**
+ * Creates a [ShellCommand] to [execute][ShellCommand.execute] a shell [command] on a
+ * given [device], taking advantage of features available only on more recent devices
+ * (e.g. [AdbDeviceServices.shellV2]), in addition to other customization such as
+ * applying an [ShellV2Collector] and configuring timeouts.
+ *
+ * The returned [ShellCommand] only becomes fully typed when [ShellCommand.withCollector]
+ * is invoked.
+ *
+ * Example:
+ * ```
+ *     val stdout: String = shellCommand(device, "ls -l")
+ *         .withCollector(TextShellV2Collector())
+ *         .withCommandTimeout(Duration.ofSeconds(5))
+ *         .execute()
+ *         .first()
+ *         .stdout
+ * ```
+ */
+fun AdbDeviceServices.shellCommand(device: DeviceSelector, command: String): ShellCommand<*> {
+    return ShellCommandImpl<Any>(this.session, device, command)
+}
+
+/**
  * Similar to [AdbDeviceServices.shell] but captures the command output as a single
  * string, decoded using the [AdbProtocolUtils.ADB_CHARSET]&nbsp;[Charset] character set.
  *
@@ -348,8 +376,16 @@ suspend fun AdbDeviceServices.shellAsText(
     commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): String {
-    val collector = TextShellCollector()
-    return shell(device, command, collector, stdinChannel, commandTimeout, bufferSize).first()
+    return shellCommand(device, command)
+        .withTextCollector()
+        .allowShellV2(false) //TODO: Remove during API cleanup
+        .allowLegacyExec(false) //TODO: Remove during API cleanup
+        .withStdin(stdinChannel)
+        .withCommandTimeout(commandTimeout)
+        .withBufferSize(bufferSize)
+        .execute()
+        .first()
+        .stdout
 }
 
 /**
@@ -370,8 +406,21 @@ fun AdbDeviceServices.shellAsLines(
     commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): Flow<String> {
-    val collector = LineShellCollector()
-    return shell(device, command, collector, stdinChannel, commandTimeout, bufferSize)
+    return shellCommand(device, command)
+        .withLineCollector()
+        .allowShellV2(false) //TODO: Remove during API cleanup
+        .allowLegacyExec(false) //TODO: Remove during API cleanup
+        .withStdin(stdinChannel)
+        .withCommandTimeout(commandTimeout)
+        .withBufferSize(bufferSize)
+        .execute()
+        .mapNotNull {
+            if (it is ShellCommandOutputElement.StdoutLine) {
+                it.contents
+            } else {
+                null
+            }
+        }
 }
 
 /**
@@ -388,16 +437,13 @@ fun <T> AdbDeviceServices.shellWithIdleMonitoring(
     commandOutputTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): Flow<T> {
-    return ShellWithIdleMonitoring(
-        this,
-        device,
-        command,
-        stdoutCollector,
-        stdinChannel,
-        commandTimeout,
-        commandOutputTimeout,
-        bufferSize
-    ).flow()
+    return shellCommand(device, command)
+        .withLegacyCollector(stdoutCollector)
+        .withStdin(stdinChannel)
+        .withCommandTimeout(commandTimeout)
+        .withCommandOutputTimeout(commandOutputTimeout)
+        .withBufferSize(bufferSize)
+        .execute()
 }
 
 /**
@@ -415,8 +461,12 @@ suspend fun AdbDeviceServices.shellV2AsText(
     commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): ShellCommandOutput {
-    val collector = TextShellV2Collector()
-    return this.shellV2(device, command, collector, stdinChannel, commandTimeout, bufferSize)
+    return shellCommand(device, command)
+        .withTextCollector()
+        .withStdin(stdinChannel)
+        .withCommandTimeout(commandTimeout)
+        .withBufferSize(bufferSize)
+        .execute()
         .first()
 }
 
@@ -452,8 +502,12 @@ fun AdbDeviceServices.shellV2AsLines(
     commandTimeout: Duration = INFINITE_DURATION,
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): Flow<ShellCommandOutputElement> {
-    val collector = LineShellV2Collector()
-    return this.shellV2(device, command, collector, stdinChannel, commandTimeout, bufferSize)
+    return shellCommand(device, command)
+        .withLineCollector()
+        .withStdin(stdinChannel)
+        .withCommandTimeout(commandTimeout)
+        .withBufferSize(bufferSize)
+        .execute()
 }
 
 /**

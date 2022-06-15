@@ -19,7 +19,14 @@ import kotlinx.coroutines.flow.FlowCollector
 import java.nio.ByteBuffer
 
 /**
- * A collector of output from the shell command execution on a device, see [AdbDeviceServices.shell]
+ * A [ShellCollector] is responsible for mapping raw binary output of a shell command,
+ * provided as [ByteBuffer] instances, and emit mapped value to a [FlowCollector] of
+ * type [T].
+ *
+ * @see [AdbDeviceServices.shellCommand]
+ * @see [AdbDeviceServices.shell]
+ * @see [AdbDeviceServices.exec]
+ * @see [AdbDeviceServices.abb_exec]
  */
 interface ShellCollector<T> {
 

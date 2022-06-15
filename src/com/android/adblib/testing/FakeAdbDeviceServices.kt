@@ -120,7 +120,7 @@ class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServ
         bufferSize: Int,
         shutdownOutput : Boolean
     ): Flow<T> {
-        TODO("Not yet implemented")
+        return shell(device, command, shellCollector, stdinChannel, commandTimeout, bufferSize, shutdownOutput)
     }
 
     override fun <T> shellV2(

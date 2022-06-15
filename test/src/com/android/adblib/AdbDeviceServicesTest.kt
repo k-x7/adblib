@@ -835,6 +835,149 @@ class AdbDeviceServicesTest {
         Assert.assertEquals(10, collectedExitCode)
     }
 
+    @Test
+    fun testShellCommandUsesLegacyExecIfSupported() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        // "exec" is supported starting API 21
+        val fakeDevice = addFakeDevice(fakeAdb, 21)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        var effectiveProtocol = ShellCommand.Protocol.SHELL_V2
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "getprop")
+                .withTextCollector()
+                .withCommandOverride { command, protocol ->
+                    effectiveProtocol = protocol
+                    command
+                }.execute().collect()
+        }
+
+        // Assert
+        Assert.assertEquals(ShellCommand.Protocol.EXEC, effectiveProtocol)
+    }
+
+    @Test
+    fun testShellCommandUsesLegacyShellIfSupported() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        // Below API 21, only "shell" is supported
+        val fakeDevice = addFakeDevice(fakeAdb, 19)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        var effectiveProtocol = ShellCommand.Protocol.SHELL_V2
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "getprop")
+                .withTextCollector()
+                .withCommandOverride { command, protocol ->
+                    effectiveProtocol = protocol
+                    command
+                }.execute()
+                .collect()
+        }
+
+        // Assert
+        Assert.assertEquals(ShellCommand.Protocol.SHELL, effectiveProtocol)
+    }
+
+    @Test
+    fun testShellCommandWithCommandOutputTimeoutUsesLegacyExecIfSupported() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        // "exec" is supported starting API 21
+        val fakeDevice = addFakeDevice(fakeAdb, 21)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        var effectiveProtocol = ShellCommand.Protocol.SHELL_V2
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "getprop")
+                .withTextCollector()
+                .withCommandOutputTimeout(Duration.ofSeconds(2))
+                .withCommandOverride { command, protocol ->
+                    effectiveProtocol = protocol
+                    command
+                }.execute().collect()
+        }
+
+        // Assert
+        Assert.assertEquals(ShellCommand.Protocol.EXEC, effectiveProtocol)
+    }
+
+    @Test
+    fun testShellCommandWithCommandOutputTimeoutUsesLegacyShellIfSupported() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        // Below API 21, only "shell" is supported
+        val fakeDevice = addFakeDevice(fakeAdb, 19)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        var effectiveProtocol = ShellCommand.Protocol.SHELL_V2
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "getprop")
+                .withTextCollector()
+                .withCommandOutputTimeout(Duration.ofSeconds(2))
+                .withCommandOverride { command, protocol ->
+                    effectiveProtocol = protocol
+                    command
+                }.execute()
+                .collect()
+        }
+
+        // Assert
+        Assert.assertEquals(ShellCommand.Protocol.SHELL, effectiveProtocol)
+    }
+
+    @Test
+    fun testShellCommandThrowsIfNoCollectorSet() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        // Below API 21, only "shell" is supported
+        val fakeDevice = addFakeDevice(fakeAdb, 19)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        exceptionRule.expect(IllegalArgumentException::class.java)
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "getprop")
+                .execute()
+                .collect()
+        }
+
+        // Assert
+        Assert.fail("Should not be reached")
+    }
+
+    @Test
+    fun testShellCommandThrowsIfLegacyShellProtocolNotAllowedOnOldDevice() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        // Below API 21, only "shell" is supported
+        val fakeDevice = addFakeDevice(fakeAdb, 19)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        exceptionRule.expect(IllegalArgumentException::class.java)
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "getprop")
+                .allowLegacyShell(false)
+                .execute()
+                .collect()
+        }
+
+        // Assert
+        Assert.fail("Should not be reached")
+    }
+
     // Checks public contract of the ShellCommandOutputElement.*.toString methods.
     @Test
     fun testShellCommandOutputElement() {
@@ -1862,14 +2005,14 @@ class AdbDeviceServicesTest {
         return session.deviceServices
     }
 
-    private fun addFakeDevice(fakeAdb: FakeAdbServerProvider): DeviceState {
+    private fun addFakeDevice(fakeAdb: FakeAdbServerProvider, sdk: Int = 30): DeviceState {
         val fakeDevice =
             fakeAdb.connectDevice(
                 "1234",
                 "test1",
                 "test2",
                 "model",
-                "30",
+                "$sdk",
                 DeviceState.HostConnectionType.USB
             )
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE

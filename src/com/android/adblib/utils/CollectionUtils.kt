@@ -33,3 +33,20 @@ fun <K, V> Map<K, V>.toImmutableMap(): Map<K, V> {
 }
 
 private class ImmutableMap<K, V>(val map: Map<K, V>) : Map<K, V> by map
+
+/**
+ * Returns a [List] that can't be modified from both Kotlin and Java consumers,
+ * even through casting to mutable interfaces or calling mutating methods.
+ *
+ * Note: It is harmless to call this multiple times, i.e.
+ * `toImmutableList(toImmutableList(list)) == toImmutableList(list)`
+ */
+fun <T> Iterable<T>.toImmutableList(): List<T> {
+    return when (this) {
+        is ImmutableList -> this
+        is List -> ImmutableList(this)
+        else -> ImmutableList(this.toList())
+    }
+}
+
+private class ImmutableList<T>(val list: List<T>) : List<T> by list
