@@ -49,6 +49,11 @@ class FakeAdbServerProvider : AutoCloseable {
     val socketAddress: InetSocketAddress
         get() = InetSocketAddress(inetAddress, port)
 
+    private var _lastChannelProvider: TestingChannelProvider? = null
+
+    val channelProvider: TestingChannelProvider
+        get() = _lastChannelProvider ?: throw IllegalStateException("Channel provider not initialized")
+
     private val builder = FakeAdbServer.Builder()
     private var server: FakeAdbServer? = null
 
@@ -125,7 +130,9 @@ class FakeAdbServerProvider : AutoCloseable {
     }
 
     fun createChannelProvider(host: AdbLibHost): TestingChannelProvider {
-        return TestingChannelProvider(host, portSupplier = { port })
+        return TestingChannelProvider(host, portSupplier = { port }).also {
+            _lastChannelProvider = it
+        }
     }
 
     override fun close() {

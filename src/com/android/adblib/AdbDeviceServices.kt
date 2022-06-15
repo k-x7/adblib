@@ -1,5 +1,6 @@
 package com.android.adblib
 
+import com.android.adblib.impl.DevicePropertiesImpl
 import com.android.adblib.impl.ShellWithIdleMonitoring
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.LineShellCollector
@@ -606,3 +607,40 @@ suspend fun AdbDeviceServices.syncRecv(
         destination.close()
     }
 }
+
+/**
+ * Returns a [DeviceProperties] instance for the given device. [DeviceProperties]
+ * gives access to device properties returned by the `getprop` shell command.
+ */
+suspend fun AdbDeviceServices.deviceProperties(device: DeviceSelector): DeviceProperties {
+    val cache = session.deviceCache(device)
+    return cache.getOrPut(DevicePropertiesKey) {
+        DevicePropertiesImpl(this, cache, device)
+    }
+}
+
+private val DevicePropertiesKey = CoroutineScopeCache.Key<DeviceProperties>("DeviceProperties")
+
+interface DeviceProperties {
+
+    /**
+     * Returns a [List] of [DeviceProperty] entries representing the result of executing
+     * the `"getprop"` shell command on the device.
+     */
+    suspend fun all(): List<DeviceProperty>
+
+    /**
+     * Returns a subset of [all] of properties that start with `"ro."`. Since these properties
+     * don't change until a device is restarted, the returned [Map] is cached as long as the
+     * device is online.
+     */
+    suspend fun allReadonly(): Map<String, String>
+
+    /**
+     * Return the API level (as an [Int]) of the device, or [default] if an error
+     * occurs.
+     */
+    suspend fun api(default: Int = 1): Int
+}
+
+data class DeviceProperty(val name: String, val value: String)

@@ -52,8 +52,6 @@ class AdbLibSessionTest {
     @Rule
     var exceptionRule: ExpectedException = ExpectedException.none()
 
-    private lateinit var channelProvider: FakeAdbServerProvider.TestingChannelProvider
-
     private fun <T : AutoCloseable> registerCloseable(item: T): T {
         return closeables.register(item)
     }
@@ -275,7 +273,7 @@ class AdbLibSessionTest {
         }
 
         // Assert
-        Assert.assertEquals(1, channelProvider.createdChannels.size)
+        Assert.assertEquals(1, fakeAdb.channelProvider.createdChannels.size)
     }
 
     @Test
@@ -346,7 +344,7 @@ class AdbLibSessionTest {
         }
 
         // Assert
-        Assert.assertEquals(1, channelProvider.createdChannels.size)
+        Assert.assertEquals(1, fakeAdb.channelProvider.createdChannels.size)
         Assert.assertEquals(5, exceptions.size)
     }
 
@@ -629,7 +627,7 @@ class AdbLibSessionTest {
 
     private fun createHostServices(fakeAdb: FakeAdbServerProvider): AdbHostServices {
         val host = registerCloseable(TestingAdbLibHost())
-        channelProvider = fakeAdb.createChannelProvider(host)
+        val channelProvider = fakeAdb.createChannelProvider(host)
         val session = registerCloseable(createSession(host, channelProvider))
         return session.hostServices
     }

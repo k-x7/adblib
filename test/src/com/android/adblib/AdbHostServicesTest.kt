@@ -55,8 +55,6 @@ class AdbHostServicesTest {
     @Rule
     var exceptionRule: ExpectedException = ExpectedException.none()
 
-    private lateinit var channelProvider: FakeAdbServerProvider.TestingChannelProvider
-
     private fun <T : AutoCloseable> registerCloseable(item: T): T {
         return closeables.register(item)
     }
@@ -223,8 +221,8 @@ class AdbHostServicesTest {
         }
 
         // Check SocketChannel has been closed
-        Assert.assertNotNull(channelProvider.lastCreatedChannel)
-        Assert.assertFalse(channelProvider.lastCreatedChannel!!.isOpen)
+        Assert.assertNotNull(fakeAdb.channelProvider.lastCreatedChannel)
+        Assert.assertFalse(fakeAdb.channelProvider.lastCreatedChannel!!.isOpen)
     }
 
     @Test
@@ -262,8 +260,8 @@ class AdbHostServicesTest {
         Assert.assertTrue(exception is IllegalStateException)
 
         // Check SocketChannel has been closed
-        Assert.assertNotNull(channelProvider.lastCreatedChannel)
-        Assert.assertFalse(channelProvider.lastCreatedChannel!!.isOpen)
+        Assert.assertNotNull(fakeAdb.channelProvider.lastCreatedChannel)
+        Assert.assertFalse(fakeAdb.channelProvider.lastCreatedChannel!!.isOpen)
     }
 
     @Test
@@ -696,7 +694,7 @@ class AdbHostServicesTest {
 
     private fun createHostServices(fakeAdb: FakeAdbServerProvider): AdbHostServices {
         val host = registerCloseable(TestingAdbLibHost())
-        channelProvider = fakeAdb.createChannelProvider(host)
+        val channelProvider = fakeAdb.createChannelProvider(host)
         val session = registerCloseable(createSession(host, channelProvider))
         return session.hostServices
     }
