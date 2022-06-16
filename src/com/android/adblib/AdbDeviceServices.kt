@@ -3,11 +3,9 @@ package com.android.adblib
 import com.android.adblib.impl.DevicePropertiesImpl
 import com.android.adblib.impl.ShellCommandImpl
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.LineShellV2Collector
-import com.android.adblib.utils.TextShellV2Collector
+import com.android.adblib.utils.LineBatchShellV2Collector
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.mapNotNull
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
@@ -363,98 +361,24 @@ fun AdbDeviceServices.shellCommand(device: DeviceSelector, command: String): She
 }
 
 /**
- * Similar to [AdbDeviceServices.shell] but captures the command output as a single
- * string, decoded using the [AdbProtocolUtils.ADB_CHARSET]&nbsp;[Charset] character set.
+ * Use [shellCommand] to capture the command output as a single [ShellCommandOutput] instance.
+ * Both [ShellCommandOutput.stdout] and [ShellCommandOutput.stderr] are decoded using
+ * the [AdbProtocolUtils.ADB_CHARSET]&nbsp;[Charset] character set.
+ *
+ * Depending on the capabilities of the target device, either [AdbDeviceServices.shellV2],
+ * [AdbDeviceServices.exec] or [AdbDeviceServices.shell] is invoked.
+ *
+ * [ShellCommandOutput.stderr] and [ShellCommandOutput.exitCode] are initialized
+ * only if [AdbDeviceServices.shellV2] is used.
  *
  * Note: This method should be used only for commands that output a relatively small
  * amount of text.
+ *
+ * @see shellCommand
+ * @see shellAsLines
+ * @see shellAsLineBatches
  */
 suspend fun AdbDeviceServices.shellAsText(
-    device: DeviceSelector,
-    command: String,
-    stdinChannel: AdbInputChannel? = null,
-    commandTimeout: Duration = INFINITE_DURATION,
-    bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
-): String {
-    return shellCommand(device, command)
-        .withTextCollector()
-        .allowShellV2(false) //TODO: Remove during API cleanup
-        .allowLegacyExec(false) //TODO: Remove during API cleanup
-        .withStdin(stdinChannel)
-        .withCommandTimeout(commandTimeout)
-        .withBufferSize(bufferSize)
-        .execute()
-        .first()
-        .stdout
-}
-
-/**
- * Similar to [AdbDeviceServices.shell] but captures the command output as a [Flow]
- * of [String], with one string for each line of the output.
- *
- * Lines are decoded using the [AdbProtocolUtils.ADB_CHARSET]&nbsp;[Charset], and line
- * terminators are detected using the [AdbProtocolUtils.ADB_NEW_LINE] character.
- *
- * Note: Each line is emitted to the flow as soon as it is received, so this method
- *       can be used to "stream" the output of a shell command without waiting for the
- *       command to terminate.
- */
-fun AdbDeviceServices.shellAsLines(
-    device: DeviceSelector,
-    command: String,
-    stdinChannel: AdbInputChannel? = null,
-    commandTimeout: Duration = INFINITE_DURATION,
-    bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
-): Flow<String> {
-    return shellCommand(device, command)
-        .withLineCollector()
-        .allowShellV2(false) //TODO: Remove during API cleanup
-        .allowLegacyExec(false) //TODO: Remove during API cleanup
-        .withStdin(stdinChannel)
-        .withCommandTimeout(commandTimeout)
-        .withBufferSize(bufferSize)
-        .execute()
-        .mapNotNull {
-            if (it is ShellCommandOutputElement.StdoutLine) {
-                it.contents
-            } else {
-                null
-            }
-        }
-}
-
-/**
- * Same as [AdbDeviceServices.shell] except that a [TimeoutException] is thrown
- * when the command does not generate any output for the [Duration] specified in
- * [commandOutputTimeout].
- */
-fun <T> AdbDeviceServices.shellWithIdleMonitoring(
-    device: DeviceSelector,
-    command: String,
-    stdoutCollector: ShellCollector<T>,
-    stdinChannel: AdbInputChannel? = null,
-    commandTimeout: Duration = INFINITE_DURATION,
-    commandOutputTimeout: Duration = INFINITE_DURATION,
-    bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
-): Flow<T> {
-    return shellCommand(device, command)
-        .withLegacyCollector(stdoutCollector)
-        .withStdin(stdinChannel)
-        .withCommandTimeout(commandTimeout)
-        .withCommandOutputTimeout(commandOutputTimeout)
-        .withBufferSize(bufferSize)
-        .execute()
-}
-
-/**
- * Similar to [AdbDeviceServices.shellV2] but captures the command output as a single
- * [ShellCommandOutput] instance. Both [ShellCommandOutput.stdout] and [ShellCommandOutput.stderr]
- * are decoded using the [AdbProtocolUtils.ADB_CHARSET]&nbsp;[Charset] character set.
- *
- * Note: This method should be used only for commands that output a relatively small
- * amount of text.
- */
-suspend fun AdbDeviceServices.shellV2AsText(
     device: DeviceSelector,
     command: String,
     stdinChannel: AdbInputChannel? = null,
@@ -471,31 +395,40 @@ suspend fun AdbDeviceServices.shellV2AsText(
 }
 
 /**
- * The result of [AdbDeviceServices.shellV2AsText]
+ * The result of [AdbDeviceServices.shellAsText]
  */
 class ShellCommandOutput(
     /**
-     * The shell command output captured as a single string
+     * The shell command output ("stdout") captured as a single string.
      */
     val stdout: String,
     /**
-     * The shell command error output captured as a single string
+     * The shell command error output ("stderr") captured as a single string, only set if
+     * [ShellCommand.Protocol] is [ShellCommand.Protocol.SHELL_V2].
+     *
+     * @see ShellCommand.Protocol
      */
     val stderr: String,
     /**
-     * The shell command exit code
+     * The shell command exit code, only set if [ShellCommand.Protocol] is
+     * [ShellCommand.Protocol.SHELL_V2].
      */
     val exitCode: Int
 )
 
 /**
- * Similar to [AdbDeviceServices.shellV2] but captures the command output as a [Flow] of
- * [ShellCommandOutputElement] objects, which represents the command output (both `stdout`
- * and `stderr`) split across new line boundaries. The last element of the [Flow] is
- * always a [ShellCommandOutputElement.ExitCode] element, representing the exit code
- * of the shell command.
+ * Use [shellCommand] to capture the command output as a [Flow] of [ShellCommandOutputElement],
+ * typically one entry per line of `stdout` or `stderr`.
+ *
+ * The last element of the [Flow] is always a [ShellCommandOutputElement.ExitCode] element,
+ * representing the exit code of the shell command.
+ *
+ * Depending on the capabilities of the target device, either [AdbDeviceServices.shellV2],
+ * [AdbDeviceServices.exec] or [AdbDeviceServices.shell].
+ *
+ * @see [shellCommand]
  */
-fun AdbDeviceServices.shellV2AsLines(
+fun AdbDeviceServices.shellAsLines(
     device: DeviceSelector,
     command: String,
     stdinChannel: AdbInputChannel? = null,
@@ -511,7 +444,7 @@ fun AdbDeviceServices.shellV2AsLines(
 }
 
 /**
- * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellV2AsLines].
+ * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellAsLines].
  */
 sealed class ShellCommandOutputElement {
 
@@ -535,7 +468,7 @@ sealed class ShellCommandOutputElement {
 
     /**
      * The exit code of the shell command. This is always the last entry of the [Flow] returned by
-     * [AdbDeviceServices.shellV2AsLines].
+     * [AdbDeviceServices.shellAsLines].
      */
     class ExitCode(val exitCode: Int) : ShellCommandOutputElement() {
 
@@ -545,7 +478,37 @@ sealed class ShellCommandOutputElement {
 }
 
 /**
- * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellV2AsLineBatches].
+ * Use [shellCommand] to capture the command output as a [Flow] of
+ * [BatchShellCommandOutputElement], which allows decoding `stdout` and `stderr`
+ * as [Lists][List] of [Strings][String] decoded a binary data packets are
+ * received. The size of each batch depends on the rate of output of the
+ * shell command on the device and [bufferSize].
+ *
+ * The last element of the [Flow] is always a [BatchShellCommandOutputElement.ExitCode] element,
+ * representing the exit code of the shell command.
+ *
+ * Depending on the capabilities of the target device, either [AdbDeviceServices.shellV2],
+ * [AdbDeviceServices.exec] or [AdbDeviceServices.shell].
+ *
+ * @see [shellCommand]
+ */
+fun AdbDeviceServices.shellAsLineBatches(
+    device: DeviceSelector,
+    command: String,
+    stdinChannel: AdbInputChannel? = null,
+    commandTimeout: Duration = INFINITE_DURATION,
+    bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
+): Flow<BatchShellCommandOutputElement> {
+    return shellCommand(device, command)
+        .withLineBatchCollector()
+        .withStdin(stdinChannel)
+        .withCommandTimeout(commandTimeout)
+        .withBufferSize(bufferSize)
+        .execute()
+}
+
+/**
+ * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellAsLineBatches].
  */
 sealed class BatchShellCommandOutputElement {
 
@@ -561,7 +524,7 @@ sealed class BatchShellCommandOutputElement {
 
     /**
      * The exit code of the shell command. This is always the last entry of the [Flow] returned by
-     * [AdbDeviceServices.shellV2AsLineBatches].
+     * [AdbDeviceServices.shellAsLineBatches].
      */
     class ExitCode(val exitCode: Int) : BatchShellCommandOutputElement() {
 

@@ -40,7 +40,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
@@ -58,7 +60,6 @@ import java.nio.file.attribute.PosixFilePermission.OWNER_WRITE
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import kotlin.test.assertEquals
 
 class AdbDeviceServicesTest {
 
@@ -122,14 +123,15 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
-            [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
             [ro.build.version.sdk]: [30]
 
         """.trimIndent()
-        Assert.assertEquals(expectedOutput, commandOutput)
+        Assert.assertEquals(expectedOutput, commandOutput.stdout)
+        Assert.assertEquals("", commandOutput.stderr)
+        Assert.assertEquals(0, commandOutput.exitCode)
     }
 
     @Test
@@ -142,7 +144,10 @@ class AdbDeviceServicesTest {
 
         // Act
         val lines = runBlocking {
-            deviceServices.shellAsLines(deviceSelector, "getprop", bufferSize = 10).toList()
+            deviceServices.shellAsLines(deviceSelector, "getprop", bufferSize = 10)
+                .filterIsInstance<ShellCommandOutputElement.StdoutLine>()
+                .map { it.contents }
+                .toList()
         }
 
         // Assert
@@ -150,7 +155,6 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
-            [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
@@ -170,7 +174,8 @@ class AdbDeviceServicesTest {
 
         // Act
         val commandOutput = runBlocking {
-            deviceServices.shellAsText(deviceSelector, "cmd package install-create")
+            deviceServices.shell(deviceSelector, "cmd package install-create", TextShellCollector())
+                .first()
         }
 
         // Assert
@@ -230,7 +235,9 @@ class AdbDeviceServicesTest {
         }
 
         // Assert
-        Assert.assertEquals(input, commandOutput)
+        Assert.assertEquals(input, commandOutput.stdout)
+        Assert.assertEquals("", commandOutput.stderr)
+        Assert.assertEquals(0, commandOutput.exitCode)
     }
 
     @Test
@@ -297,7 +304,9 @@ class AdbDeviceServicesTest {
         }
 
         // Assert
-        Assert.assertEquals(input, commandOutput)
+        Assert.assertEquals(input, commandOutput.stdout)
+        Assert.assertEquals("", commandOutput.stderr)
+        Assert.assertEquals(0, commandOutput.exitCode)
     }
 
     @Test
@@ -312,8 +321,8 @@ class AdbDeviceServicesTest {
             override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 if (firstCall) {
                     firstCall = false
-                    buffer.put('a'.toByte())
-                    buffer.put('a'.toByte())
+                    buffer.put('a'.code.toByte())
+                    buffer.put('a'.code.toByte())
                     return 2
                 } else {
                     throw MyTestException("hello")
@@ -328,7 +337,12 @@ class AdbDeviceServicesTest {
         // Act
         exceptionRule.expect(MyTestException::class.java)
         /*val ignored = */runBlocking {
-            deviceServices.shellAsText(deviceSelector, "cat", stdinChannel = errorInputChannel)
+            deviceServices.shell(
+                deviceSelector,
+                "cat",
+                TextShellCollector(),
+                stdinChannel = errorInputChannel
+            ).first()
         }
 
         // Assert
@@ -347,8 +361,8 @@ class AdbDeviceServicesTest {
             override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 if (firstCall) {
                     firstCall = false
-                    buffer.put('a'.toByte())
-                    buffer.put('a'.toByte())
+                    buffer.put('a'.code.toByte())
+                    buffer.put('a'.code.toByte())
                     return 2
                 } else {
                     // We force a cancellation after the first call
@@ -364,7 +378,12 @@ class AdbDeviceServicesTest {
         // Act
         exceptionRule.expect(CancellationException::class.java)
         /*val ignored = */runBlocking {
-            deviceServices.shellAsText(deviceSelector, "cat", stdinChannel = errorInputChannel)
+            deviceServices.shell(
+                deviceSelector,
+                "cat",
+                TextShellCollector(),
+                stdinChannel = errorInputChannel
+            ).first()
         }
 
         // Assert
@@ -393,7 +412,7 @@ class AdbDeviceServicesTest {
         // Channel used to coordinate our custom AdbInputChannel and consuming the flow
         val inputOutputCoordinator = Channel<String>(1)
 
-        // AdbInputChannel implementation that simulates a input of 10 lines
+        // AdbInputChannel implementation that simulates an input of 10 lines
         val testInputChannel = object : AdbInputChannel {
             val lineCount = 10
             var currentLineIndex = 0
@@ -419,7 +438,7 @@ class AdbDeviceServicesTest {
         }
 
         // Act
-        val flow = deviceServices.shellAsLines(deviceSelector, "cat", testInputChannel)
+        val flow = deviceServices.shell(deviceSelector, "cat", LineShellCollector(), testInputChannel)
 
         // Assert
         Assert.assertEquals(
@@ -470,7 +489,7 @@ class AdbDeviceServicesTest {
                 return if (firstCall) {
                     firstCall = false
                     delay(10)
-                    buffer.put('a'.toByte())
+                    buffer.put('a'.code.toByte())
                     1
                 } else {
                     // Delay second call, so that the "cat" command does not receive
@@ -488,14 +507,12 @@ class AdbDeviceServicesTest {
         // Act
         exceptionRule.expect(TimeoutException::class.java)
         /*val ignored = */runBlocking {
-            deviceServices.shellWithIdleMonitoring(
-                deviceSelector,
-                "cat",
-                LineShellCollector(),
-                slowInputChannel,
-                commandTimeout = INFINITE_DURATION,
-                commandOutputTimeout = Duration.ofMillis(100)
-            ).first()
+            deviceServices.shellCommand(deviceSelector, "cat")
+                .withLegacyCollector(LineShellCollector())
+                .withStdin(slowInputChannel)
+                .withCommandOutputTimeout(Duration.ofMillis(100))
+                .execute()
+                .first()
         }
 
         // Assert
@@ -516,8 +533,8 @@ class AdbDeviceServicesTest {
                 // than the inactivity timeout of 100 msec we use for the test
                 return if (callCount < 20) {
                     delay(10)
-                    buffer.put(('a'.toByte() + callCount.toByte()).toByte())
-                    buffer.put('\n'.toByte())
+                    buffer.put(('a'.code.toByte() + callCount.toByte()).toByte())
+                    buffer.put('\n'.code.toByte())
                     callCount++
                     2
                 } else {
@@ -532,14 +549,13 @@ class AdbDeviceServicesTest {
 
         // Act
         val text = runBlocking {
-            deviceServices.shellWithIdleMonitoring(
-                deviceSelector,
-                "cat",
-                TextShellCollector(),
-                slowInputChannel,
+            deviceServices.shellCommand(deviceSelector, "cat")
+                .withLegacyCollector(TextShellCollector())
+                .withStdin(slowInputChannel)
                 // We have an "inactivity" timeout of 100 msec, but each read takes only 10 msec
-                commandOutputTimeout = Duration.ofMillis(100)
-            ).first()
+                .withCommandOutputTimeout(Duration.ofMillis(100))
+                .execute()
+                .first()
         }
 
         // Assert
@@ -676,8 +692,8 @@ class AdbDeviceServicesTest {
             override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 if (firstCall) {
                     firstCall = false
-                    buffer.put('a'.toByte())
-                    buffer.put('a'.toByte())
+                    buffer.put('a'.code.toByte())
+                    buffer.put('a'.code.toByte())
                     return 2
                 } else {
                     throw MyTestException("hello")
@@ -692,7 +708,12 @@ class AdbDeviceServicesTest {
         // Act
         exceptionRule.expect(MyTestException::class.java)
         /*val ignored = */runBlocking {
-            deviceServices.shellV2AsText(deviceSelector, "cat", stdinChannel = errorInputChannel)
+            deviceServices.shellV2(
+                deviceSelector,
+                "cat",
+                TextShellV2Collector(),
+                stdinChannel = errorInputChannel
+            ).first()
         }
 
         // Assert
@@ -711,8 +732,8 @@ class AdbDeviceServicesTest {
             override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
                 if (firstCall) {
                     firstCall = false
-                    buffer.put('a'.toByte())
-                    buffer.put('a'.toByte())
+                    buffer.put('a'.code.toByte())
+                    buffer.put('a'.code.toByte())
                     return 2
                 } else {
                     // We force a cancellation after the first call
@@ -728,7 +749,12 @@ class AdbDeviceServicesTest {
         // Act
         exceptionRule.expect(CancellationException::class.java)
         /*val ignored = */runBlocking {
-            deviceServices.shellV2AsText(deviceSelector, "cat", stdinChannel = errorInputChannel)
+            deviceServices.shellV2(
+                deviceSelector,
+                "cat",
+                TextShellV2Collector(),
+                stdinChannel = errorInputChannel
+            ).first()
         }
 
         // Assert
@@ -736,7 +762,7 @@ class AdbDeviceServicesTest {
     }
 
     @Test
-    fun testShellV2AsTextWorks() {
+    fun testShellAsTextWorks() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val fakeDevice = addFakeDevice(fakeAdb)
@@ -754,7 +780,7 @@ class AdbDeviceServicesTest {
 
         // Act
         val commandOutput = runBlocking {
-            deviceServices.shellV2AsText(
+            deviceServices.shellAsText(
                 deviceSelector,
                 "shell-protocol-echo",
                 stdinChannel = input.asAdbInputChannel(deviceServices.session)
@@ -803,7 +829,7 @@ class AdbDeviceServicesTest {
         val collectedStderr = ArrayList<String>()
         var collectedExitCode = -1
         runBlocking {
-            deviceServices.shellV2AsLines(
+            deviceServices.shellAsLines(
                 deviceSelector,
                 "shell-protocol-echo",
                 stdinChannel = input.asAdbInputChannel(deviceServices.session)
@@ -982,15 +1008,15 @@ class AdbDeviceServicesTest {
     // Checks public contract of the ShellCommandOutputElement.*.toString methods.
     @Test
     fun testShellCommandOutputElement() {
-        assertEquals(
+        Assert.assertEquals(
             "contents",
             ShellCommandOutputElement.StdoutLine("contents").toString()
         )
-        assertEquals(
+        Assert.assertEquals(
             "contents",
             ShellCommandOutputElement.StderrLine("contents").toString()
         )
-        assertEquals(
+        Assert.assertEquals(
             "42",
             ShellCommandOutputElement.ExitCode(42).toString()
         )

@@ -61,13 +61,34 @@ class FakeAdbDeviceServices(override val session: AdbSession) : AdbDeviceService
     val shellV2Requests = LinkedBlockingDeque<ShellRequest>()
 
     /**
+     * Configure a [shellV2], [shell] and [exec] service request.
+     *
+     * @param deviceSelector A device the command is executed on
+     * @param command a command executed on a device
+     * @param stdout the standard output of a command
+     * @param stderr the standard error of a command (used only for [shellV2]
+     * @param exitCode the exit code of a command (used only for [shellV2]
+     */
+    fun configureShellCommand(
+        deviceSelector: DeviceSelector,
+        command: String,
+        stdout: String,
+        stderr: String = "",
+        exitCode: Int = 0,
+    ) {
+        configureShellV1Command(deviceSelector, command, stdout)
+        configureShellV2Command(deviceSelector, command, stdout, stderr, exitCode)
+    }
+
+
+    /**
      * Configure a [shell] service request.
      *
      * @param deviceSelector A device the command is executed on
      * @param command a command executed on a device
      * @param result the result of a command
      */
-    fun configureShellCommand(deviceSelector: DeviceSelector, command: String, result: String) {
+    fun configureShellV1Command(deviceSelector: DeviceSelector, command: String, result: String) {
         shellCommands.getOrPut(deviceSelector.transportPrefix) { ShellCommands() }
             .add(command, result)
     }

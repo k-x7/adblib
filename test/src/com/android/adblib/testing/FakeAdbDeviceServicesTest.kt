@@ -19,11 +19,10 @@ import com.android.adblib.DeviceSelector
 import com.android.adblib.ShellCommandOutputElement.ExitCode
 import com.android.adblib.ShellCommandOutputElement.StderrLine
 import com.android.adblib.ShellCommandOutputElement.StdoutLine
-import com.android.adblib.shellAsLines
 import com.android.adblib.shellAsText
-import com.android.adblib.shellV2AsLines
-import com.android.adblib.shellV2AsText
+import com.android.adblib.shellAsLines
 import com.android.adblib.testing.FakeAdbDeviceServices.ShellRequest
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -45,10 +44,12 @@ class FakeAdbDeviceServicesTest {
 
         val actual = deviceServices.shellAsText(deviceSelector, "command")
 
-        assertEquals("output", actual)
+        assertEquals("output", actual.stdout)
+        assertEquals("", actual.stderr)
+        assertEquals(0, actual.exitCode)
         assertContentEquals(
             listOf(ShellRequest(deviceSelector.toString(), "command")),
-            deviceServices.shellRequests
+            deviceServices.shellV2Requests
         )
     }
 
@@ -58,10 +59,12 @@ class FakeAdbDeviceServicesTest {
 
         val actual = deviceServices.shellAsText(deviceSelector, "command", bufferSize = 4)
 
-        assertEquals("command output", actual)
+        assertEquals("command output", actual.stdout)
+        assertEquals("", actual.stderr)
+        assertEquals(0, actual.exitCode)
         assertContentEquals(
             listOf(ShellRequest(deviceSelector.toString(), "command", bufferSize = 4)),
-            deviceServices.shellRequests
+            deviceServices.shellV2Requests
         )
     }
 
@@ -72,13 +75,15 @@ class FakeAdbDeviceServicesTest {
 
         deviceServices.shellAsText(deviceSelector, "command1")
         val actual = deviceServices.shellAsText(deviceSelector, "command2")
-        assertEquals("output", actual)
+        assertEquals("output", actual.stdout)
+        assertEquals("", actual.stderr)
+        assertEquals(0, actual.exitCode)
         assertContentEquals(
             listOf(
                 ShellRequest(deviceSelector.toString(), "command1"),
                 ShellRequest(deviceSelector.toString(), "command2"),
             ),
-            deviceServices.shellRequests
+            deviceServices.shellV2Requests
         )
     }
 
@@ -94,7 +99,13 @@ class FakeAdbDeviceServicesTest {
             """.trimIndent()
         )
 
-        val actual = deviceServices.shellAsLines(deviceSelector, "command").toList()
+        val actual = deviceServices.shellAsLines(deviceSelector, "command").mapNotNull {
+            if (it is StdoutLine) {
+                it.contents
+            } else {
+                null
+            }
+        }.toList()
 
         assertContentEquals(
             listOf("line1", "line2", "line3"),
@@ -102,7 +113,7 @@ class FakeAdbDeviceServicesTest {
         )
         assertContentEquals(
             listOf(ShellRequest(deviceSelector.toString(), "command")),
-            deviceServices.shellRequests
+            deviceServices.shellV2Requests
         )
     }
 
@@ -116,7 +127,7 @@ class FakeAdbDeviceServicesTest {
             exitCode = 1
         )
 
-        val actual = deviceServices.shellV2AsText(deviceSelector, "command")
+        val actual = deviceServices.shellAsText(deviceSelector, "command")
 
         assertEquals("output", actual.stdout)
         assertEquals("error", actual.stderr)
@@ -137,7 +148,7 @@ class FakeAdbDeviceServicesTest {
             exitCode = 1
         )
 
-        val actual = deviceServices.shellV2AsText(deviceSelector, "command", bufferSize = 4)
+        val actual = deviceServices.shellAsText(deviceSelector, "command", bufferSize = 4)
 
         assertEquals("command output", actual.stdout)
         assertEquals("command error", actual.stderr)
@@ -158,8 +169,8 @@ class FakeAdbDeviceServicesTest {
             exitCode = 1
         )
 
-        deviceServices.shellV2AsText(deviceSelector, "command")
-        val actual = deviceServices.shellV2AsText(deviceSelector, "command")
+        deviceServices.shellAsText(deviceSelector, "command")
+        val actual = deviceServices.shellAsText(deviceSelector, "command")
 
         assertEquals("output", actual.stdout)
         assertEquals("error", actual.stderr)
@@ -191,7 +202,7 @@ class FakeAdbDeviceServicesTest {
             exitCode = 1,
         )
 
-        val actual = deviceServices.shellV2AsLines(deviceSelector, "command").toList()
+        val actual = deviceServices.shellAsLines(deviceSelector, "command").toList()
 
         assertContentEquals(
             listOf("line1", "line2"),
