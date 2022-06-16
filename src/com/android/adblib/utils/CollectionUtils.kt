@@ -24,7 +24,7 @@ import java.util.Collections
  * Note: It is harmless to call this multiple times, i.e.
  * `toImmutable(toImmutable(map)) == toImmutable(map)`
  */
-fun <K,V> Map<K,V>.toImmutableMap(): Map<K,V> {
+fun <K, V> Map<K, V>.toImmutableMap(): Map<K, V> {
     return if (this is ImmutableMap) {
         this
     } else {
@@ -32,4 +32,4 @@ fun <K,V> Map<K,V>.toImmutableMap(): Map<K,V> {
     }
 }
 
-private class ImmutableMap<K,V>(val map: Map<K,V>): Map<K,V> by map
+private class ImmutableMap<K, V>(val map: Map<K, V>) : Map<K, V> by map

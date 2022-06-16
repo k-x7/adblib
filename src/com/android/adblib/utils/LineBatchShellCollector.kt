@@ -33,12 +33,11 @@ class LineBatchShellCollector(bufferCapacity: Int = 256) : ShellCollector<List<S
      * We store the lambda in a field to avoid allocating a new lambda instance for every
      * invocation of [AdbBufferDecoder.decodeBuffer]
      */
-    private val lineCollectorLambda : (CharBuffer) -> Unit = { lineCollector.collectLines(it) }
+    private val lineCollectorLambda: (CharBuffer) -> Unit = { lineCollector.collectLines(it) }
 
     override suspend fun start(collector: FlowCollector<List<String>>) {
         // Nothing to do
     }
-
 
     override suspend fun collect(collector: FlowCollector<List<String>>, stdout: ByteBuffer) {
         decoder.decodeBuffer(stdout, lineCollectorLambda)

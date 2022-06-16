@@ -76,7 +76,7 @@ interface AdbDeviceServices {
         stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
-        shutdownOutput : Boolean = true
+        shutdownOutput: Boolean = true
     ): Flow<T>
 
     /**
@@ -100,7 +100,7 @@ interface AdbDeviceServices {
         stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
-        shutdownOutput : Boolean = true
+        shutdownOutput: Boolean = true
     ): Flow<T>
 
     /**
@@ -195,7 +195,7 @@ interface AdbDeviceServices {
         stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
-        shutdownOutput : Boolean = true
+        shutdownOutput: Boolean = true
     ): Flow<T>
 
     /**
@@ -416,7 +416,8 @@ suspend fun AdbDeviceServices.shellV2AsText(
     bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
 ): ShellCommandOutput {
     val collector = TextShellV2Collector()
-    return this.shellV2(device, command, collector, stdinChannel, commandTimeout, bufferSize).first()
+    return this.shellV2(device, command, collector, stdinChannel, commandTimeout, bufferSize)
+        .first()
 }
 
 /**
@@ -434,7 +435,8 @@ class ShellCommandOutput(
     /**
      * The shell command exit code
      */
-    val exitCode: Int)
+    val exitCode: Int
+)
 
 /**
  * Similar to [AdbDeviceServices.shellV2] but captures the command output as a [Flow] of
@@ -458,10 +460,12 @@ fun AdbDeviceServices.shellV2AsLines(
  * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellV2AsLines].
  */
 sealed class ShellCommandOutputElement {
+
     /**
      * A `stdout` text line of the shell command.
      */
     class StdoutLine(val contents: String) : ShellCommandOutputElement() {
+
         // Returns the contents of the stdout line.
         override fun toString(): String = contents
     }
@@ -470,6 +474,7 @@ sealed class ShellCommandOutputElement {
      * A `stderr` text line of the shell command.
      */
     class StderrLine(val contents: String) : ShellCommandOutputElement() {
+
         // Returns the contents of the stdout line.
         override fun toString(): String = contents
     }
@@ -479,6 +484,7 @@ sealed class ShellCommandOutputElement {
      * [AdbDeviceServices.shellV2AsLines].
      */
     class ExitCode(val exitCode: Int) : ShellCommandOutputElement() {
+
         // Returns the exit code in a text form.
         override fun toString(): String = exitCode.toString()
     }
@@ -488,6 +494,7 @@ sealed class ShellCommandOutputElement {
  * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellV2AsLineBatches].
  */
 sealed class BatchShellCommandOutputElement {
+
     /**
      * A `stdout` text lines of the shell command.
      */
@@ -503,6 +510,7 @@ sealed class BatchShellCommandOutputElement {
      * [AdbDeviceServices.shellV2AsLineBatches].
      */
     class ExitCode(val exitCode: Int) : BatchShellCommandOutputElement() {
+
         // Returns the exit code in a text form.
         override fun toString(): String = exitCode.toString()
     }

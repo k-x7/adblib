@@ -168,7 +168,8 @@ internal class SyncRecvHandler(
                 }
                 else -> {
                     val contents = AdbProtocolUtils.bufferToByteDumpString(buffer)
-                    val errorMessage = "Received an invalid packet from a RECV sync query: $contents"
+                    val errorMessage =
+                        "Received an invalid packet from a RECV sync query: $contents"
                     throw AdbProtocolErrorException(errorMessage)
                 }
             }

@@ -22,6 +22,7 @@ import java.nio.CharBuffer
  * are saved to be used with the next chunk.
  */
 internal class LineCollector(private val newLine: String = AdbProtocolUtils.ADB_NEW_LINE) {
+
     /**
      * Store an unfinished line from the previous call to [collectLines]
      */

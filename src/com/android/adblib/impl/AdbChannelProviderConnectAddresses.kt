@@ -66,7 +66,11 @@ internal class AdbChannelProviderConnectAddresses(
                     socketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true)
                     val adbChannel = AdbSocketChannelImpl(host, socketChannel)
                     try {
-                        adbChannel.connect(localAddress, tracker.remainingNanos, TimeUnit.NANOSECONDS)
+                        adbChannel.connect(
+                            localAddress,
+                            tracker.remainingNanos,
+                            TimeUnit.NANOSECONDS
+                        )
 
                         // Success, return the channel
                         return@withContext adbChannel

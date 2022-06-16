@@ -160,7 +160,7 @@ internal class CoroutineScopeCacheImpl(
                         //       so we need to also check the scope is active
                         assert(wasReplaced || !scope.isActive) {
                             "The 'computing' coroutine should always be the one storing " +
-                            "the computed value in the cache."
+                                    "the computed value in the cache."
                         }
                     }
                 }

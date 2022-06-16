@@ -45,7 +45,6 @@ object AdbProtocolUtils {
                 buffer.get(3 + buffer.position()) == letters[3].toByte()
     }
 
-
     fun byteBufferToString(buffer: ByteBuffer): String {
         val position = buffer.position()
         val bytes = ByteArray(buffer.remaining())

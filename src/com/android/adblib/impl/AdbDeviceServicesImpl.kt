@@ -68,7 +68,7 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-        shutdownOutput : Boolean
+        shutdownOutput: Boolean
     ): Flow<T> {
         return runServiceWithOutput(
             device,
@@ -89,7 +89,7 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-        shutdownOutput : Boolean
+        shutdownOutput: Boolean
     ): Flow<T> {
         return runServiceWithOutput(
             device,
@@ -236,7 +236,7 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-        shutdownOutput : Boolean
+        shutdownOutput: Boolean
     ): Flow<T> {
         return runServiceWithOutput(
             device,
@@ -360,7 +360,7 @@ internal class AdbDeviceServicesImpl(
         shellCommandChannel: AdbChannel,
         stdInput: AdbInputChannel,
         bufferSize: Int,
-        shutdownOutput : Boolean
+        shutdownOutput: Boolean
     ) {
         stdInput.forwardTo(session, shellCommandChannel, bufferSize)
         if (shutdownOutput) {
@@ -403,7 +403,7 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-        shutdownOutput : Boolean
+        shutdownOutput: Boolean
     ): Flow<T> = flow {
         val service = getExecServiceString(execService, commandProvider())
         logger.debug { "Device \"${device}\" - Start execution of service \"$service\" (bufferSize=$bufferSize bytes)" }

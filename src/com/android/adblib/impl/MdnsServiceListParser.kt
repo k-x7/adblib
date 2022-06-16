@@ -52,31 +52,33 @@ internal class MdnsServiceListParser {
 
         // ADB Host code, OpenScreen implementation
         // https://cs.android.com/android/platform/superproject/+/fbcbf2500b2887952f862fa882741f80464bdbca:packages/modules/adb/client/transport_mdns.cpp;l=290;drc=fbcbf2500b2887952f862fa882741f80464bdbca
-        text.split(ADB_NEW_LINE).filter { it.trim().isNotBlank() }.forEachIndexed { lineIndex, line ->
-            val matchResult = lineRegex.find(line)
+        text.split(ADB_NEW_LINE)
+            .filter { it.trim().isNotBlank() }
+            .forEachIndexed { lineIndex, line ->
+                val matchResult = lineRegex.find(line)
 
-            if (matchResult == null) {
-                val error =
-                    ErrorLine("mDNS service entry format not recognized", lineIndex, line)
-                builder.addError(error)
-                return@forEachIndexed
-            }
+                if (matchResult == null) {
+                    val error =
+                        ErrorLine("mDNS service entry format not recognized", lineIndex, line)
+                    builder.addError(error)
+                    return@forEachIndexed
+                }
 
-            try {
-                val instanceName = matchResult.groupValues[1]
-                val serviceName = matchResult.groupValues[2]
-                val deviceAddress = DeviceAddress(matchResult.groupValues[3])
-                builder.addEntry(MdnsServiceInfo(instanceName, serviceName, deviceAddress))
-            } catch (ignored: Exception) {
-                val error =
-                    ErrorLine(
-                        "mDNS service entry ignored due do invalid characters",
-                        lineIndex,
-                        line
-                    )
-                builder.addError(error)
+                try {
+                    val instanceName = matchResult.groupValues[1]
+                    val serviceName = matchResult.groupValues[2]
+                    val deviceAddress = DeviceAddress(matchResult.groupValues[3])
+                    builder.addEntry(MdnsServiceInfo(instanceName, serviceName, deviceAddress))
+                } catch (ignored: Exception) {
+                    val error =
+                        ErrorLine(
+                            "mDNS service entry ignored due do invalid characters",
+                            lineIndex,
+                            line
+                        )
+                    builder.addError(error)
+                }
             }
-        }
 
         return builder.build()
     }

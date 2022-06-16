@@ -20,6 +20,7 @@ package com.android.adblib.utils
  * [Throwable.suppressedExceptions]
  */
 object SuppressedExceptions {
+
     fun init(): List<Throwable> {
         return emptyList()
     }

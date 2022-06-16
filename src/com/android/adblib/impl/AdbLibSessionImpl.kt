@@ -35,6 +35,7 @@ internal class AdbLibSessionImpl(
     val channelProvider: AdbChannelProvider,
     private val connectionTimeoutMillis: Long
 ) : AdbLibSession {
+
     private val logger = thisLogger(host)
 
     private var closed = false
