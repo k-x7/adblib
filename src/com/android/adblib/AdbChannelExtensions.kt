@@ -1,48 +1,76 @@
 package com.android.adblib
 
-import com.android.adblib.impl.channels.AdbInputStreamChannel
 import com.android.adblib.impl.channels.DEFAULT_CHANNEL_BUFFER_SIZE
-import com.android.adblib.utils.AdbProtocolUtils
-import java.io.InputStream
-import java.nio.ByteBuffer
+import com.android.adblib.utils.ResizableBuffer
 
 /**
- * Forwards the contents of this [AdbInputChannel] to an [AdbOutputChannel]
+ * Forwards the contents of this [AdbInputChannel] to an [AdbOutputChannel] and returns the
+ * number of bytes read.
+ *
+ * @param outputChannel The [AdbOutputChannel] to write to
+ * @param workBuffer (optional) A [ResizableBuffer] used for transferring bytes
+ * @param bufferSize (optional) The maximum number of bytes to read when transferring bytes
  */
 suspend fun AdbInputChannel.forwardTo(
-    session: AdbLibSession,
     outputChannel: AdbOutputChannel,
-    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
-) {
-    val host = session.host
-    host.logger.info { "forwardChannel - Forwarding input channel to output channel using buffer of size $bufferSize bytes" }
-    val buffer = ByteBuffer.allocate(bufferSize)
+    workBuffer: ResizableBuffer = ResizableBuffer(),
+    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE,
+): Int {
+    var totalCount = 0
     while (true) {
-        buffer.clear()
-        val byteCount = read(buffer)
-        if (byteCount < 0) {
+        workBuffer.clear()
+        val count = read(workBuffer.forChannelRead(bufferSize))
+        if (count < 0) {
             // EOF, nothing left to forward
-            host.logger.info { "forwardChannel - end of input channel reached, done" }
             break
         }
+        totalCount += count
+        outputChannel.writeExactly(workBuffer.afterChannelRead())
+    }
+    return totalCount
+}
 
-        host.logger.debug { "forwardChannel - forwarding packet of $byteCount bytes" }
-        buffer.flip()
-        outputChannel.writeExactly(buffer)
+/**
+ * Skips all remaining bytes of this [AdbInputChannel]
+ *
+ * @param workBuffer (optional) A [ResizableBuffer] used for transferring bytes
+ * @param bufferSize (optional) The maximum number of bytes to read when transferring bytes
+ */
+suspend fun AdbInputChannel.skipRemaining(
+    workBuffer: ResizableBuffer = ResizableBuffer(),
+    bufferSize: Int = DEFAULT_BUFFER_SIZE
+): Int {
+    var totalCount = 0
+    while (true) {
+        workBuffer.clear()
+        val count = read(workBuffer.forChannelRead(bufferSize))
+        if (count == -1) {
+            return totalCount
+        }
+        totalCount += count
     }
 }
 
-fun InputStream.asAdbInputChannel(
-    session: AdbLibSession,
-    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
-): AdbInputChannel {
-    return AdbInputStreamChannel(session.host, this, bufferSize)
-}
+/**
+ * Appends all remaining bytes of this [AdbInputChannel] to a [ResizableBuffer],
+ * starting at [ResizableBuffer.position], and returns the number of bytes read.
+ * [ResizableBuffer.position] is incremented by the numbers of bytes read.
 
-fun String.asAdbInputChannel(
-    session: AdbLibSession,
-    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
-): AdbInputChannel {
-    //TODO: This is inefficient as `byteInputStream` creates an in-memory copy of the whole string
-    return byteInputStream(AdbProtocolUtils.ADB_CHARSET).asAdbInputChannel(session, bufferSize)
+ * @param workBuffer A [ResizableBuffer] used to store the bytes read
+ * @param bufferSize (optional) The maximum number of bytes to read in one operation
+ */
+suspend fun AdbInputChannel.readRemaining(
+    workBuffer: ResizableBuffer,
+    bufferSize: Int = DEFAULT_BUFFER_SIZE
+): Int {
+    var totalCount = 0
+    while (true) {
+        val previousPosition = workBuffer.position
+        val count = read(workBuffer.forChannelRead(bufferSize))
+        if (count < 0) {
+            return totalCount
+        }
+        totalCount += count
+        workBuffer.clearToPosition(previousPosition + count)
+    }
 }

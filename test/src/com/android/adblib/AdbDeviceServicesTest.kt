@@ -22,6 +22,7 @@ import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
 import com.android.adblib.testingutils.CoroutineTestUtils.yieldUntil
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbLibHost
+import com.android.adblib.testingutils.asAdbInputChannel
 import com.android.adblib.testingutils.setTestLoggerMinLevel
 import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.LineShellCollector

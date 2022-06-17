@@ -420,9 +420,9 @@ internal class AdbServiceRunner(val session: AdbLibSession, private val channelP
         }
     }
 
-    fun newResizableBuffer(): ResizableBuffer {
+    fun newResizableBuffer(initialCapacity: Int = 256): ResizableBuffer {
         //TODO: Consider acquiring ResizableBuffer from a pool to allow re-using instances
-        return ResizableBuffer()
+        return ResizableBuffer(initialCapacity)
     }
 
     suspend fun switchToTransport(

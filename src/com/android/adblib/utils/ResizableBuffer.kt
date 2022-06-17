@@ -35,11 +35,21 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
         get() = buffer.capacity()
 
     /**
-     * Clears this buffer, so it is ready for adding data or for `channel read` operation (see
-     * [forChannelRead].
+     * Absolute get method. Reads the byte at the given [index], which can range from
+     * 0 to [ByteBuffer.limit].
+     */
+    operator fun get(index: Int): Byte {
+        return buffer[index]
+    }
+
+    /**
+     * Clears this buffer (see [ByteBuffer.clear]), resetting the position to `0`, and
+     * the [ByteBuffer.limit] to [ByteBuffer.capacity].
+     * This is typically used before appending data or before calling for `channel read`
+     * operations (see [forChannelRead]).
      *
      * * If the buffer is needed for writing data to a channel, call the various
-     *   [appendBytes] methods to ad data then call [forChannelWrite].
+     *   [appendBytes] methods to add data then call [forChannelWrite].
      *
      * * If the buffer is needed for reading data from a channel, call [forChannelRead] immediately
      *   after this method, call the `channel read` operation, then call [afterChannelRead] when
@@ -50,7 +60,25 @@ class ResizableBuffer(initialCapacity: Int = 256, private val maxCapacity: Int =
     }
 
     /**
-     * This methods returns the internal [ByteBuffer] after ensuring it is ready for using in
+     * Clears this buffer (see [ByteBuffer.clear]), resetting the position to [position], and
+     * the [ByteBuffer.limit] to [ByteBuffer.capacity].
+     * This is typically used before appending data or before calling for `channel read`
+     * operations (see [forChannelRead]).
+     *
+     * * If the buffer is needed for writing data to a channel, call the various
+     *   [appendBytes] methods to add data then call [forChannelWrite].
+     *
+     * * If the buffer is needed for reading data from a channel, call [forChannelRead] immediately
+     *   after this method, call the `channel read` operation, then call [afterChannelRead] when
+     *   the `channel read` operation is completed.
+     */
+    fun clearToPosition(newPosition: Int) {
+        buffer.clear()
+        buffer.position(newPosition)
+    }
+
+    /**
+     * This method returns the internal [ByteBuffer] after ensuring it is ready for using in
      * some sort of `channel write` operation (e.g. [AdbChannel.write]).
      *
      * This method is typically called after adding data using the various `appendXxx` methods

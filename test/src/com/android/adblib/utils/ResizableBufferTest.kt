@@ -81,6 +81,22 @@ class ResizableBufferTest {
     }
 
     @Test
+    fun testClearToPositionWorks() {
+        // Prepare
+        val buffer = ResizableBuffer(0, 10)
+        buffer.appendString("foo", Charsets.UTF_8)
+
+        // Act
+        buffer.clearToPosition(2)
+
+        // Assert
+        val data = buffer.forChannelRead(5)
+        Assert.assertEquals(2, data.position())
+        Assert.assertEquals(7, data.limit())
+        Assert.assertEquals(5, data.remaining())
+    }
+
+    @Test
     fun testForWritingWorks() {
         // Prepare
         val buffer = ResizableBuffer(0, 10)
@@ -223,6 +239,36 @@ class ResizableBufferTest {
         // Act (should throw)
         exceptionRule.expect(IllegalArgumentException::class.java)
         buffer.appendString("12345678901", Charsets.UTF_8)
+
+        // Assert
+        Assert.fail("Should not reach")
+    }
+
+    @Test
+    fun testGetAtIndexIgnoresPosition() {
+        // Prepare
+        val buffer = ResizableBuffer(10)
+
+        // Act (should throw)
+        exceptionRule.expect(IndexOutOfBoundsException::class.java)
+        buffer.get(10)
+
+        // Assert
+        Assert.fail("Should not reach")
+    }
+
+    @Test
+    fun testGetAtIndexThrowsIfPastLimit() {
+        // Prepare
+        val buffer = ResizableBuffer(10)
+        buffer.appendByte(5)
+        buffer.appendByte(6)
+        buffer.appendByte(7)
+        buffer.forChannelWrite() // pos = 0, limit = 3
+
+        // Act (should throw)
+        exceptionRule.expect(IndexOutOfBoundsException::class.java)
+        buffer.get(3)
 
         // Assert
         Assert.fail("Should not reach")

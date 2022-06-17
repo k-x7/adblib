@@ -362,7 +362,8 @@ internal class AdbDeviceServicesImpl(
         bufferSize: Int,
         shutdownOutput: Boolean
     ) {
-        stdInput.forwardTo(session, shellCommandChannel, bufferSize)
+        val workBuffer = serviceRunner.newResizableBuffer(bufferSize)
+        stdInput.forwardTo(shellCommandChannel, workBuffer, bufferSize)
         if (shutdownOutput) {
             logger.debug { "forwardStdInput - input channel has reached EOF, sending EOF to shell host" }
             shellCommandChannel.shutdownOutput()
@@ -374,7 +375,7 @@ internal class AdbDeviceServicesImpl(
         stdInput: AdbInputChannel,
         bufferSize: Int
     ) {
-        val workBuffer = serviceRunner.newResizableBuffer()
+        val workBuffer = serviceRunner.newResizableBuffer(bufferSize)
         val shellProtocol = ShellV2ProtocolHandler(deviceChannel, workBuffer)
 
         while (true) {

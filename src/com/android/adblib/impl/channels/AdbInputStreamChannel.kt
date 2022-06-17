@@ -9,7 +9,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
-const val DEFAULT_CHANNEL_BUFFER_SIZE = 8_192
+const val DEFAULT_CHANNEL_BUFFER_SIZE = DEFAULT_BUFFER_SIZE
 
 /**
  * Implementation of [AdbInputChannel] over an arbitrary [InputStream]
