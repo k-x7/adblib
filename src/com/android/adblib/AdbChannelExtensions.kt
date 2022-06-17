@@ -66,11 +66,13 @@ suspend fun AdbInputChannel.readRemaining(
     var totalCount = 0
     while (true) {
         val previousPosition = workBuffer.position
+        // Data is from [0, position], ensure limit = position + bufferSize
         val count = read(workBuffer.forChannelRead(bufferSize))
         if (count < 0) {
             return totalCount
         }
         totalCount += count
+        // Data is now from [0, previousPosition + count], set limit = capacity
         workBuffer.clearToPosition(previousPosition + count)
     }
 }
