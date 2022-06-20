@@ -53,6 +53,9 @@ internal class AdbInputChannelSliceImpl(
         val readCount = inputChannel.read(slice, timeout, unit)
         if (readCount >= 0) {
             count += readCount
+            if (slice !== buffer) {
+                buffer.position(buffer.position() + readCount)
+            }
             assert(count <= length)
         }
         return readCount
