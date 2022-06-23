@@ -17,6 +17,8 @@ package com.android.adblib
 
 /** Names of commonly used device properties.  */
 object DevicePropertyNames {
+    const val RO_BOOT_QEMU_AVD_NAME = "ro.boot.qemu.avd_name"
+    const val RO_BUILD_CHARACTERISTICS = "ro.build.characteristics"
     const val RO_BUILD_VERSION_RELEASE = "ro.build.version.release"
     const val RO_BUILD_VERSION_SDK = "ro.build.version.sdk"
     const val RO_KERNEL_QEMU_AVD_NAME = "ro.kernel.qemu.avd_name"
