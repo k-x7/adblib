@@ -15,16 +15,23 @@
  */
 package com.android.adblib.impl.channels
 
+import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelFactory
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbOutputChannel
+import com.android.adblib.AdbServerSocket
 import com.android.adblib.utils.closeOnException
 import kotlinx.coroutines.withContext
+import java.net.InetSocketAddress
+import java.net.StandardSocketOptions
 import java.nio.channels.AsynchronousFileChannel
+import java.nio.channels.AsynchronousServerSocketChannel
+import java.nio.channels.AsynchronousSocketChannel
 import java.nio.file.OpenOption
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
+import java.util.concurrent.TimeUnit
 
 internal class AdbChannelFactoryImpl(private val host: AdbSessionHost) : AdbChannelFactory {
 
@@ -32,48 +39,70 @@ internal class AdbChannelFactoryImpl(private val host: AdbSessionHost) : AdbChan
         return openInput(path, StandardOpenOption.READ)
     }
 
-    /**
-     * Creates an [AdbOutputFileChannel] for a new file which does not already exist
-     */
+    override suspend fun createFile(path: Path): AdbOutputChannel {
+        return openOutput(
+            path,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.TRUNCATE_EXISTING,
+            StandardOpenOption.WRITE
+        )
+    }
+
     override suspend fun createNewFile(path: Path): AdbOutputChannel {
         return openOutput(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
     }
 
-    /**
-     * Creates an [AdbOutputFileChannel] for a new file, optionally truncating the existing one
-     */
-    override suspend fun createFile(path: Path): AdbOutputChannel {
-        return openOutput(
-          path,
-          StandardOpenOption.CREATE,
-          StandardOpenOption.TRUNCATE_EXISTING,
-          StandardOpenOption.WRITE
-        )
+    override suspend fun connectSocket(
+        remote: InetSocketAddress,
+        timeout: Long,
+        unit: TimeUnit
+    ): AdbChannel {
+        return withContext(host.ioDispatcher) {
+            @Suppress("BlockingMethodInNonBlockingContext")
+            AsynchronousSocketChannel.open(host.asynchronousChannelGroup)
+                .closeOnException { socketChannel ->
+                    socketChannel.setOption(StandardSocketOptions.TCP_NODELAY, true)
+                    AdbSocketChannelImpl(host, socketChannel).closeOnException { socket ->
+                        socket.connect(remote, timeout, unit)
+                        socket
+                    }
+                }
+        }
+    }
+
+    override suspend fun createServerSocket(): AdbServerSocket {
+        return withContext(host.ioDispatcher) {
+            @Suppress("BlockingMethodInNonBlockingContext")
+            AsynchronousServerSocketChannel.open(host.asynchronousChannelGroup)
+                .closeOnException { serverSocketChannel ->
+                    AdbServerSocketImpl(host, serverSocketChannel)
+                }
+        }
     }
 
     private suspend fun openOutput(
-      path: Path,
-      vararg options: OpenOption
+        path: Path,
+        vararg options: OpenOption
     ): AdbOutputFileChannel {
         return withContext(host.ioDispatcher) {
-          @Suppress("BlockingMethodInNonBlockingContext")
-          val fileChannel = AsynchronousFileChannel.open(path, *options)
-          fileChannel.closeOnException {
-            AdbOutputFileChannel(host, path, fileChannel)
-          }
+            @Suppress("BlockingMethodInNonBlockingContext")
+            val fileChannel = AsynchronousFileChannel.open(path, *options)
+            fileChannel.closeOnException {
+                AdbOutputFileChannel(host, path, fileChannel)
+            }
         }
     }
 
     private suspend fun openInput(
-      path: Path,
-      vararg options: OpenOption
+        path: Path,
+        vararg options: OpenOption
     ): AdbInputFileChannel {
         return withContext(host.ioDispatcher) {
-          @Suppress("BlockingMethodInNonBlockingContext")
-          val fileChannel = AsynchronousFileChannel.open(path, *options)
-          fileChannel.closeOnException {
-            AdbInputFileChannel(host, path, fileChannel)
-          }
+            @Suppress("BlockingMethodInNonBlockingContext")
+            val fileChannel = AsynchronousFileChannel.open(path, *options)
+            fileChannel.closeOnException {
+                AdbInputFileChannel(host, path, fileChannel)
+            }
         }
     }
 }
