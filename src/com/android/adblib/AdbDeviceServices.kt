@@ -26,7 +26,7 @@ interface AdbDeviceServices {
     /**
      * The session this [AdbDeviceServices] instance belongs to.
      */
-    val session: AdbLibSession
+    val session: AdbSession
 
     /**
      * Returns a [Flow] that, when collected, executes a shell command on a device

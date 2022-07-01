@@ -16,7 +16,7 @@
 package com.android.adblib.impl
 
 import com.android.adblib.AdbHostServices
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.DeviceList
 import com.android.adblib.ErrorLine
 import com.android.adblib.TrackedDeviceList
@@ -34,8 +34,8 @@ import java.io.EOFException
 import java.time.Duration
 
 internal class SessionDeviceTracker(
-    private val session: AdbLibSession,
-    private val retryDelay: Duration
+  private val session: AdbSession,
+  private val retryDelay: Duration
 ) {
 
     private val logger = thisLogger(session.host)

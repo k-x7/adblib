@@ -17,7 +17,7 @@ package com.android.adblib.testing
 
 import com.android.adblib.AdbFailResponseException
 import com.android.adblib.AdbHostServices
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.DeviceAddress
 import com.android.adblib.DeviceList
 import com.android.adblib.DeviceSelector
@@ -40,7 +40,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * A fake implementation of [AdbHostServices] for tests.
  */
-class FakeAdbHostServices(override val session: AdbLibSession) : AdbHostServices, Closeable {
+class FakeAdbHostServices(override val session: AdbSession) : AdbHostServices, Closeable {
 
     /**
      * The response of the [devices] method.

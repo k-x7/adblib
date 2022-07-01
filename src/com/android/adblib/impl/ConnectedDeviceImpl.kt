@@ -15,7 +15,7 @@
  */
 package com.android.adblib.impl
 
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.ConnectedDevice
 import com.android.adblib.CoroutineScopeCache
 import com.android.adblib.DeviceInfo
@@ -24,9 +24,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 internal class ConnectedDeviceImpl(
-    override val session: AdbLibSession,
-    private val cacheImpl: CoroutineScopeCacheImpl,
-    deviceInfo: DeviceInfo
+  override val session: AdbSession,
+  private val cacheImpl: CoroutineScopeCacheImpl,
+  deviceInfo: DeviceInfo
 ) : ConnectedDevice, AutoCloseable {
 
     private val deviceInfoStateFlow = MutableStateFlow(deviceInfo)

@@ -16,7 +16,7 @@
 package com.android.adblib.impl
 
 import com.android.adblib.AdbDeviceServices
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.CoroutineScopeCache
 import com.android.adblib.DeviceProperties
 import com.android.adblib.DeviceProperty
@@ -34,7 +34,7 @@ class DevicePropertiesImpl(
 
     private val allReadonlyKey = CoroutineScopeCache.Key<Map<String, String>>("allReadonly")
 
-    private val session: AdbLibSession
+    private val session: AdbSession
         get() = deviceServices.session
 
     override suspend fun all(): List<DeviceProperty> {

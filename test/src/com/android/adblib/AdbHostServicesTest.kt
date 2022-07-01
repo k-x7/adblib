@@ -702,8 +702,8 @@ class AdbHostServicesTest {
     private fun createSession(
         host: AdbLibHost,
         channelProvider: AdbChannelProvider
-    ): AdbLibSession {
-        return AdbLibSession.create(
+    ): AdbSession {
+        return AdbSession.create(
             host,
             channelProvider,
             Duration.ofMillis(SOCKET_CONNECT_TIMEOUT_MS)

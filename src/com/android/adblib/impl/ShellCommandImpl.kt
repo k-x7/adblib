@@ -17,7 +17,7 @@ package com.android.adblib.impl
 
 import com.android.adblib.AdbFeatures
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.DEFAULT_SHELL_BUFFER_SIZE
 import com.android.adblib.DeviceSelector
 import com.android.adblib.INFINITE_DURATION
@@ -38,9 +38,9 @@ import java.nio.ByteBuffer
 import java.time.Duration
 
 internal class ShellCommandImpl<T>(
-    private val session: AdbLibSession,
-    private val device: DeviceSelector,
-    private val command: String,
+  private val session: AdbSession,
+  private val device: DeviceSelector,
+  private val command: String,
 ) : ShellCommand<T> {
 
     private val logger = thisLogger(session)

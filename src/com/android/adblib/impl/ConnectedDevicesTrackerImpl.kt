@@ -15,7 +15,7 @@
  */
 package com.android.adblib.impl
 
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.ConnectedDevice
 import com.android.adblib.ConnectedDevicesTracker
 import com.android.adblib.DeviceInfo
@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-internal class ConnectedDevicesTrackerImpl(override val session: AdbLibSession) :
+internal class ConnectedDevicesTrackerImpl(override val session: AdbSession) :
     ConnectedDevicesTracker {
 
     private val logger = thisLogger(session)

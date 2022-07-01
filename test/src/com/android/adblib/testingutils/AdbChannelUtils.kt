@@ -16,23 +16,23 @@
 package com.android.adblib.testingutils
 
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.impl.channels.AdbInputStreamChannel
 import com.android.adblib.impl.channels.DEFAULT_CHANNEL_BUFFER_SIZE
 import com.android.adblib.utils.AdbProtocolUtils
 import java.io.InputStream
 
 fun String.asAdbInputChannel(
-    session: AdbLibSession,
-    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
+  session: AdbSession,
+  bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ): AdbInputChannel {
     //TODO: This is inefficient as `byteInputStream` creates an in-memory copy of the whole string
     return byteInputStream(AdbProtocolUtils.ADB_CHARSET).asAdbInputChannel(session, bufferSize)
 }
 
 fun InputStream.asAdbInputChannel(
-    session: AdbLibSession,
-    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
+  session: AdbSession,
+  bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ): AdbInputChannel {
     return AdbInputStreamChannel(session.host, this, bufferSize)
 }

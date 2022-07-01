@@ -15,9 +15,9 @@
  */
 package com.android.adblib
 
-import com.android.adblib.AdbLibSession.Companion.create
+import com.android.adblib.AdbSession.Companion.create
 import com.android.adblib.CoroutineScopeCache.Key
-import com.android.adblib.impl.AdbLibSessionImpl
+import com.android.adblib.impl.AdbSessionImpl
 import com.android.adblib.impl.ConnectedDevicesTrackerImpl
 import com.android.adblib.impl.DeviceInfoTracker
 import com.android.adblib.impl.SessionDeviceTracker
@@ -45,13 +45,13 @@ import kotlin.coroutines.CoroutineContext
  *
  * This is the main entry point of `adblib`, use the [create] method to create an instance.
  */
-interface AdbLibSession : AutoCloseable {
+interface AdbSession : AutoCloseable {
 
     /**
      * The [AdbLibHost] implementation provided by the hosting application for environment
      * specific configuration.
      *
-     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
+     * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
     val host: AdbLibHost
 
@@ -59,21 +59,21 @@ interface AdbLibSession : AutoCloseable {
      * An [AdbChannelFactory] that can be used to create various implementations of
      * [AdbChannel], [AdbInputChannel] and [AdbOutputChannel] for files, streams, etc.
      *
-     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
+     * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
     val channelFactory: AdbChannelFactory
 
     /**
      * An [AdbHostServices] implementation for this session.
      *
-     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
+     * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
     val hostServices: AdbHostServices
 
     /**
      * An [AdbDeviceServices] implementation for this session.
      *
-     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
+     * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
     val deviceServices: AdbDeviceServices
 
@@ -83,28 +83,28 @@ interface AdbLibSession : AutoCloseable {
      * Useful when creating coroutines, e.g. with [CoroutineScope.launch], that need to be
      * automatically cancelled when the session is [closed][close].
      *
-     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
+     * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
     val scope: CoroutineScope
 
     /**
-     * Thread safe in-memory cache to store objects for as long this [AdbLibSession] is active.
+     * Thread safe in-memory cache to store objects for as long this [AdbSession] is active.
      * Any value added to the cache that implements [AutoCloseable] is
-     * [closed][AutoCloseable.close] when this [AdbLibSession] is closed.
+     * [closed][AutoCloseable.close] when this [AdbSession] is closed.
      *
-     * @throws ClosedSessionException if this [AdbLibSession] has been [closed][close].
+     * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
     val cache: CoroutineScopeCache
 
     /**
-     * Throws [ClosedSessionException] if this [AdbLibSession] has been [closed][close].
+     * Throws [ClosedSessionException] if this [AdbSession] has been [closed][close].
      */
     fun throwIfClosed()
 
     companion object {
 
         /**
-         * Creates an instance of an [AdbLibSession] given an [AdbLibHost] instance.
+         * Creates an instance of an [AdbSession] given an [AdbLibHost] instance.
          *
          * @param host The [AdbLibHost] implementation provided by the hosting application for
          *             environment specific configuration
@@ -116,14 +116,14 @@ interface AdbLibSession : AutoCloseable {
             host: AdbLibHost,
             channelProvider: AdbChannelProvider = AdbChannelProviderFactory.createOpenLocalHost(host),
             connectionTimeout: Duration = Duration.ofSeconds(30)
-        ): AdbLibSession {
-            return AdbLibSessionImpl(host, channelProvider, connectionTimeout.toMillis())
+        ): AdbSession {
+            return AdbSessionImpl(host, channelProvider, connectionTimeout.toMillis())
         }
     }
 }
 
 /**
- * Exception thrown when accessing services of an [AdbLibSession] that has been closed.
+ * Exception thrown when accessing services of an [AdbSession] that has been closed.
  */
 class ClosedSessionException(message: String) : CancellationException(message)
 
@@ -144,20 +144,20 @@ class ClosedSessionException(message: String) : CancellationException(message)
  *   [isTrackerDisconnected]) is emitted to downstream flows and the
  *   [TrackedDeviceList.connectionId] is incremented.
  *
- * * The returned [StateFlow] is unique to this [AdbLibSession], meaning all collectors of
+ * * The returned [StateFlow] is unique to this [AdbSession], meaning all collectors of
  *   the returned flow share a single underlying [AdbHostServices.trackDevices] connection.
  *
  * * The returned [StateFlow] activates a [AdbHostServices.trackDevices] connection only when
  *   there are active downstream flows, see [SharingStarted.WhileSubscribed].
  *
- * * The returned [StateFlow] runs in a separate coroutine in the [AdbLibSession.scope].
+ * * The returned [StateFlow] runs in a separate coroutine in the [AdbSession.scope].
  *   If the scope is cancelled, the [StateFlow] stops emitting new values, but downstream
  *   flows are not terminated. It is up to the caller to use an appropriate [CoroutineScope]
  *   when collecting the returned flow. A typical usage would be to use the
- *   [AdbLibSession.scope] when collecting, for example:
+ *   [AdbSession.scope] when collecting, for example:
  *
  *   ```
- *     val session: AdbLibSession
+ *     val session: AdbSession
  *     session.scope.launch {
  *         session.trackDevices.flowOn(Dispatchers.Default).collect {
  *             // Collect until session scope is cancelled.
@@ -178,7 +178,7 @@ class ClosedSessionException(message: String) : CancellationException(message)
  * **Note**: [DeviceInfo] entries of the [DeviceList] are always of the
  * [long format][AdbHostServices.DeviceInfoFormat.LONG_FORMAT].
  */
-fun AdbLibSession.trackDevices(
+fun AdbSession.trackDevices(
     retryDelay: Duration = Duration.ofSeconds(2)
 ): StateFlow<TrackedDeviceList> {
     data class MyKey(val duration: Duration) : Key<SessionDeviceTracker>("trackDevices")
@@ -193,7 +193,7 @@ fun AdbLibSession.trackDevices(
 
 /**
  * A [list][DeviceList] of [DeviceInfo] as collected by the [state flow][StateFlow]
- * returned by [AdbLibSession.trackDevices].
+ * returned by [AdbSession.trackDevices].
  */
 class TrackedDeviceList(
     /**
@@ -222,7 +222,7 @@ class TrackedDeviceList(
 
 /**
  * Returns `true` if this [TrackedDeviceList] instance has been produced by
- * [AdbLibSession.trackDevices] due to a connection failure.
+ * [AdbSession.trackDevices] due to a connection failure.
  */
 val TrackedDeviceList.isTrackerDisconnected: Boolean
     get() {
@@ -231,7 +231,7 @@ val TrackedDeviceList.isTrackerDisconnected: Boolean
 
 /**
  * Returns `true` if this [TrackedDeviceList] instance is the initial value produced by
- * the [StateFlow] returned by [AdbLibSession.trackDevices].
+ * the [StateFlow] returned by [AdbSession.trackDevices].
  */
 val TrackedDeviceList.isTrackerConnecting: Boolean
     get() {
@@ -245,7 +245,7 @@ val TrackedDeviceList.isTrackerConnecting: Boolean
  * The flow terminates when the device is no longer connected or when the ADB
  * connection is terminated.
  */
-fun AdbLibSession.trackDeviceInfo(device: DeviceSelector): Flow<DeviceInfo> {
+fun AdbSession.trackDeviceInfo(device: DeviceSelector): Flow<DeviceInfo> {
     return DeviceInfoTracker(this, device).createFlow()
 }
 
@@ -253,14 +253,14 @@ fun AdbLibSession.trackDeviceInfo(device: DeviceSelector): Flow<DeviceInfo> {
  * Returns a [CoroutineScope] that can be used to run coroutines that should be cancelled
  * when the given [device] is disconnected (or ADB connection is terminated).
  *
- * The returned scope is also cancelled when the [AdbLibSession] is [closed][AdbLibSession.close].
+ * The returned scope is also cancelled when the [AdbSession] is [closed][AdbSession.close].
  *
  * The returned [CoroutineScope] uses a [CoroutineContext] with a [SupervisorJob] tied to
  * the [device] lifecycle and a [AdbLibHost.ioDispatcher].
  *
  * @see [trackDeviceInfo]
  */
-fun AdbLibSession.createDeviceScope(device: DeviceSelector): CoroutineScope {
+fun AdbSession.createDeviceScope(device: DeviceSelector): CoroutineScope {
     val session = this
     val parentJob = session.scope.coroutineContext.job
     return CoroutineScope(SupervisorJob(parentJob) + session.host.ioDispatcher).also { deviceScope ->
@@ -282,7 +282,7 @@ fun AdbLibSession.createDeviceScope(device: DeviceSelector): CoroutineScope {
 /**
  * Returns the [ConnectedDevicesTracker] associated to this session
  */
-val AdbLibSession.connectedDevicesTracker: ConnectedDevicesTracker
+val AdbSession.connectedDevicesTracker: ConnectedDevicesTracker
     get() {
         return this.cache.getOrPut(ConnectedDevicesManagerKey) {
             ConnectedDevicesTrackerImpl(this)
@@ -294,7 +294,7 @@ val AdbLibSession.connectedDevicesTracker: ConnectedDevicesTracker
     }
 
 /**
- * The [Key] used to identify the [ConnectedDevicesTracker] in [AdbLibSession.cache].
+ * The [Key] used to identify the [ConnectedDevicesTracker] in [AdbSession.cache].
  */
 private object ConnectedDevicesManagerKey : Key<ConnectedDevicesTracker>(ConnectedDevicesTracker::class.java.simpleName)
 
@@ -302,7 +302,7 @@ private object ConnectedDevicesManagerKey : Key<ConnectedDevicesTracker>(Connect
  * Returns a [CoroutineScopeCache] that keeps entries alive until the device corresponding
  * to [serialNumber] is disconnected.
  */
-fun AdbLibSession.deviceCache(serialNumber: String): CoroutineScopeCache {
+fun AdbSession.deviceCache(serialNumber: String): CoroutineScopeCache {
     return connectedDevicesTracker.deviceCache(serialNumber)
 }
 
@@ -310,6 +310,6 @@ fun AdbLibSession.deviceCache(serialNumber: String): CoroutineScopeCache {
  * Returns a [CoroutineScopeCache] that keeps entries alive until the device corresponding
  * to [selector] is disconnected.
  */
-suspend fun AdbLibSession.deviceCache(selector: DeviceSelector): CoroutineScopeCache {
+suspend fun AdbSession.deviceCache(selector: DeviceSelector): CoroutineScopeCache {
     return connectedDevicesTracker.deviceCache(selector)
 }

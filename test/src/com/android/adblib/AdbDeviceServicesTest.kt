@@ -1998,7 +1998,7 @@ class AdbDeviceServicesTest {
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
         val session =
-            AdbLibSession.create(
+            AdbSession.create(
                 host,
                 channelProvider,
                 Duration.ofMillis(SOCKET_CONNECT_TIMEOUT_MS)

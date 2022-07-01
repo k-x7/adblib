@@ -17,7 +17,7 @@ package com.android.adblib.testing
 
 import com.android.adblib.AdbChannelFactory
 import com.android.adblib.AdbLibHost
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.CoroutineScopeCache
 import com.android.adblib.impl.CoroutineScopeCacheImpl
 import com.android.adblib.impl.channels.AdbChannelFactoryImpl
@@ -25,9 +25,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
 /**
- * A fake implementation of [FakeAdbLibSession] for tests.
+ * A fake implementation of [FakeAdbSession] for tests.
  */
-class FakeAdbLibSession : AdbLibSession {
+class FakeAdbSession : AdbSession {
 
     override val scope = CoroutineScope(Dispatchers.IO)
 

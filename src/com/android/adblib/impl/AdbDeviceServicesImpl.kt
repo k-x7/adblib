@@ -21,7 +21,7 @@ import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbLibHost
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ProcessIdList
 import com.android.adblib.ReverseSocketList
@@ -46,10 +46,10 @@ import java.util.concurrent.TimeUnit
 private const val ABB_ARG_SEPARATOR = "\u0000"
 
 internal class AdbDeviceServicesImpl(
-    override val session: AdbLibSession,
-    channelProvider: AdbChannelProvider,
-    private val timeout: Long,
-    private val unit: TimeUnit
+  override val session: AdbSession,
+  channelProvider: AdbChannelProvider,
+  private val timeout: Long,
+  private val unit: TimeUnit
 ) : AdbDeviceServices {
 
     private val logger = thisLogger(session.host)

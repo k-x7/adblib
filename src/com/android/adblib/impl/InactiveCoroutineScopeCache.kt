@@ -15,7 +15,7 @@
  */
 package com.android.adblib.impl
 
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.ConnectedDevicesTracker
 import com.android.adblib.CoroutineScopeCache
 import com.android.adblib.deviceCache
@@ -28,7 +28,7 @@ import java.util.concurrent.CancellationException
  * A [CoroutineScopeCache] that is always empty and exposes a "cancelled" [scope].
  * This is useful to expose a "no-op" cache for a disconnected device.
  *
- * @see AdbLibSession.deviceCache
+ * @see AdbSession.deviceCache
  * @see ConnectedDevicesTracker.deviceCache
  */
 internal object InactiveCoroutineScopeCache : CoroutineScopeCache {

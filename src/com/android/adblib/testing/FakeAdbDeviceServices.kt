@@ -19,7 +19,7 @@ import com.android.adblib.AdbChannel
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.DeviceSelector
 import com.android.adblib.INFINITE_DURATION
 import com.android.adblib.ProcessIdList
@@ -38,7 +38,7 @@ import kotlin.math.min
 /**
  * A fake implementation of [AdbDeviceServices] for tests.
  */
-class FakeAdbDeviceServices(override val session: AdbLibSession) : AdbDeviceServices {
+class FakeAdbDeviceServices(override val session: AdbSession) : AdbDeviceServices {
 
     /**
      * Maps device -> ShellCommands

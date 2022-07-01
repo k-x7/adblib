@@ -16,7 +16,7 @@
 package com.android.adblib.impl
 
 import com.android.adblib.AdbFailResponseException
-import com.android.adblib.AdbLibSession
+import com.android.adblib.AdbSession
 import com.android.adblib.DeviceInfo
 import com.android.adblib.DeviceSelector
 import com.android.adblib.isTrackerConnecting
@@ -31,11 +31,11 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.transformWhile
 
 /**
- * Implementation of [AdbLibSession.trackDeviceInfo]
+ * Implementation of [AdbSession.trackDeviceInfo]
  */
 internal class DeviceInfoTracker(
-    private val session: AdbLibSession,
-    private val device: DeviceSelector
+  private val session: AdbSession,
+  private val device: DeviceSelector
 ) {
 
     private val logger = thisLogger(session.host)

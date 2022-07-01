@@ -42,7 +42,7 @@ import java.io.IOException
 import java.time.Duration
 import java.util.Collections
 
-class AdbLibSessionTest {
+class AdbSessionTest {
 
     @JvmField
     @Rule
@@ -62,7 +62,7 @@ class AdbLibSessionTest {
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val session = registerCloseable(AdbLibSession.create(host, channelProvider))
+        val session = registerCloseable(AdbSession.create(host, channelProvider))
 
         // Act
         val services = session.hostServices
@@ -80,7 +80,7 @@ class AdbLibSessionTest {
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val session = registerCloseable(AdbLibSession.create(host, channelProvider))
+        val session = registerCloseable(AdbSession.create(host, channelProvider))
 
         // Act
         /*val services = */ session.deviceServices
@@ -92,7 +92,7 @@ class AdbLibSessionTest {
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        val session = registerCloseable(AdbLibSession.create(host, channelProvider))
+        val session = registerCloseable(AdbSession.create(host, channelProvider))
 
         // Act
         session.close()
@@ -635,8 +635,8 @@ class AdbLibSessionTest {
     private fun createSession(
         host: AdbLibHost,
         channelProvider: AdbChannelProvider
-    ): AdbLibSession {
-        return AdbLibSession.create(
+    ): AdbSession {
+        return AdbSession.create(
             host,
             channelProvider,
             Duration.ofMillis(SOCKET_CONNECT_TIMEOUT_MS)

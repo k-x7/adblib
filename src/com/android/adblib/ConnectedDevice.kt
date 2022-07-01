@@ -23,15 +23,15 @@ import kotlinx.coroutines.flow.StateFlow
  * valid as long as the device is connected to the underlying ADB server, and becomes
  * invalid as soon as the device is disconnected or ADB server is restarted.
  *
- * @see [AdbLibSession.connectedDevicesTracker]
+ * @see [AdbSession.connectedDevicesTracker]
  */
 interface ConnectedDevice {
 
     /**
-     * The [session][AdbLibSession] this device belongs to. When the session is
-     * [closed][AdbLibSession.close], this [ConnectedDevice] instance becomes invalid.
+     * The [session][AdbSession] this device belongs to. When the session is
+     * [closed][AdbSession.close], this [ConnectedDevice] instance becomes invalid.
      */
-    val session: AdbLibSession
+    val session: AdbSession
 
     /**
      * Returns a [CoroutineScopeCache] associated to this [ConnectedDevice]. The cache

@@ -25,9 +25,9 @@ import kotlinx.coroutines.flow.StateFlow
 interface ConnectedDevicesTracker {
 
     /**
-     * The [session][AdbLibSession] this [ConnectedDevicesTracker] belongs to
+     * The [session][AdbSession] this [ConnectedDevicesTracker] belongs to
      */
-    val session: AdbLibSession
+    val session: AdbSession
 
     /**
      * The [StateFlow] of currently [connected devices][ConnectedDevice]. The flow remains

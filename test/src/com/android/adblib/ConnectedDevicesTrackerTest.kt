@@ -339,10 +339,10 @@ class ConnectedDevicesTrackerTest {
         Assert.assertEquals(0, deviceCacheManager.connectedDevices.value.size)
     }
 
-    private fun createSession(fakeAdb: FakeAdbServerProvider): AdbLibSession {
+    private fun createSession(fakeAdb: FakeAdbServerProvider): AdbSession {
         val host = registerCloseable(TestingAdbLibHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
-        return AdbLibSession.create(
+        return AdbSession.create(
             host,
             channelProvider,
             Duration.ofMillis(SOCKET_CONNECT_TIMEOUT_MS)

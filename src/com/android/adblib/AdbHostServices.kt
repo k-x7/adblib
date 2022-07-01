@@ -15,7 +15,7 @@ interface AdbHostServices {
     /**
      * The session this [AdbHostServices] instance belongs to.
      */
-    val session: AdbLibSession
+    val session: AdbSession
 
     /**
      * Returns the internal version of the ADB server ("host:version" query).
