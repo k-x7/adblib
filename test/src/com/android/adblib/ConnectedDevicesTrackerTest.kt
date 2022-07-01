@@ -20,7 +20,7 @@ import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
 import com.android.adblib.testingutils.CoroutineTestUtils.yieldUntil
 import com.android.adblib.testingutils.FakeAdbServerProvider
-import com.android.adblib.testingutils.TestingAdbLibHost
+import com.android.adblib.testingutils.TestingAdbSessionHost
 import com.android.fakeadbserver.DeviceState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -340,7 +340,7 @@ class ConnectedDevicesTrackerTest {
     }
 
     private fun createSession(fakeAdb: FakeAdbServerProvider): AdbSession {
-        val host = registerCloseable(TestingAdbLibHost())
+        val host = registerCloseable(TestingAdbSessionHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
         return AdbSession.create(
             host,

@@ -20,7 +20,7 @@ import com.android.adblib.AdbHostServices.DeviceInfoFormat.SHORT_FORMAT
 import com.android.adblib.DeviceState.ONLINE
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
-import com.android.adblib.testingutils.TestingAdbLibHost
+import com.android.adblib.testingutils.TestingAdbSessionHost
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.MdnsService
 import com.android.fakeadbserver.hostcommandhandlers.FaultyVersionCommandHandler
@@ -693,15 +693,15 @@ class AdbHostServicesTest {
     }
 
     private fun createHostServices(fakeAdb: FakeAdbServerProvider): AdbHostServices {
-        val host = registerCloseable(TestingAdbLibHost())
+        val host = registerCloseable(TestingAdbSessionHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
         val session = registerCloseable(createSession(host, channelProvider))
         return session.hostServices
     }
 
     private fun createSession(
-        host: AdbLibHost,
-        channelProvider: AdbChannelProvider
+      host: AdbSessionHost,
+      channelProvider: AdbChannelProvider
     ): AdbSession {
         return AdbSession.create(
             host,

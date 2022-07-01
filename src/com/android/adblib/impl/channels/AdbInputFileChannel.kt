@@ -16,7 +16,7 @@
 package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.impl.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
 import java.nio.ByteBuffer
@@ -29,9 +29,9 @@ import java.util.concurrent.TimeUnit
  * Implementation of [AdbInputChannel] over a [AsynchronousFileChannel]
  */
 internal class AdbInputFileChannel(
-    private val host: AdbLibHost,
-    private val file: Path,
-    private val fileChannel: AsynchronousFileChannel
+  private val host: AdbSessionHost,
+  private val file: Path,
+  private val fileChannel: AsynchronousFileChannel
 ) : AdbInputChannel {
 
     private val loggerPrefix = javaClass.simpleName
@@ -57,12 +57,12 @@ internal class AdbInputFileChannel(
     }
 
     private class ReadOperation(
-        host: AdbLibHost,
-        timeout: Long,
-        unit: TimeUnit,
-        private val fileChannel: AsynchronousFileChannel,
-        private val buffer: ByteBuffer,
-        private val filePosition: Long
+      host: AdbSessionHost,
+      timeout: Long,
+      unit: TimeUnit,
+      private val fileChannel: AsynchronousFileChannel,
+      private val buffer: ByteBuffer,
+      private val filePosition: Long
     ) : AsynchronousChannelReadOperation(host, timeout, unit) {
 
         override val channel: Channel

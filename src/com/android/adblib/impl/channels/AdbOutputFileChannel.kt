@@ -15,7 +15,7 @@
  */
 package com.android.adblib.impl.channels
 
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.thisLogger
 import com.android.adblib.impl.TimeoutTracker
@@ -30,9 +30,9 @@ import java.util.concurrent.TimeUnit
  * Implementation of [AdbOutputChannel] over a [AsynchronousFileChannel]
  */
 internal class AdbOutputFileChannel(
-    private val host: AdbLibHost,
-    private val file: Path,
-    private val fileChannel: AsynchronousFileChannel
+  private val host: AdbSessionHost,
+  private val file: Path,
+  private val fileChannel: AsynchronousFileChannel
 ) : AdbOutputChannel {
 
     private val logger = thisLogger(host)
@@ -58,12 +58,12 @@ internal class AdbOutputFileChannel(
     }
 
     private class WriteOperation(
-        host: AdbLibHost,
-        timeout: Long,
-        unit: TimeUnit,
-        private val fileChannel: AsynchronousFileChannel,
-        private val buffer: ByteBuffer,
-        private val filePosition: Long
+      host: AdbSessionHost,
+      timeout: Long,
+      unit: TimeUnit,
+      private val fileChannel: AsynchronousFileChannel,
+      private val buffer: ByteBuffer,
+      private val filePosition: Long
     ) : AsynchronousChannelWriteOperation(host, timeout, unit) {
 
         override val hasRemaining: Boolean

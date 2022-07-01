@@ -19,7 +19,7 @@ import com.android.adblib.AdbChannelFactory
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbHostServices
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbSession
 import com.android.adblib.ClosedSessionException
 import com.android.adblib.CoroutineScopeCache
@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.EmptyCoroutineContext
 
 internal class AdbSessionImpl(
-    override val host: AdbLibHost,
+    override val host: AdbSessionHost,
     val channelProvider: AdbChannelProvider,
     private val connectionTimeoutMillis: Long
 ) : AdbSession {

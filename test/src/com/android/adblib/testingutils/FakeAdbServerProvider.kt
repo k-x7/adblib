@@ -18,7 +18,7 @@ package com.android.adblib.testingutils
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbChannelProviderFactory
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.impl.channels.AdbSocketChannelImpl
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.DeviceState.HostConnectionType
@@ -129,7 +129,7 @@ class FakeAdbServerProvider : AutoCloseable {
         server?.start()
     }
 
-    fun createChannelProvider(host: AdbLibHost): TestingChannelProvider {
+    fun createChannelProvider(host: AdbSessionHost): TestingChannelProvider {
         return TestingChannelProvider(host, portSupplier = { port }).also {
             _lastChannelProvider = it
         }
@@ -147,7 +147,7 @@ class FakeAdbServerProvider : AutoCloseable {
         server?.disconnectDevice(deviceSerial)
     }
 
-    class TestingChannelProvider(host: AdbLibHost, portSupplier: suspend () -> Int) :
+    class TestingChannelProvider(host: AdbSessionHost, portSupplier: suspend () -> Int) :
         AdbChannelProvider {
 
         private val provider = AdbChannelProviderFactory.createOpenLocalHost(host, portSupplier)

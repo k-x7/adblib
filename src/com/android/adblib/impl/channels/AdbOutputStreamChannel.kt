@@ -1,6 +1,6 @@
 package com.android.adblib.impl.channels
 
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.thisLogger
 import kotlinx.coroutines.async
@@ -13,9 +13,9 @@ import java.util.concurrent.TimeUnit
  * Implementation of [AdbOutputChannel] over a [OutputStream]
  */
 internal class AdbOutputStreamChannel(
-    private val host: AdbLibHost,
-    private val stream: OutputStream,
-    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
+  private val host: AdbSessionHost,
+  private val stream: OutputStream,
+  bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ) : AdbOutputChannel {
 
     private val logger = thisLogger(host)

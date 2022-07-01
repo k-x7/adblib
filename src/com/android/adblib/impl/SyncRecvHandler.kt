@@ -16,7 +16,7 @@
 package com.android.adblib.impl
 
 import com.android.adblib.AdbChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.DeviceSelector
@@ -41,7 +41,7 @@ internal class SyncRecvHandler(
 
     private val logger = thisLogger(host).withPrefix("device:$device,sync:RECV - ")
 
-    private val host: AdbLibHost
+    private val host: AdbSessionHost
         get() = serviceRunner.host
 
     private val workBuffer = serviceRunner.newResizableBuffer().order(ByteOrder.LITTLE_ENDIAN)

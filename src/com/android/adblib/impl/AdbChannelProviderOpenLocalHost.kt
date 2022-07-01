@@ -3,7 +3,7 @@ package com.android.adblib.impl
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbChannelProviderFactory
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 
@@ -12,8 +12,8 @@ import java.util.concurrent.TimeUnit
  * on `localhost` using the port returned by the specified [portSupplier].
  */
 internal class AdbChannelProviderOpenLocalHost(
-    host: AdbLibHost,
-    /**
+  host: AdbSessionHost,
+  /**
      * Supplier of the localhost port # to connect to. This is invoked lazily so that the
      * implementor has the opportunity to choose a port until an actual connection is opened,
      * i.e. in case the ADB server is started on-demand or via some other dynamic

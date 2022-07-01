@@ -15,9 +15,9 @@
  */
 package com.android.adblib.testing
 
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 
-class FakeAdbLibHost : AdbLibHost() {
+class FakeAdbSessionHost : AdbSessionHost() {
 
     override val loggerFactory = FakeAdbLoggerFactory()
 

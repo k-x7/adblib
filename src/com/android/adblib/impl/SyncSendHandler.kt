@@ -17,7 +17,7 @@ package com.android.adblib.impl
 
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.DeviceSelector
 import com.android.adblib.RemoteFileMode
 import com.android.adblib.SyncProgress
@@ -42,7 +42,7 @@ internal class SyncSendHandler(
 
     private val logger = thisLogger(host).withPrefix("device:$device,sync:SEND - ")
 
-    private val host: AdbLibHost
+    private val host: AdbSessionHost
         get() = serviceRunner.host
 
     private val workBuffer = serviceRunner.newResizableBuffer().order(ByteOrder.LITTLE_ENDIAN)

@@ -15,12 +15,12 @@
  */
 package com.android.adblib.testingutils
 
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbLogger
 import com.android.adblib.impl.TimeoutTracker
 import java.util.concurrent.TimeUnit
 
-class TestingAdbLibHost : AdbLibHost() {
+class TestingAdbSessionHost : AdbSessionHost() {
 
     override val loggerFactory: TestingAdbLoggerFactory by lazy {
         TestingAdbLoggerFactory()
@@ -36,12 +36,12 @@ class TestingAdbLibHost : AdbLibHost() {
 }
 
 /**
- * Overrides the default [AdbLogger.Level] of the [TestingAdbLibHost], useful
+ * Overrides the default [AdbLogger.Level] of the [TestingAdbSessionHost], useful
  * for enabling more verbose logging for a single test, e.g.
  *
  * `hostServices.session.host.setTestLoggerMinLevel(AdbLogger.Level.VERBOSE)`
  */
 @Suppress("unused")
-fun AdbLibHost.setTestLoggerMinLevel(level: AdbLogger.Level) {
-    (this as TestingAdbLibHost).loggerFactory.minLevel = level
+fun AdbSessionHost.setTestLoggerMinLevel(level: AdbLogger.Level) {
+    (this as TestingAdbSessionHost).loggerFactory.minLevel = level
 }

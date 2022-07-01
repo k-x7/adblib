@@ -1,7 +1,7 @@
 package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.impl.TimeoutTracker
 import com.android.adblib.impl.remainingTimeoutToString
 import com.android.adblib.thisLogger
@@ -24,8 +24,8 @@ import kotlin.coroutines.resumeWithException
  * Implementation of [AdbChannel] over an [AsynchronousSocketChannel] socket connection
  */
 internal class AdbSocketChannelImpl(
-    private val host: AdbLibHost,
-    private val socketChannel: AsynchronousSocketChannel
+  private val host: AdbSessionHost,
+  private val socketChannel: AsynchronousSocketChannel
 ) : AdbChannel {
 
     private val logger = thisLogger(host)
@@ -222,9 +222,9 @@ internal class AdbSocketChannelImpl(
  * for the initial code this implementation is based on.
  */
 fun Closeable.closeOnCancel(
-    host: AdbLibHost,
-    operationId: String,
-    cont: CancellableContinuation<*>
+  host: AdbSessionHost,
+  operationId: String,
+  cont: CancellableContinuation<*>
 ) {
     try {
         cont.invokeOnCancellation {

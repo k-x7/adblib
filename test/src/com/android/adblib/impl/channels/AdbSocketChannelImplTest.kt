@@ -17,7 +17,7 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.FakeAdbServerProvider
-import com.android.adblib.testingutils.TestingAdbLibHost
+import com.android.adblib.testingutils.TestingAdbSessionHost
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -44,7 +44,7 @@ class AdbSocketChannelImplTest {
         // Note: We don't really need fake adb for this test, we just need a socket server that
         // does nothing, but we get that for free with fake adb.
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
-        val host = registerCloseable(TestingAdbLibHost())
+        val host = registerCloseable(TestingAdbSessionHost())
         val socketChannel = AsynchronousSocketChannel.open(host.asynchronousChannelGroup)
         val channel = AdbSocketChannelImpl(host, socketChannel)
 

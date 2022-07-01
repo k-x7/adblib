@@ -1,6 +1,6 @@
 package com.android.adblib.impl.channels
 
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.thisLogger
 import com.android.adblib.impl.TimeoutTracker
@@ -17,9 +17,9 @@ import kotlin.coroutines.resumeWithException
  * Helper class for implementors of [AdbOutputChannel.write]
  */
 internal abstract class AsynchronousChannelWriteOperation(
-    protected val host: AdbLibHost,
-    timeout: Long,
-    unit: TimeUnit
+  protected val host: AdbSessionHost,
+  timeout: Long,
+  unit: TimeUnit
 ) : CompletionHandler<Int, CancellableContinuation<Int>> {
 
     private val logger = thisLogger(host)

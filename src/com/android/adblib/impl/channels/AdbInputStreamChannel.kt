@@ -1,7 +1,7 @@
 package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.thisLogger
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -15,9 +15,9 @@ const val DEFAULT_CHANNEL_BUFFER_SIZE = DEFAULT_BUFFER_SIZE
  * Implementation of [AdbInputChannel] over an arbitrary [InputStream]
  */
 internal class AdbInputStreamChannel(
-    private val host: AdbLibHost,
-    private val stream: InputStream,
-    bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
+  private val host: AdbSessionHost,
+  private val stream: InputStream,
+  bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
 ) : AdbInputChannel {
 
     private val logger = thisLogger(host)

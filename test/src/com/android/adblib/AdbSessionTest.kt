@@ -18,7 +18,7 @@ package com.android.adblib
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
 import com.android.adblib.testingutils.FakeAdbServerProvider
-import com.android.adblib.testingutils.TestingAdbLibHost
+import com.android.adblib.testingutils.TestingAdbSessionHost
 import com.android.fakeadbserver.DeviceState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -60,7 +60,7 @@ class AdbSessionTest {
     fun testSessionShouldReturnHostServices() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
-        val host = registerCloseable(TestingAdbLibHost())
+        val host = registerCloseable(TestingAdbSessionHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
         val session = registerCloseable(AdbSession.create(host, channelProvider))
 
@@ -78,7 +78,7 @@ class AdbSessionTest {
     fun testSessionShouldReturnDeviceServices() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
-        val host = registerCloseable(TestingAdbLibHost())
+        val host = registerCloseable(TestingAdbSessionHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
         val session = registerCloseable(AdbSession.create(host, channelProvider))
 
@@ -90,7 +90,7 @@ class AdbSessionTest {
     fun testSessionShouldThrowIfClosed() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
-        val host = registerCloseable(TestingAdbLibHost())
+        val host = registerCloseable(TestingAdbSessionHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
         val session = registerCloseable(AdbSession.create(host, channelProvider))
 
@@ -626,14 +626,14 @@ class AdbSessionTest {
     }
 
     private fun createHostServices(fakeAdb: FakeAdbServerProvider): AdbHostServices {
-        val host = registerCloseable(TestingAdbLibHost())
+        val host = registerCloseable(TestingAdbSessionHost())
         val channelProvider = fakeAdb.createChannelProvider(host)
         val session = registerCloseable(createSession(host, channelProvider))
         return session.hostServices
     }
 
     private fun createSession(
-        host: AdbLibHost,
+        host: AdbSessionHost,
         channelProvider: AdbChannelProvider
     ): AdbSession {
         return AdbSession.create(

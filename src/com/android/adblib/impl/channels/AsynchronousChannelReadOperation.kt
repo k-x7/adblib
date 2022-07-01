@@ -1,7 +1,7 @@
 package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.thisLogger
 import com.android.adblib.impl.TimeoutTracker
 import kotlinx.coroutines.CancellableContinuation
@@ -17,9 +17,9 @@ import kotlin.coroutines.resumeWithException
  * Helper class for implementors of [AdbInputChannel.read]
  */
 internal abstract class AsynchronousChannelReadOperation(
-    protected val host: AdbLibHost,
-    timeout: Long,
-    unit: TimeUnit
+  protected val host: AdbSessionHost,
+  timeout: Long,
+  unit: TimeUnit
 ) : CompletionHandler<Int, CancellableContinuation<Int>> {
 
     private val logger = thisLogger(host)

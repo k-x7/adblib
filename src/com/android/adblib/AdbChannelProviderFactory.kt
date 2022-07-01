@@ -25,15 +25,15 @@ class AdbChannelProviderFactory {
     companion object {
 
         fun createOpenLocalHost(
-            host: AdbLibHost,
-            portSupplier: suspend () -> Int = { DEFAULT_ADB_HOST_PORT }
+          host: AdbSessionHost,
+          portSupplier: suspend () -> Int = { DEFAULT_ADB_HOST_PORT }
         ): AdbChannelProvider {
             return AdbChannelProviderOpenLocalHost(host, portSupplier)
         }
 
         fun createConnectAddresses(
-            host: AdbLibHost,
-            socketAddressesSupplier: suspend () -> List<InetSocketAddress>
+          host: AdbSessionHost,
+          socketAddressesSupplier: suspend () -> List<InetSocketAddress>
         ): AdbChannelProvider {
             return AdbChannelProviderConnectAddresses(host, socketAddressesSupplier)
         }

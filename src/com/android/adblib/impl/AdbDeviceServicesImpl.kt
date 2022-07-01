@@ -20,7 +20,7 @@ import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbSession
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ProcessIdList
@@ -54,7 +54,7 @@ internal class AdbDeviceServicesImpl(
 
     private val logger = thisLogger(session.host)
 
-    private val host: AdbLibHost
+    private val host: AdbSessionHost
         get() = session.host
 
     private val serviceRunner = AdbServiceRunner(session, channelProvider)

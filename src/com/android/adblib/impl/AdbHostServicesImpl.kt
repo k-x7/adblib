@@ -3,7 +3,7 @@ package com.android.adblib.impl
 import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbHostServices
 import com.android.adblib.AdbHostServices.DeviceInfoFormat
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbSession
 import com.android.adblib.AdbProtocolErrorException
 import com.android.adblib.DeviceAddress
@@ -29,7 +29,7 @@ internal class AdbHostServicesImpl(
   private val unit: TimeUnit
 ) : AdbHostServices {
 
-    private val host: AdbLibHost
+    private val host: AdbSessionHost
         get() = session.host
     private val serviceRunner = AdbServiceRunner(session, channelProvider)
     private val deviceParser = DeviceListParser()

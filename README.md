@@ -13,7 +13,7 @@ requirements.
 
 TBD: (Add a decription of the various services adblib provides)
 
-# AdbLibHost
+# AdbSessionHost
 
 As mentioned in the overview, adblib is designed to be usable in a
 variety of environements, from simple command line applications, to
@@ -25,7 +25,7 @@ where logs should be recorded, how thread pools should be used,
 how memory should be tuned (i.e. heap vs direct `ByteBuffers`),
 etc.
 
-`AdbLibHost` is the abstraction that allows adblib to meet these
+`AdbSessionHost` is the abstraction that allows adblib to meet these
 requirements. The default implementation provides reasonable defaults
 for command line apps, but the expectation is that it will be fully
 customized by consumers that implement more complex use cases.
@@ -54,11 +54,11 @@ resume when data has been consumed or is available for use.
 
 In addition to being fully asynchronous, adblib never creates custom threads
 but instead "borrows" existing threads from various thread pool abstractions
-defined in `AdbLibHost`, e.g. Kotlin `Dispatchers` for coroutines, 
+defined in `AdbSessionHost`, e.g. Kotlin `Dispatchers` for coroutines,
 `AsynchronousChannelGroup` for `AsynchronousSocketChannel`, and so on.
 
 Specifically, adblib uses `Dispatchers.IO` only *indirectly* through the
-`AdbLibHost` abstraction, which is customizable by the consumer of adblib,
+`AdbSessionHost` abstraction, which is customizable by the consumer of adblib,
 so that custom `Dispatcher` implementation can be used.
 
 In essence, adblib leaves its consumer(s) the ability to fully customize

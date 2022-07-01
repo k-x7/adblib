@@ -17,7 +17,7 @@ package com.android.adblib.impl
 
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelProvider
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.impl.channels.AdbSocketChannelImpl
 import com.android.adblib.utils.SuppressedExceptions
 import com.android.adblib.utils.closeOnException
@@ -34,8 +34,8 @@ import java.util.concurrent.TimeUnit
  * on one of the addresses returned by [socketAddressesSupplier].
  */
 internal class AdbChannelProviderConnectAddresses(
-    private val host: AdbLibHost,
-    /**
+  private val host: AdbSessionHost,
+  /**
      * Supplier of the list of [InetSocketAddress] this [AdbChannelProvider] should connect to
      * locate an instance of the ADB server. This is invoked on-demand so that the
      * implementor has the opportunity to choose a port until an actual connection is opened,

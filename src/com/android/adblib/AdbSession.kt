@@ -40,7 +40,7 @@ import kotlin.coroutines.CoroutineContext
 
 /**
  * Provides access to various ADB services (e.g. [AdbHostServices], [AdbDeviceServices]) for
- * a given [AdbLibHost]. The [close] method should be called when the session is not needed
+ * a given [AdbSessionHost]. The [close] method should be called when the session is not needed
  * anymore, to ensure all pending operations and all optional state are released.
  *
  * This is the main entry point of `adblib`, use the [create] method to create an instance.
@@ -48,12 +48,12 @@ import kotlin.coroutines.CoroutineContext
 interface AdbSession : AutoCloseable {
 
     /**
-     * The [AdbLibHost] implementation provided by the hosting application for environment
+     * The [AdbSessionHost] implementation provided by the hosting application for environment
      * specific configuration.
      *
      * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
-    val host: AdbLibHost
+    val host: AdbSessionHost
 
     /**
      * An [AdbChannelFactory] that can be used to create various implementations of
@@ -104,16 +104,16 @@ interface AdbSession : AutoCloseable {
     companion object {
 
         /**
-         * Creates an instance of an [AdbSession] given an [AdbLibHost] instance.
+         * Creates an instance of an [AdbSession] given an [AdbSessionHost] instance.
          *
-         * @param host The [AdbLibHost] implementation provided by the hosting application for
+         * @param host The [AdbSessionHost] implementation provided by the hosting application for
          *             environment specific configuration
          * @param channelProvider The [AdbChannelProvider] implementation to connect to the ADB server
          * @param connectionTimeout The timeout to use when creating a connection the ADB Server
          */
         @JvmStatic
         fun create(
-            host: AdbLibHost,
+            host: AdbSessionHost,
             channelProvider: AdbChannelProvider = AdbChannelProviderFactory.createOpenLocalHost(host),
             connectionTimeout: Duration = Duration.ofSeconds(30)
         ): AdbSession {
@@ -256,7 +256,7 @@ fun AdbSession.trackDeviceInfo(device: DeviceSelector): Flow<DeviceInfo> {
  * The returned scope is also cancelled when the [AdbSession] is [closed][AdbSession.close].
  *
  * The returned [CoroutineScope] uses a [CoroutineContext] with a [SupervisorJob] tied to
- * the [device] lifecycle and a [AdbLibHost.ioDispatcher].
+ * the [device] lifecycle and a [AdbSessionHost.ioDispatcher].
  *
  * @see [trackDeviceInfo]
  */

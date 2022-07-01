@@ -17,7 +17,7 @@ package com.android.adblib.impl
 
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ShellCollector
 import com.android.adblib.ShellV2Collector
@@ -57,7 +57,7 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
     private val deviceServices: AdbDeviceServices
         get() = parameters.deviceServices
 
-    private val host: AdbLibHost
+    private val host: AdbSessionHost
         get() = deviceServices.session.host
 
     fun createFlow(): Flow<T> = flow {
@@ -91,9 +91,9 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
     }.flowOn(host.ioDispatcher)
 
     abstract fun createForwardingCollector(
-        host: AdbLibHost,
-        heartbeatChannel: SendChannel<Unit>,
-        delegate: TShellCollector
+      host: AdbSessionHost,
+      heartbeatChannel: SendChannel<Unit>,
+      delegate: TShellCollector
     ): TShellCollector
 
     abstract fun execute(
@@ -107,9 +107,9 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
      * are forwarded.
      */
     protected class ForwardingShellCollector<T>(
-        host: AdbLibHost,
-        private val heartbeatChannel: SendChannel<Unit>,
-        private val delegate: ShellCollector<T>
+      host: AdbSessionHost,
+      private val heartbeatChannel: SendChannel<Unit>,
+      private val delegate: ShellCollector<T>
     ) : ShellCollector<T> {
 
         private val logger = thisLogger(host)
@@ -139,9 +139,9 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
      * are forwarded.
      */
     protected class ForwardingShellV2Collector<T>(
-        host: AdbLibHost,
-        private val heartbeatChannel: SendChannel<Unit>,
-        private val delegate: ShellV2Collector<T>
+      host: AdbSessionHost,
+      private val heartbeatChannel: SendChannel<Unit>,
+      private val delegate: ShellV2Collector<T>
     ) : ShellV2Collector<T> {
 
         private val logger = thisLogger(host)
@@ -176,9 +176,9 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
      * each message is received within the [commandIdleTimeout] delay.
      */
     private class HeartbeatDetector(
-        private val host: AdbLibHost,
-        private val heartbeatChannel: ReceiveChannel<Unit>,
-        private val commandIdleTimeout: Duration
+      private val host: AdbSessionHost,
+      private val heartbeatChannel: ReceiveChannel<Unit>,
+      private val commandIdleTimeout: Duration
     ) {
 
         suspend fun run() {
@@ -208,9 +208,9 @@ internal class ShellV2WithIdleMonitoring<T>(
 ) : ShellWithIdleMonitoring<T, ShellV2Collector<T>>(parameters) {
 
     override fun createForwardingCollector(
-        host: AdbLibHost,
-        heartbeatChannel: SendChannel<Unit>,
-        delegate: ShellV2Collector<T>
+      host: AdbSessionHost,
+      heartbeatChannel: SendChannel<Unit>,
+      delegate: ShellV2Collector<T>
     ): ShellV2Collector<T> {
         return ForwardingShellV2Collector(host, heartbeatChannel, delegate)
     }
@@ -235,9 +235,9 @@ internal class LegacyExecWithIdleMonitoring<T>(
 ) : ShellWithIdleMonitoring<T, ShellCollector<T>>(parameters) {
 
     override fun createForwardingCollector(
-        host: AdbLibHost,
-        heartbeatChannel: SendChannel<Unit>,
-        delegate: ShellCollector<T>
+      host: AdbSessionHost,
+      heartbeatChannel: SendChannel<Unit>,
+      delegate: ShellCollector<T>
     ): ShellCollector<T> {
         return ForwardingShellCollector(host, heartbeatChannel, delegate)
     }
@@ -262,9 +262,9 @@ internal class LegacyShellWithIdleMonitoring<T>(
 ) : ShellWithIdleMonitoring<T, ShellCollector<T>>(parameters) {
 
     override fun createForwardingCollector(
-        host: AdbLibHost,
-        heartbeatChannel: SendChannel<Unit>,
-        delegate: ShellCollector<T>
+      host: AdbSessionHost,
+      heartbeatChannel: SendChannel<Unit>,
+      delegate: ShellCollector<T>
     ): ShellCollector<T> {
         return ForwardingShellCollector(host, heartbeatChannel, delegate)
     }

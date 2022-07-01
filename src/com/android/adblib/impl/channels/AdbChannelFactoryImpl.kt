@@ -17,7 +17,7 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.AdbChannelFactory
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbLibHost
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.utils.closeOnException
 import kotlinx.coroutines.withContext
@@ -26,7 +26,7 @@ import java.nio.file.OpenOption
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 
-internal class AdbChannelFactoryImpl(private val host: AdbLibHost) : AdbChannelFactory {
+internal class AdbChannelFactoryImpl(private val host: AdbSessionHost) : AdbChannelFactory {
 
     override suspend fun openFile(path: Path): AdbInputChannel {
         return openInput(path, StandardOpenOption.READ)
