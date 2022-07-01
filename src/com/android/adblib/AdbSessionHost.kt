@@ -15,8 +15,8 @@
  */
 package com.android.adblib
 
+import com.android.adblib.utils.JdkLoggerFactory
 import com.android.adblib.utils.SystemNanoTime
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import java.nio.channels.AsynchronousChannelGroup
 
@@ -24,7 +24,7 @@ import java.nio.channels.AsynchronousChannelGroup
  * The host of a single ADB instance. Calling the [.close] method on the host
  * should release all resources acquired for running the corresponding ADB instance.
  */
-abstract class AdbSessionHost : AutoCloseable {
+open class AdbSessionHost : AutoCloseable {
 
     open val timeProvider: SystemNanoTimeProvider
         get() = SystemNanoTime()
@@ -35,7 +35,7 @@ abstract class AdbSessionHost : AutoCloseable {
     val logger: AdbLogger
         get() = loggerFactory.logger
 
-    abstract val loggerFactory: AdbLoggerFactory
+    open val loggerFactory: AdbLoggerFactory = JdkLoggerFactory()
 
     /**
      * The [AsynchronousChannelGroup] used for running [java.nio.channels.AsynchronousSocketChannel] completions.
@@ -56,5 +56,7 @@ abstract class AdbSessionHost : AutoCloseable {
      * will either be immediately cancelled or fail at time of completion.
      */
     @Throws(Exception::class)
-    abstract override fun close()
+    override fun close() {
+        // Nothing to do by default
+    }
 }
