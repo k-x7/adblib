@@ -19,6 +19,7 @@ import com.android.adblib.utils.JdkLoggerFactory
 import com.android.adblib.utils.SystemNanoTime
 import kotlinx.coroutines.Dispatchers
 import java.nio.channels.AsynchronousChannelGroup
+import javax.swing.SwingUtilities
 
 /**
  * The host of a single ADB instance. Calling the [.close] method on the host
@@ -50,6 +51,15 @@ open class AdbSessionHost : AutoCloseable {
      * The default value is [Dispatchers.IO]
      */
     open val ioDispatcher = Dispatchers.IO
+
+    /**
+     * Returns `true` if the current thread runs an event dispatching queue that should **not**
+     * allow blocking operations, e.g. the current thread is an AWT event dispatching thread.
+     *
+     * @see SwingUtilities.isEventDispatchThread()
+     */
+    open val isEventDispatchThread: Boolean
+        get() = SwingUtilities.isEventDispatchThread()
 
     /**
      * Release resources acquired by this host. Any operation still pending
