@@ -83,6 +83,11 @@ interface AdbSession : AutoCloseable {
      * Useful when creating coroutines, e.g. with [CoroutineScope.launch], that need to be
      * automatically cancelled when the session is [closed][close].
      *
+     * The scope uses a [SupervisorJob] so that child jobs don't cancel the scope
+     * if they fail with an exception.
+     *
+     * The scope uses the [AdbSessionHost.ioDispatcher] dispatcher by default.
+     *
      * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
     val scope: CoroutineScope

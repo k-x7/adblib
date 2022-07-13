@@ -20,9 +20,11 @@ import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
 import com.android.adblib.testingutils.FakeAdbServerProvider
 import com.android.adblib.testingutils.TestingAdbSessionHost
 import com.android.fakeadbserver.DeviceState
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
@@ -30,6 +32,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -41,6 +45,7 @@ import org.junit.rules.ExpectedException
 import java.io.IOException
 import java.time.Duration
 import java.util.Collections
+import kotlin.coroutines.ContinuationInterceptor
 
 class AdbSessionTest {
 
@@ -54,6 +59,51 @@ class AdbSessionTest {
 
     private fun <T : AutoCloseable> registerCloseable(item: T): T {
         return closeables.register(item)
+    }
+
+    @Test
+    fun testSessionScopeUsesSupervisorJob() = runBlocking {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val host = registerCloseable(TestingAdbSessionHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val session = registerCloseable(AdbSession.create(host, channelProvider))
+
+        // Act
+        val job1 = session.scope.launch {
+            // Throwing an exception here cancels this job, but should not
+            // cancel the "session.scope" job.
+            throw IOException("MyException")
+        }
+        job1.join()
+
+        val job2 = session.scope.async {
+            "A test string"
+        }
+
+        // Assert
+        Assert.assertTrue(job1.isCancelled)
+        Assert.assertFalse(session.scope.coroutineContext.job.isCancelled)
+        Assert.assertFalse(session.scope.coroutineContext.job.isCompleted)
+        Assert.assertTrue(session.scope.coroutineContext.job.isActive)
+        Assert.assertEquals("A test string",  job2.await())
+    }
+
+    @Test
+    fun testSessionScopeUsesHostDispatcher() = runBlocking {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val host = registerCloseable(TestingAdbSessionHost())
+        val channelProvider = fakeAdb.createChannelProvider(host)
+        val session = registerCloseable(AdbSession.create(host, channelProvider))
+
+        // Act
+        val sessionDispatcher = session.scope.async {
+            currentCoroutineContext()[ContinuationInterceptor.Key]
+        }.await()
+
+        // Assert
+        Assert.assertSame(host.ioDispatcher, sessionDispatcher)
     }
 
     @Test

@@ -26,9 +26,9 @@ import com.android.adblib.CoroutineScopeCache
 import com.android.adblib.impl.channels.AdbChannelFactoryImpl
 import com.android.adblib.thisLogger
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.EmptyCoroutineContext
 
 internal class AdbSessionImpl(
     override val host: AdbSessionHost,
@@ -40,7 +40,7 @@ internal class AdbSessionImpl(
 
     private var closed = false
 
-    override val scope = CoroutineScope(EmptyCoroutineContext)
+    override val scope = CoroutineScope(SupervisorJob() + host.ioDispatcher)
 
     override val channelFactory: AdbChannelFactory = AdbChannelFactoryImpl(host)
         get() {
