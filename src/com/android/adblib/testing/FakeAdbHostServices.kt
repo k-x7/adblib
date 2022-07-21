@@ -15,7 +15,6 @@
  */
 package com.android.adblib.testing
 
-import com.android.adblib.AdbFailResponseException
 import com.android.adblib.AdbHostServices
 import com.android.adblib.AdbSession
 import com.android.adblib.DeviceAddress
@@ -28,14 +27,30 @@ import com.android.adblib.MdnsServiceList
 import com.android.adblib.PairResult
 import com.android.adblib.SocketSpec
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.Channel.Factory.UNLIMITED
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.yield
+import kotlinx.coroutines.flow.takeWhile
 import java.io.Closeable
-import java.util.concurrent.CopyOnWriteArrayList
+
+/**
+ * The `replay` value of the [MutableSharedFlow] used to simulate the behavior of
+ * [AdbHostServices.trackDevices]. We use a value of 1 because the [Flow] returned by
+ * [AdbHostServices.trackDevices] should return the current list of devices right away,
+ * as ADB Server does.
+ */
+private const val TRACK_DEVICES_REPLAY = 1
+
+/**
+ * The `extraBufferCapacity` value of the [MutableSharedFlow] used to simulate the behavior of
+ * [AdbHostServices.trackDevices]. We use a value of `10` to so that call to
+ * [MutableSharedFlow.tryEmit] always succeeds in non-suspending functions
+ * (e.g. [FakeAdbHostServices.close]). The may need to be increased if new tests require a
+ * larger buffer.
+ */
+private const val TRACK_DEVICES_EXTRA_BUFFER_CAPACITY = 10
 
 /**
  * A fake implementation of [AdbHostServices] for tests.
@@ -46,59 +61,55 @@ class FakeAdbHostServices(override val session: AdbSession) : AdbHostServices, C
      * The response of the [devices] method.
      */
     var devices = DeviceList(emptyList(), emptyList())
-
-    // TODO(aalbert): figure out how to import a GuardedBy annotation.
-    //@GuardedBy("itself")
-    private var trackDevicesChannels =
-        CopyOnWriteArrayList<Channel<DeviceList>>()
-
-    suspend fun awaitConnection() {
-        while (trackDevicesChannels.filter { !it.isClosedForSend }.isEmpty()) {
-            yield()
+        set(value) {
+            field = value
+            trackDevicesSharedFlow.emitOrThrow(TrackDeviceElement.Devices(value))
         }
+
+    /**
+     * The [MutableSharedFlow] that is used as the upstream [Flow] for implementing
+     * [trackDevices].
+     *
+     * @see TRACK_DEVICES_REPLAY
+     * @see TRACK_DEVICES_EXTRA_BUFFER_CAPACITY
+     * @see TrackDeviceElement
+     */
+    private val trackDevicesSharedFlow = MutableSharedFlow<TrackDeviceElement>(
+        replay = TRACK_DEVICES_REPLAY,
+        extraBufferCapacity = TRACK_DEVICES_EXTRA_BUFFER_CAPACITY
+    )
+    private val trackDevicesFlow = trackDevicesSharedFlow.asSharedFlow()
+
+    sealed class TrackDeviceElement {
+        class Devices(val list: DeviceList) : TrackDeviceElement()
+        class Error(val throwable: Throwable) : TrackDeviceElement()
+        object Eof : TrackDeviceElement()
     }
 
     /**
      * Controls the [trackDevices] call by sending a [DeviceList] to the flow (via a channel).
      *
      * @param deviceList the [DeviceList] to send
-     * @param index indicates which channel to send it to. A new channel is created every time
-     * [trackDevices] is called. -1 means the latest.
      */
-    suspend fun sendDeviceList(deviceList: DeviceList, index: Int = -1) {
-        val channel = synchronized(trackDevicesChannels) {
-            try {
-                if (index >= 0) trackDevicesChannels[index] else trackDevicesChannels.last()
-            } catch (e: IndexOutOfBoundsException) {
-                throw IllegalStateException("Channel not found. Did you call trackDevices()?")
-            }
-        }
-        channel.send(deviceList)
+    suspend fun sendDeviceList(deviceList: DeviceList) {
+        trackDevicesSharedFlow.emit(TrackDeviceElement.Devices(deviceList))
     }
 
     /**
      * Terminates a flow from the [trackDevices] call by closing the backing [Channel]
      *
-     * @param index indicates which channel to colse it to. A new channel is created every time
-     * [trackDevices] is called. -1 means the latest.
      * @param e throwable to close with. null means cancellation.
      */
-    fun closeTrackDevicesFlow(index: Int = -1, e: Throwable? = null) {
-        val channel = synchronized(trackDevicesChannels) {
-            try {
-                if (index >= 0) trackDevicesChannels[index] else trackDevicesChannels.last()
-            } catch (e: IndexOutOfBoundsException) {
-                throw IllegalStateException("Channel not found. Did you call trackDevices()?")
-            }
+    fun closeTrackDevicesFlow(e: Throwable? = null) {
+        if (e == null) {
+            trackDevicesSharedFlow.emitOrThrow(TrackDeviceElement.Eof)
+        } else {
+            trackDevicesSharedFlow.emitOrThrow(TrackDeviceElement.Error(e))
         }
-        channel.close(e)
     }
 
     override fun close() {
-        synchronized(trackDevicesChannels) {
-            trackDevicesChannels.forEach { it.close() }
-            trackDevicesChannels.clear()
-        }
+        trackDevicesSharedFlow.emitOrThrow(TrackDeviceElement.Eof)
     }
 
     override suspend fun version(): Int = 0
@@ -106,20 +117,16 @@ class FakeAdbHostServices(override val session: AdbSession) : AdbHostServices, C
     override suspend fun devices(format: AdbHostServices.DeviceInfoFormat): DeviceList =
         DeviceList(devices, emptyList())
 
-    override fun trackDevices(format: AdbHostServices.DeviceInfoFormat): Flow<DeviceList> {
-        return flow {
-            val devices = this@FakeAdbHostServices.devices
-            val channel = Channel<DeviceList>(UNLIMITED).apply {
-                synchronized(trackDevicesChannels) {
-                    trackDevicesChannels.add(this)
+    override fun trackDevices(format: AdbHostServices.DeviceInfoFormat) = flow {
+        trackDevicesFlow
+            .takeWhile { it !is TrackDeviceElement.Eof }
+            .collect {
+                when (it) {
+                    is TrackDeviceElement.Devices -> emit(it.list)
+                    is TrackDeviceElement.Error -> throw it.throwable
+                    is TrackDeviceElement.Eof -> assert(false)
                 }
             }
-
-            this.emit(devices)
-            channel.receiveAsFlow().collect {
-                this.emit(it)
-            }
-        }
     }
 
     override suspend fun hostFeatures(): List<String> {
@@ -211,5 +218,14 @@ class FakeAdbHostServices(override val session: AdbSession) : AdbHostServices, C
     override suspend fun killForwardAll(device: DeviceSelector) {
         TODO("Not yet implemented")
     }
-}
 
+    private fun <T> MutableSharedFlow<T>.emitOrThrow(value: T) {
+        if (!tryEmit(value)) {
+            throw IllegalStateException(
+                "The shared flow does not have enough extra buffer " +
+                        "capacity for this test to run correctly. " +
+                        "Increase the 'extraBufferCapacity' value"
+            )
+        }
+    }
+}
