@@ -1041,9 +1041,8 @@ class AdbDeviceServicesTest {
         Assert.assertEquals("model", props["ro.build.version.release"])
         Assert.assertEquals("test2", props["ro.product.model"])
 
-        // Assert we made only one connection per cache-hit call (to resolve the device
-        // selector into a serial number), meaning we did not execute "getprop" again
-        Assert.assertEquals(connectionCountBefore + 2, connectionCountAfter)
+        // Assert we made no additional connections
+        Assert.assertEquals(connectionCountBefore, connectionCountAfter)
         Assert.assertSame(props, props2)
         Assert.assertSame(props, props3)
     }

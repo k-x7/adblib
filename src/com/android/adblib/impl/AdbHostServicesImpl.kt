@@ -141,7 +141,10 @@ internal class AdbHostServicesImpl(
         return DeviceState.parseState(stateString)
     }
 
-    override suspend fun getSerialNo(device: DeviceSelector): String {
+    override suspend fun getSerialNo(device: DeviceSelector, forceRoundTrip: Boolean): String {
+        if (!forceRoundTrip) {
+            device.serialNumber?.let { return@getSerialNo it }
+        }
         // ADB Host code:
         // https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/adb.cpp;l=1299
         val tracker = TimeoutTracker(timeout, unit)

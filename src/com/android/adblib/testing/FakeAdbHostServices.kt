@@ -165,14 +165,9 @@ class FakeAdbHostServices(override val session: AdbSession) : AdbHostServices, C
         TODO("Not yet implemented")
     }
 
-    override suspend fun getSerialNo(device: DeviceSelector): String {
-        val hostPrefix = device.hostPrefix
-        val list = hostPrefix.split(":", limit=2)
-        return if (list.size == 2 && list[0] == "host-serial") {
-            list[1]
-        } else {
+    override suspend fun getSerialNo(device: DeviceSelector, forceRoundTrip: Boolean): String {
+        return device.serialNumber ?:
             TODO("Not yet implemented: Unsupported device selector format")
-        }
     }
 
     override suspend fun getDevPath(device: DeviceSelector): String {

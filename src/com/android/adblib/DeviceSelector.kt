@@ -100,7 +100,9 @@ abstract class DeviceSelector {
      */
     internal open val responseContainsTransportId = false
 
-    private class SerialNumber(private val serialNumber: String) : DeviceSelector() {
+    internal open val serialNumber: String? = null
+
+    private class SerialNumber(override val serialNumber: String) : DeviceSelector() {
 
         override fun toString() = "serial-$serialNumber"
 
@@ -238,7 +240,7 @@ abstract class DeviceSelector {
             /** [DeviceSelector] for any single connected device */
             override fun any(): DeviceSelector = AnyWithTransportId
 
-            private class SerialNumberWithTransportId(private val serialNumber: String) :
+            private class SerialNumberWithTransportId(override val serialNumber: String) :
                 DeviceSelector() {
 
                 override fun toString() = "serial-$serialNumber"

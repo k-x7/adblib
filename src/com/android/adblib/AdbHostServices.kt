@@ -95,8 +95,13 @@ interface AdbHostServices {
 
     /**
      * Returns the serial number of the [device] ("<device-prefix>:get-serialno" query).
+     *
+     * Note: [forceRoundTrip] prevents the implementation from looking at the serial number
+     * value that may already be present in the [DeviceSelector] of [device]. It essentially
+     * ensures a `get-serialno` query is sent to the ADB Server even if the serial number
+     * is known.
      */
-    suspend fun getSerialNo(device: DeviceSelector): String
+    suspend fun getSerialNo(device: DeviceSelector, forceRoundTrip: Boolean = false): String
 
     /**
      * Returns the `dev-path` of the [device] ("<device-prefix>:get-devpath" query).

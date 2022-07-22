@@ -420,11 +420,89 @@ class AdbHostServicesTest {
 
         // Act
         val serialNumber = runBlocking {
+            hostServices.getSerialNo(DeviceSelector.any())
+        }
+
+        // Assert
+        Assert.assertEquals("1234", serialNumber)
+    }
+
+    @Test
+    fun testGetSerialNoUsesKnownSerialNumber() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+
+        // Act
+        val serialNumber = runBlocking {
             hostServices.getSerialNo(DeviceSelector.fromSerialNumber("1234"))
         }
 
         // Assert
         Assert.assertEquals("1234", serialNumber)
+        Assert.assertTrue(fakeAdb.channelProvider.createdChannels.isEmpty())
+    }
+
+    @Test
+    fun testGetSerialNoConnectsWhenForceRoundTripIsTrue() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+
+        // Act
+        val serialNumber = runBlocking {
+            hostServices.getSerialNo(DeviceSelector.fromSerialNumber("1234"), forceRoundTrip = true)
+        }
+
+        // Assert
+        Assert.assertEquals("1234", serialNumber)
+        Assert.assertEquals(1, fakeAdb.channelProvider.createdChannels.size)
+    }
+
+    @Test
+    fun testGetSerialConnectsWhenNoSerialNumber() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice =
+            fakeAdb.connectDevice(
+                "1234",
+                "test1",
+                "test2",
+                "model",
+                "sdk",
+                DeviceState.HostConnectionType.USB
+            )
+        fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
+        val hostServices = createHostServices(fakeAdb)
+
+        // Act
+        val serialNumber = runBlocking {
+            hostServices.getSerialNo(DeviceSelector.usb())
+        }
+
+        // Assert
+        Assert.assertEquals("1234", serialNumber)
+        Assert.assertEquals(1, fakeAdb.channelProvider.createdChannels.size)
     }
 
     @Test
