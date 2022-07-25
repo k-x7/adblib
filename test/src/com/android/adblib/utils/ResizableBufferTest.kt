@@ -25,16 +25,16 @@ class ResizableBufferTest {
 
         // Assert
         Assert.assertEquals(10, data.remaining())
-        Assert.assertEquals('f'.toByte(), data.get())
-        Assert.assertEquals('o'.toByte(), data.get())
-        Assert.assertEquals('o'.toByte(), data.get())
-        Assert.assertEquals('b'.toByte(), data.get())
-        Assert.assertEquals('a'.toByte(), data.get())
-        Assert.assertEquals('r'.toByte(), data.get())
-        Assert.assertEquals('b'.toByte(), data.get())
-        Assert.assertEquals('l'.toByte(), data.get())
-        Assert.assertEquals('a'.toByte(), data.get())
-        Assert.assertEquals('h'.toByte(), data.get())
+        Assert.assertEquals('f'.code.toByte(), data.get())
+        Assert.assertEquals('o'.code.toByte(), data.get())
+        Assert.assertEquals('o'.code.toByte(), data.get())
+        Assert.assertEquals('b'.code.toByte(), data.get())
+        Assert.assertEquals('a'.code.toByte(), data.get())
+        Assert.assertEquals('r'.code.toByte(), data.get())
+        Assert.assertEquals('b'.code.toByte(), data.get())
+        Assert.assertEquals('l'.code.toByte(), data.get())
+        Assert.assertEquals('a'.code.toByte(), data.get())
+        Assert.assertEquals('h'.code.toByte(), data.get())
     }
 
     @Test
@@ -53,9 +53,9 @@ class ResizableBufferTest {
 
         // Assert
         Assert.assertEquals(9, data.remaining())
-        Assert.assertEquals('f'.toByte(), data.get())
-        Assert.assertEquals('o'.toByte(), data.get())
-        Assert.assertEquals('o'.toByte(), data.get())
+        Assert.assertEquals('f'.code.toByte(), data.get())
+        Assert.assertEquals('o'.code.toByte(), data.get())
+        Assert.assertEquals('o'.code.toByte(), data.get())
         Assert.assertEquals(1.toByte(), data.get())
         Assert.assertEquals(2.toByte(), data.get())
         Assert.assertEquals(3.toByte(), data.get())

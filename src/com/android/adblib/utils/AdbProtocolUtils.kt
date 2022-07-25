@@ -39,10 +39,11 @@ object AdbProtocolUtils {
         if (buffer.remaining() < letters.length) {
             return false;
         }
-        return buffer.get(0 + buffer.position()) == letters[0].toByte() &&
-                buffer.get(1 + buffer.position()) == letters[1].toByte() &&
-                buffer.get(2 + buffer.position()) == letters[2].toByte() &&
-                buffer.get(3 + buffer.position()) == letters[3].toByte()
+
+        return buffer.get(0 + buffer.position()) == letters[0].code.toByte() &&
+                buffer.get(1 + buffer.position()) == letters[1].code.toByte() &&
+                buffer.get(2 + buffer.position()) == letters[2].code.toByte() &&
+                buffer.get(3 + buffer.position()) == letters[3].code.toByte()
     }
 
     fun byteBufferToString(buffer: ByteBuffer): String {
