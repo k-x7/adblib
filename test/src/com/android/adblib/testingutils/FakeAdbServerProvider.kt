@@ -152,16 +152,26 @@ class FakeAdbServerProvider : AutoCloseable {
 
         private val provider = AdbChannelProviderFactory.createOpenLocalHost(host, portSupplier)
 
-        val createdChannels = ArrayList<TestingAdbChannel>()
+        private val createdChannelsField = ArrayList<TestingAdbChannel>()
+
+        val createdChannels: List<TestingAdbChannel>
+            get() = synchronized(createdChannelsField) {
+                createdChannelsField.toList()
+            }
+
         val lastCreatedChannel: TestingAdbChannel?
             get() {
-                return createdChannels.lastOrNull()
+                return synchronized(createdChannelsField) {
+                    createdChannelsField.lastOrNull()
+                }
             }
 
         override suspend fun createChannel(timeout: Long, unit: TimeUnit): AdbChannel {
             val channel = provider.createChannel(timeout, unit)
-            return TestingAdbChannel(channel).apply {
-                createdChannels.add(this)
+            return TestingAdbChannel(channel).also {
+                synchronized(createdChannelsField) {
+                    createdChannelsField.add(it)
+                }
             }
         }
     }
