@@ -21,6 +21,7 @@ import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
 import com.android.adblib.testingutils.CoroutineTestUtils.yieldUntil
 import com.android.adblib.testingutils.FakeAdbServerProvider
+import com.android.adblib.testingutils.TimeWaitSocketsThrottler
 import com.android.adblib.testingutils.TestingAdbSessionHost
 import com.android.adblib.testingutils.asAdbInputChannel
 import com.android.adblib.testingutils.setTestLoggerMinLevel
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExpectedException
@@ -2114,4 +2116,13 @@ class AdbDeviceServicesTest {
     )
 
     class MyTestException(message: String) : IOException(message)
+
+    companion object {
+
+        @JvmStatic
+        @BeforeClass
+        fun before() {
+            TimeWaitSocketsThrottler.throttleIfNeeded()
+        }
+    }
 }
