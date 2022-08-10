@@ -61,6 +61,18 @@ class FakeAdbDeviceServices(override val session: AdbSession) : AdbDeviceService
     val shellV2Requests = LinkedBlockingDeque<ShellRequest>()
 
     /**
+     * Configures device properties for the given device, such that [AdbDeviceServices.deviceProperties]
+     * will return the supplied properties.
+     *
+     * Note that this is implemented by configuring the no-arg "getprop" shell command as used by
+     * [DevicePropertiesImpl]; invocations of "getprop" with arguments are not simulated.
+     */
+    fun configureDeviceProperties(device: DeviceSelector, properties: Map<String, String>) {
+        val propsOutput = properties.map { (key, value) -> "[$key]: [$value]" }.joinToString("\n")
+        configureShellCommand(device, "getprop", propsOutput)
+    }
+
+    /**
      * Configure a [shellV2], [shell] and [exec] service request.
      *
      * @param deviceSelector A device the command is executed on
