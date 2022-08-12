@@ -97,11 +97,11 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
+            [ro.build.version.release]: [model]
+            [ro.build.version.sdk]: [30]
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
-            [ro.build.version.release]: [model]
-            [ro.build.version.sdk]: [30]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
@@ -125,10 +125,11 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
-            [ro.product.manufacturer]: [test1]
-            [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
             [ro.build.version.sdk]: [30]
+            [ro.product.cpu.abi]: [x86_64]
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput, commandOutput.stdout)
@@ -157,10 +158,11 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
-            [ro.product.manufacturer]: [test1]
-            [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
             [ro.build.version.sdk]: [30]
+            [ro.product.cpu.abi]: [x86_64]
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput.lines(), lines)
@@ -584,10 +586,11 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
-            [ro.product.manufacturer]: [test1]
-            [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
             [ro.build.version.sdk]: [30]
+            [ro.product.cpu.abi]: [x86_64]
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
@@ -613,10 +616,11 @@ class AdbDeviceServicesTest {
             # This is some build info
             # This is more build info
 
-            [ro.product.manufacturer]: [test1]
-            [ro.product.model]: [test2]
             [ro.build.version.release]: [model]
             [ro.build.version.sdk]: [30]
+            [ro.product.cpu.abi]: [x86_64]
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
 
         """.trimIndent()
         Assert.assertEquals(
