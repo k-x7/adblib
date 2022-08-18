@@ -19,6 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExpectedException
+import java.net.InetAddress
 import java.net.InetSocketAddress
 
 class DeviceAddressTest {
@@ -28,7 +29,7 @@ class DeviceAddressTest {
     var exceptionRule: ExpectedException = ExpectedException.none()
 
     @Test
-    fun fromInetSocketAddressWorks() {
+    fun fromUnresolvedInetSocketAddressWorks() {
         // Prepare
         val inetAddress = InetSocketAddress.createUnresolved("foo.bar", 1000)
 
@@ -40,6 +41,18 @@ class DeviceAddressTest {
     }
 
     @Test
+    fun fromResolvedInetSocketAddressWorks() {
+        // Prepare
+        val inetAddress = InetSocketAddress(InetAddress.getByName("10.0.0.1"), 1000)
+
+        // Act
+        val deviceAddress = inetAddress.toDeviceInetAddress()
+
+        // Assert
+        assertEquals("10.0.0.1:1000", deviceAddress.address)
+    }
+
+    @Test
     fun toInetSocketAddressWorks() {
         // Prepare
         val deviceAddress = DeviceAddress("foo.bar:1000")
@@ -48,7 +61,7 @@ class DeviceAddressTest {
         val inetAddress = deviceAddress.toInetAddress()
 
         // Assert
-        assertEquals("foo.bar:1000", inetAddress.toString())
+        assertEquals(InetSocketAddress.createUnresolved("foo.bar", 1000), inetAddress)
         assertEquals("foo.bar", inetAddress.hostString)
         assertEquals(1000, inetAddress.port)
     }

@@ -61,5 +61,5 @@ class DeviceAddress(
 }
 
 fun InetSocketAddress.toDeviceInetAddress(): DeviceAddress {
-    return DeviceAddress(toString())
+    return DeviceAddress("$hostString:$port")
 }
