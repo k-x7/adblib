@@ -30,9 +30,10 @@ class ListWithErrors<E>(
 ) : List<E> by entries {
 
     override fun toString(): String {
-        return entries.joinToString(", ", "[", "]") +
-                " - " +
-                errors.joinToString(", ", "[", "]")
+        val entriesStr = entries.joinToString(", ", "[", "]")
+        val errorsStr = errors.joinToString(", ", "[", "]")
+        return "ListWithErrors(entries=$entriesStr, errors=$errorsStr)"
+
     }
 
     class Builder<E> {
