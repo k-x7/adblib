@@ -59,7 +59,7 @@ class FakeAdbServerProvider : AutoCloseable {
 
     fun buildDefault(): FakeAdbServerProvider {
         // Build the server and configure it to use the default ADB command handlers.
-        builder.installDefaultCommandHandlers()
+        installDefaultCommandHandlers()
         build()
         return this
     }
@@ -82,6 +82,11 @@ class FakeAdbServerProvider : AutoCloseable {
 
     fun installDeviceHandler(handler: DeviceCommandHandler): FakeAdbServerProvider {
         builder.addDeviceHandler(handler)
+        return this
+    }
+
+    fun installDefaultCommandHandlers(): FakeAdbServerProvider {
+        builder.installDefaultCommandHandlers()
         return this
     }
 
