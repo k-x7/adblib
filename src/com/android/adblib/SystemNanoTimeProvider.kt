@@ -88,12 +88,20 @@ abstract class SystemNanoTimeProvider {
 
     private fun getTimeoutMessage(timeout: Long) =
         "Timeout error waiting for $timeout ms"
+}
 
-    private fun Duration.toSafeMillis(): Long {
-        return try {
-            this.toMillis()
-        } catch (e: ArithmeticException) {
-            INFINITE_TIMEOUT
-        }
+internal fun Duration.toSafeMillis(): Long {
+    return try {
+        this.toMillis()
+    } catch (e: ArithmeticException) {
+        INFINITE_TIMEOUT
+    }
+}
+
+internal fun Duration.toSafeNanos(): Long {
+    return try {
+        this.toNanos()
+    } catch (e: ArithmeticException) {
+        INFINITE_TIMEOUT
     }
 }

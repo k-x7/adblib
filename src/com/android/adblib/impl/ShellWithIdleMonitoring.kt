@@ -21,20 +21,25 @@ import com.android.adblib.AdbSessionHost
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ShellCollector
 import com.android.adblib.ShellV2Collector
+import com.android.adblib.SystemNanoTimeProvider
+import com.android.adblib.impl.ShellWithIdleMonitoring.HeartbeatRecorder.FlowEntry.*
 import com.android.adblib.thisLogger
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ClosedReceiveChannelException
-import kotlinx.coroutines.channels.ReceiveChannel
+import com.android.adblib.toSafeMillis
+import com.android.adblib.toSafeNanos
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 import java.time.Duration
+import java.util.concurrent.TimeoutException
 
 internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
     private val parameters: Parameters<TShellCollector>
@@ -62,15 +67,15 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
 
     fun createFlow(): Flow<T> = flow {
         // To detect a command that does not produce any output for the given timeout:
-        // 1) we intercept the original ShellCollector, forward all messages and
-        //    emit a message to a "heartbeat" channel every time we see output coming in
+        // 1) we intercept the original ShellCollector, forwarding all messages and
+        //    recording "heartbeats" every time we see output coming in
         // 2) at the same time, we run a concurrent coroutine, the "heartbeat detector" that
-        //    checks the "heartbeat" channel for messages. If there is no incoming message
+        //    checks incoming "heartbeats" from the shell command . If there is no "heartbeat"
         //    for longer than the timeout, the coroutine throws an `TimeoutException`, which
         //    cancels the whole flow with a `TimeoutException`.
-        val heartbeatChannel = Channel<Unit>()
-        val forwardingCollector = createForwardingCollector(host, heartbeatChannel, parameters.shellCollector)
-        val heartbeatDetector = HeartbeatDetector(host, heartbeatChannel, parameters.commandOutputTimeout)
+        val heartbeat = HeartbeatRecorder(host.timeProvider)
+        val forwardingCollector = createForwardingCollector(host, heartbeat, parameters.shellCollector)
+        val heartbeatDetector = HeartbeatDetector(host, heartbeat, parameters.commandOutputTimeout)
         coroutineScope {
             // Launch our command (in)activity detector
             launch {
@@ -86,13 +91,13 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
             }
 
             // Ensure the idle detector exits its loop
-            heartbeatChannel.close()
+            heartbeat.close()
         }
     }.flowOn(host.ioDispatcher)
 
     abstract fun createForwardingCollector(
       host: AdbSessionHost,
-      heartbeatChannel: SendChannel<Unit>,
+      heartbeat: HeartbeatRecorder,
       delegate: TShellCollector
     ): TShellCollector
 
@@ -108,7 +113,7 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
      */
     protected class ForwardingShellCollector<T>(
       host: AdbSessionHost,
-      private val heartbeatChannel: SendChannel<Unit>,
+      private val heartbeat: HeartbeatRecorder,
       private val delegate: ShellCollector<T>
     ) : ShellCollector<T> {
 
@@ -116,19 +121,19 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
 
         override suspend fun start(collector: FlowCollector<T>) {
             logger.verbose { "start" }
-            heartbeatChannel.send(Unit)
+            heartbeat.recordNow()
             delegate.start(collector)
         }
 
         override suspend fun collect(collector: FlowCollector<T>, stdout: ByteBuffer) {
             logger.verbose { "collect" }
-            heartbeatChannel.send(Unit)
+            heartbeat.recordNow()
             delegate.collect(collector, stdout)
         }
 
         override suspend fun end(collector: FlowCollector<T>) {
             logger.verbose { "end" }
-            heartbeatChannel.send(Unit)
+            heartbeat.recordNow()
             delegate.end(collector)
         }
     }
@@ -140,7 +145,7 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
      */
     protected class ForwardingShellV2Collector<T>(
       host: AdbSessionHost,
-      private val heartbeatChannel: SendChannel<Unit>,
+      private val heartbeat: HeartbeatRecorder,
       private val delegate: ShellV2Collector<T>
     ) : ShellV2Collector<T> {
 
@@ -148,57 +153,152 @@ internal abstract class ShellWithIdleMonitoring<T, TShellCollector>(
 
         override suspend fun start(collector: FlowCollector<T>) {
             logger.verbose { "start" }
-            heartbeatChannel.send(Unit)
+            heartbeat.recordNow()
             delegate.start(collector)
         }
 
         override suspend fun collectStdout(collector: FlowCollector<T>, stdout: ByteBuffer) {
             logger.verbose { "collect" }
-            heartbeatChannel.send(Unit)
+            heartbeat.recordNow()
             delegate.collectStdout(collector, stdout)
         }
 
         override suspend fun collectStderr(collector: FlowCollector<T>, stderr: ByteBuffer) {
             logger.verbose { "collect" }
-            heartbeatChannel.send(Unit)
+            heartbeat.recordNow()
             delegate.collectStderr(collector, stderr)
         }
 
         override suspend fun end(collector: FlowCollector<T>, exitCode: Int) {
             logger.verbose { "end" }
-            heartbeatChannel.send(Unit)
+            heartbeat.recordNow()
             delegate.end(collector, exitCode)
         }
     }
 
     /**
-     * A coroutine helper class that waits for messages on [heartbeatChannel], ensuring
-     * each message is received within the [commandIdleTimeout] delay.
+     * A coroutine helper class that ensures [heartbeat] is updated at least every
+     * [commandIdleTimeout] duration.
      */
-    private class HeartbeatDetector(
+    protected class HeartbeatDetector(
       private val host: AdbSessionHost,
-      private val heartbeatChannel: ReceiveChannel<Unit>,
+      private val heartbeat: HeartbeatRecorder,
       private val commandIdleTimeout: Duration
     ) {
+        private val timeProvider: SystemNanoTimeProvider
+            get() = host.timeProvider
 
         suspend fun run() {
+            val probingTimeout = commandIdleTimeout.dividedBy(2)
+
             // Wait until the command is actually executing (without timeout, as this initial
             // message is received after connecting to ADB and setting the command, etc.)
-            heartbeatChannel.receive()
+            var lastHeartbeatNanoTime = heartbeat.waitForFirst()
 
-            // Make sure we have some activity on the channel within the timeout period
-            var active = true
-            while (active) {
-                host.timeProvider.withErrorTimeout(commandIdleTimeout) {
-                    try {
-                        // An element on the channel means the shell command emitted output
-                        heartbeatChannel.receive()
-                    } catch (e: ClosedReceiveChannelException) {
-                        // When the channel is closed, we are done and should exit normally
-                        active = false
+            // Now, we can start looking for heartbeats. If at any point in time, the
+            // shell command terminates, heartbeat throws CancellationException.
+            while (true) {
+                try {
+                    // Wait for specified command activity timeout, restarting the timeout
+                    // everytime we detect a heartbeat.
+                    // In all cases, we measure actual elapsed time from the last heartbeat
+                    // before deciding if the specified timeout has been exceeded.
+                    host.timeProvider.withErrorTimeout(probingTimeout) {
+                        // Wait until new heartbeat is emitted.
+                        val nextHeartbeatDeadline = lastHeartbeatNanoTime + probingTimeout
+                        lastHeartbeatNanoTime = heartbeat.waitForNext(nextHeartbeatDeadline)
+                        throwIfInactive()
                     }
+                } catch (e: TimeoutException) {
+                    throwIfInactive()
                 }
             }
+        }
+
+        private fun throwIfInactive() {
+            val nanosFromLastHeartbeat = timeProvider.nanoTime() - heartbeat.lastRecorded.nanos
+            val timeoutNanos = commandIdleTimeout.toSafeNanos()
+            if (nanosFromLastHeartbeat >= timeoutNanos) {
+                throw TimeoutException("Command has been inactive for more than " +
+                                       "${commandIdleTimeout.toSafeMillis()} millis")
+            }
+        }
+    }
+
+    class HeartbeatRecorder(private val timeProvider: SystemNanoTimeProvider) {
+
+        private val lastHeartbeatFlow = MutableStateFlow<FlowEntry>(Heartbeat(NanoTime.MIN_VALUE))
+
+        private val closed: Boolean
+            get() = lastHeartbeatFlow.value === Closed
+
+        val lastRecorded: NanoTime
+            get() {
+                return when(val entry = lastHeartbeatFlow.value) {
+                    is Closed -> throwCancellation()
+                    is Heartbeat -> entry.nanoTime
+                }
+            }
+
+        /**
+         * Records a heartbeat now
+         */
+        fun recordNow() {
+            if (closed) {
+                throwCancellation()
+            }
+            lastHeartbeatFlow.value = Heartbeat(NanoTime(timeProvider.nanoTime()))
+        }
+
+        /**
+         * Waits for at least one heartbeat to be [recorded][recordNow]
+         */
+        suspend fun waitForFirst(): NanoTime {
+             return waitWhile { it == NanoTime.MIN_VALUE }
+        }
+
+        /**
+         * Waits for at least one recorded heartbeat recorded after the given [lastNanoTime]
+         */
+        suspend fun waitForNext(lastNanoTime: NanoTime): NanoTime {
+            return waitWhile { it <= lastNanoTime }
+        }
+
+        fun close() {
+            lastHeartbeatFlow.value = Closed
+        }
+
+        private suspend fun waitWhile(predicate: (NanoTime) -> Boolean): NanoTime {
+            lastHeartbeatFlow.takeWhile {
+                predicate(lastRecorded)
+            }.collect()
+
+            return lastRecorded
+        }
+
+        private fun throwCancellation(): Nothing {
+            throw CancellationException("Heartbeat recorder has been closed")
+        }
+
+        private sealed class FlowEntry {
+            object Closed : FlowEntry()
+            class Heartbeat(val nanoTime: NanoTime) : FlowEntry()
+        }
+    }
+
+    @JvmInline
+    value class NanoTime(val nanos: Long) {
+
+        operator fun compareTo(other: NanoTime): Int {
+            return nanos.compareTo(other.nanos)
+        }
+
+        operator fun plus(duration: Duration): NanoTime {
+            return NanoTime(nanos + duration.toSafeNanos())
+        }
+
+        companion object {
+            val MIN_VALUE = NanoTime(Long.MIN_VALUE)
         }
     }
 }
@@ -209,10 +309,10 @@ internal class ShellV2WithIdleMonitoring<T>(
 
     override fun createForwardingCollector(
       host: AdbSessionHost,
-      heartbeatChannel: SendChannel<Unit>,
+      heartbeat: HeartbeatRecorder,
       delegate: ShellV2Collector<T>
     ): ShellV2Collector<T> {
-        return ForwardingShellV2Collector(host, heartbeatChannel, delegate)
+        return ForwardingShellV2Collector(host, heartbeat, delegate)
     }
 
     override fun execute(
@@ -236,10 +336,10 @@ internal class LegacyExecWithIdleMonitoring<T>(
 
     override fun createForwardingCollector(
       host: AdbSessionHost,
-      heartbeatChannel: SendChannel<Unit>,
+      heartbeat: HeartbeatRecorder,
       delegate: ShellCollector<T>
     ): ShellCollector<T> {
-        return ForwardingShellCollector(host, heartbeatChannel, delegate)
+        return ForwardingShellCollector(host, heartbeat, delegate)
     }
 
     override fun execute(
@@ -263,10 +363,10 @@ internal class LegacyShellWithIdleMonitoring<T>(
 
     override fun createForwardingCollector(
       host: AdbSessionHost,
-      heartbeatChannel: SendChannel<Unit>,
+      heartbeat: HeartbeatRecorder,
       delegate: ShellCollector<T>
     ): ShellCollector<T> {
-        return ForwardingShellCollector(host, heartbeatChannel, delegate)
+        return ForwardingShellCollector(host, heartbeat, delegate)
     }
 
     override fun execute(
