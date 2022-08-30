@@ -53,16 +53,20 @@ class DevicePropertiesImpl(
     }
 
     override suspend fun api(default: Int): Int {
-        return try {
-            readonlyValue(RO_BUILD_VERSION_SDK).toInt()
-        } catch (t: Throwable) {
-            thisLogger(this.session).info(t) { "API level could not be determined, returning $default instead" }
+        val api = allReadonly()[RO_BUILD_VERSION_SDK]
+        if (api == null) {
+            thisLogger(this.session).info {
+                "Property '$RO_BUILD_VERSION_SDK' not found, returning $default instead"
+            }
             return default
         }
-    }
-
-    private suspend fun readonlyValue(name: String): String {
-        return allReadonly()[name]
-            ?: throw NoSuchElementException("Property '$name' not found in readonly properties")
+        return try {
+            api.toInt()
+        } catch (e: NumberFormatException) {
+            thisLogger(this.session).info {
+                "Property '$RO_BUILD_VERSION_SDK' (\"$api\") is not a number, returning $default instead"
+            }
+            return default
+        }
     }
 }
