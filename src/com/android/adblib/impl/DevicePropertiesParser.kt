@@ -40,9 +40,21 @@ private val EndLinePattern = Regex("(.*)]$") //$NON-NLS-1$
  */
 internal class DevicePropertiesParser {
 
-    fun parse(lines: Sequence<String>): List<DeviceProperty> {
+    fun parse(lines: Sequence<String>, removeTrailingCr: Boolean = false): List<DeviceProperty> {
+        // Remove trailing '\r' if needed
+        val strippedCrLines = if (removeTrailingCr) {
+            lines.map {
+                if (it.endsWith('\r')) {
+                    it.substring(0, it.length - 1)
+                } else {
+                    it
+                }
+            }
+        } else {
+            lines
+        }
         val result = ArrayList<DeviceProperty>()
-        val iterator = lines.iterator()
+        val iterator = strippedCrLines.iterator()
         while (iterator.hasNext()) {
             matchOneEntry(iterator)?.let { result.add(it) }
         }

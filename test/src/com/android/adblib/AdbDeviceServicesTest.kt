@@ -1458,6 +1458,25 @@ class AdbDeviceServicesTest {
     }
 
     @Test
+    fun testDevicePropertiesAllWorksOnApi16() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val device = addFakeDevice(fakeAdb, sdk = 16)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(device.deviceId)
+
+        // Act
+        val props = runBlocking {
+            deviceServices.deviceProperties(deviceSelector).all().associate { it.name to it.value }
+        }
+
+        // Assert
+        Assert.assertEquals("16", props["ro.build.version.sdk"])
+        Assert.assertEquals("model", props["ro.build.version.release"])
+        Assert.assertEquals("test2", props["ro.product.model"])
+    }
+
+    @Test
     fun testDevicePropertiesAllReadonlyWorks() = runBlockingWithTimeout {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())

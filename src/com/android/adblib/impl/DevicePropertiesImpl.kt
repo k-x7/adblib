@@ -16,15 +16,22 @@
 package com.android.adblib.impl
 
 import com.android.adblib.AdbDeviceServices
+import com.android.adblib.AdbFeatures
 import com.android.adblib.AdbSession
 import com.android.adblib.CoroutineScopeCache
 import com.android.adblib.DeviceProperties
 import com.android.adblib.DeviceProperty
 import com.android.adblib.DevicePropertyNames.RO_BUILD_VERSION_SDK
 import com.android.adblib.DeviceSelector
+import com.android.adblib.ShellCommandOutputElement
+import com.android.adblib.availableFeatures
 import com.android.adblib.thisLogger
 import com.android.adblib.utils.LineShellCollector
+import com.android.adblib.utils.LineShellV2Collector
+import com.android.adblib.utils.TextShellCollector
 import com.android.adblib.utils.toImmutableMap
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.toList
 
 class DevicePropertiesImpl(
@@ -33,14 +40,19 @@ class DevicePropertiesImpl(
     val device: DeviceSelector
 ) : DeviceProperties {
 
+    private val logger = thisLogger(deviceServices.session)
+
     private val allReadonlyKey = CoroutineScopeCache.Key<Map<String, String>>("allReadonly")
 
     private val session: AdbSession
         get() = deviceServices.session
 
     override suspend fun all(): List<DeviceProperty> {
+        // Use "shell", after detecting older implementations that use `\r\n` for new lines
+        val text = deviceServices.shell(device, "echo foo", TextShellCollector()).first()
+        val removeTrailingCr = text.endsWith("\r\n")
         val lines = deviceServices.shell(device, "getprop", LineShellCollector()).toList()
-        return DevicePropertiesParser().parse(lines.asSequence())
+        return DevicePropertiesParser().parse(lines.asSequence(), removeTrailingCr)
     }
 
     override suspend fun allReadonly(): Map<String, String> {
