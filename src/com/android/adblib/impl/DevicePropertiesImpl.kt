@@ -68,13 +68,13 @@ class DevicePropertiesImpl(
                         is ShellCommandOutputElement.StderrLine -> null
                     }
                 }.toList()
-            DevicePropertiesParser().parse(lines.asSequence(), false)
+            DevicePropertiesParser().parse(lines.asSequence())
         } else {
             // Use "shell", after detecting older implementations that use `\r\n` for new lines
-            val text = deviceServices.shell(device, "echo foo", TextShellCollector()).first()
-            val removeTrailingCr = text.endsWith("\r\n")
-            val lines = deviceServices.shell(device, "getprop", LineShellCollector()).toList()
-            return DevicePropertiesParser().parse(lines.asSequence(), removeTrailingCr)
+            val text = deviceServices.shell(device, "echo foo", TextShellCollector(), stripCrLf = false).first()
+            val stripCrLf = text.endsWith("\r\n")
+            val lines = deviceServices.shell(device, "getprop", LineShellCollector(), stripCrLf = stripCrLf).toList()
+            return DevicePropertiesParser().parse(lines.asSequence())
         }
     }
 

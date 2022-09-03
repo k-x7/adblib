@@ -136,7 +136,8 @@ class FakeAdbDeviceServices(override val session: AdbSession) : AdbDeviceService
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-        shutdownOutput : Boolean
+        shutdownOutput : Boolean,
+        stripCrLf: Boolean,
     ): Flow<T> {
         shellRequests.add(ShellRequest(device.toString(), command, commandTimeout, bufferSize))
         val output = shellCommands[device.transportPrefix]?.get(command)

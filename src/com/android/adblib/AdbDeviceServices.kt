@@ -3,7 +3,6 @@ package com.android.adblib
 import com.android.adblib.impl.DevicePropertiesImpl
 import com.android.adblib.impl.ShellCommandImpl
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.LineBatchShellV2Collector
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.io.IOException
@@ -27,6 +26,16 @@ interface AdbDeviceServices {
     val session: AdbSession
 
     /**
+     * ## Note
+     *
+     * __It is strongly recommended to use [AdbDeviceServices.shellCommand] instead of
+     * this [shell] method which is a low-level call to the `shell` services that comes
+     * with a few caveats and backward compatibility issues addressed by
+     * [AdbDeviceServices.shellCommand].__
+     *
+     * &nbsp;
+     * ## Description
+     *
      * Returns a [Flow] that, when collected, executes a shell command on a device
      * ("<device-transport>:shell" query) and emits the `stdout` and `stderr` output from of
      * the command to the [Flow].
@@ -63,8 +72,11 @@ interface AdbDeviceServices {
      *   the timeout, a [TimeoutException] is thrown and the underlying [AdbChannel] is closed.
      * @param [bufferSize] the size of the buffer used to receive data from the shell command output
      * @param [shutdownOutput] shutdown device channel output end after piping [stdinChannel]
+     * @param [stripCrLf] Convert sequences of `CRLF` characters to `LF`. This should be used for
+     *   devices at API level <= 23.
      *
-     * @see [shellV2]
+     * @see AdbDeviceServices.shellCommand
+     * @see shellV2
      */
     fun <T> shell(
         device: DeviceSelector,
@@ -73,10 +85,21 @@ interface AdbDeviceServices {
         stdinChannel: AdbInputChannel? = null,
         commandTimeout: Duration = INFINITE_DURATION,
         bufferSize: Int = DEFAULT_SHELL_BUFFER_SIZE,
-        shutdownOutput: Boolean = true
+        shutdownOutput: Boolean = true,
+        stripCrLf: Boolean = false,
     ): Flow<T>
 
     /**
+     * ## Note
+     *
+     * __It is strongly recommended to use [AdbDeviceServices.shellCommand] instead of
+     * this [exec] method which is a low-level call to the `shell` services that comes
+     * with a few caveats and backward compatibility issues addressed by
+     * [AdbDeviceServices.shellCommand].__
+     *
+     * &nbsp;
+     * ## Description
+     *
      * Returns a [Flow] that, when collected, executes a shell command on a device
      * ("<device-transport>:exec" query) and emits the `stdout` output from of
      * the command to the [Flow].
@@ -107,6 +130,16 @@ interface AdbDeviceServices {
     ): Flow<T>
 
     /**
+     * ## Note
+     *
+     * __It is strongly recommended to use [AdbDeviceServices.shellCommand] instead of
+     * this [shellV2] method which is a low-level call to the `shell` services that comes
+     * with a few caveats and backward compatibility issues addressed by
+     * [AdbDeviceServices.shellCommand].__
+     *
+     * &nbsp;
+     * ## Description
+     *
      * Returns a [Flow] that, when collected, executes a shell command on a device
      * ("<device-transport>:shell,v2" query) and emits the output, as well as `stderr` and
      * exit code, of the command to the [Flow].

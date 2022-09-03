@@ -20,8 +20,8 @@ import com.android.adblib.AdbChannelProvider
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbSession
+import com.android.adblib.AdbSessionHost
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ProcessIdList
 import com.android.adblib.ReverseSocketList
@@ -29,6 +29,8 @@ import com.android.adblib.ShellCollector
 import com.android.adblib.ShellV2Collector
 import com.android.adblib.SocketSpec
 import com.android.adblib.forwardTo
+import com.android.adblib.impl.StdoutByteBufferProcessor.DirectProcessor
+import com.android.adblib.impl.StdoutByteBufferProcessor.StripCrLfProcessor
 import com.android.adblib.impl.TimeoutTracker.Companion.INFINITE
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
@@ -68,7 +70,8 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-        shutdownOutput: Boolean
+        shutdownOutput: Boolean,
+        stripCrLf: Boolean
     ): Flow<T> {
         return runServiceWithOutput(
             device,
@@ -78,7 +81,8 @@ internal class AdbDeviceServicesImpl(
             stdinChannel,
             commandTimeout,
             bufferSize,
-            shutdownOutput
+            shutdownOutput,
+            stripCrLf,
         )
     }
 
@@ -99,7 +103,8 @@ internal class AdbDeviceServicesImpl(
             stdinChannel,
             commandTimeout,
             bufferSize,
-            shutdownOutput
+            shutdownOutput,
+            stripCrLf = false,
         )
     }
 
@@ -246,7 +251,8 @@ internal class AdbDeviceServicesImpl(
             stdinChannel,
             commandTimeout,
             bufferSize,
-            shutdownOutput
+            shutdownOutput,
+            stripCrLf = false,
         )
     }
 
@@ -286,11 +292,13 @@ internal class AdbDeviceServicesImpl(
         workBuffer: ResizableBuffer,
         service: String,
         bufferSize: Int,
+        stripCrLf: Boolean,
         shellCollector: ShellCollector<T>,
         flowCollector: FlowCollector<T>
     ) {
         logger.debug { "\"${service}\" - Collecting messages from shell command output" }
         shellCollector.start(flowCollector)
+        val bufferProcessor = if (stripCrLf) StripCrLfProcessor() else DirectProcessor()
         while (true) {
             logger.verbose { "\"${service}\" - Waiting for next message from shell command output" }
 
@@ -299,14 +307,20 @@ internal class AdbDeviceServicesImpl(
             workBuffer.clear()
             val byteCount = channel.read(workBuffer.forChannelRead(bufferSize))
             if (byteCount < 0) {
-                // We are done reading from this channel
+                // We are done reading from this channel, but we may have left over
+                // from our stdout byte processor
+                val outputBuffer = bufferProcessor.convertBufferEnd()
+                if (outputBuffer != null) {
+                    shellCollector.collect(flowCollector, outputBuffer)
+                }
                 break
             }
             val buffer = workBuffer.afterChannelRead()
             assert(buffer.remaining() == byteCount)
 
             logger.verbose { "\"${service}\" - Emitting packet of $byteCount bytes" }
-            shellCollector.collect(flowCollector, buffer)
+            val outputBuffer = bufferProcessor.convertBuffer(buffer)
+            shellCollector.collect(flowCollector, outputBuffer)
         }
         shellCollector.end(flowCollector)
         logger.debug { "\"${service}\" - Done collecting messages from shell command output" }
@@ -404,7 +418,8 @@ internal class AdbDeviceServicesImpl(
         stdinChannel: AdbInputChannel?,
         commandTimeout: Duration,
         bufferSize: Int,
-        shutdownOutput: Boolean
+        shutdownOutput: Boolean,
+        stripCrLf: Boolean
     ): Flow<T> = flow {
         val service = getExecServiceString(execService, commandProvider())
         logger.debug { "Device \"${device}\" - Start execution of service \"$service\" (bufferSize=$bufferSize bytes)" }
@@ -427,8 +442,9 @@ internal class AdbDeviceServicesImpl(
                     workBuffer,
                     service,
                     bufferSize,
+                    stripCrLf,
                     shellCollector,
-                    this@flow
+                    this@flow,
                 )
             }
         }

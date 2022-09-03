@@ -113,6 +113,66 @@ class AdbDeviceServicesTest {
     }
 
     @Test
+    fun testShellCanStripCrLf() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val device = addFakeDevice(fakeAdb, 23) // older device to force \r\n newlines
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(device.deviceId)
+        val collector = ByteBufferShellCollector()
+
+        // Act
+        val bytes = runBlocking {
+            deviceServices.shell(deviceSelector, "getprop", collector, stripCrLf = true).first()
+        }
+
+        // Assert
+        Assert.assertNull(deviceSelector.transportId)
+        val expectedOutput = """
+            # This is some build info
+            # This is more build info
+
+            [ro.build.version.release]: [model]
+            [ro.build.version.sdk]: [23]
+            [ro.product.cpu.abi]: [x86_64]
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
+
+        """.trimIndent()
+        Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
+    }
+
+    @Test
+    fun testShellCanKeepCrLf() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val device = addFakeDevice(fakeAdb, 23) // older device to force \r\n newlines
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(device.deviceId)
+        val collector = ByteBufferShellCollector()
+
+        // Act
+        val bytes = runBlocking {
+            deviceServices.shell(deviceSelector, "getprop", collector, stripCrLf = false).first()
+        }
+
+        // Assert
+        Assert.assertNull(deviceSelector.transportId)
+        val expectedOutput = """
+            # This is some build info
+            # This is more build info
+
+            [ro.build.version.release]: [model]
+            [ro.build.version.sdk]: [23]
+            [ro.product.cpu.abi]: [x86_64]
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
+
+        """.trimIndent().replace("\n", "\r\n")
+        Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
+    }
+
+    @Test
     fun testShellToText() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
@@ -1419,6 +1479,73 @@ class AdbDeviceServicesTest {
 
         // Assert
         Assert.fail("Should not be reached")
+    }
+
+    @Test
+    fun testShellCommandStripsCrLfOnOldDevices() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        // Below API 21, only "shell" is supported
+        val fakeDevice = addFakeDevice(fakeAdb, 19)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        val output = runBlocking {
+            deviceServices.shellCommand(deviceSelector, "getprop")
+                .withTextCollector()
+                .execute()
+                .first()
+                .stdout
+        }
+
+        // Assert
+        val expectedOutput = """
+            # This is some build info
+            # This is more build info
+
+            [ro.build.version.release]: [model]
+            [ro.build.version.sdk]: [19]
+            [ro.product.cpu.abi]: [x86_64]
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
+
+        """.trimIndent()
+        Assert.assertEquals(expectedOutput, output)
+    }
+
+    @Test
+    fun testShellCommandAllowsCrLfOnOldDevices() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        // Below API 21, only "shell" is supported
+        val fakeDevice = addFakeDevice(fakeAdb, 19)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        // Act
+        val output = runBlocking {
+            deviceServices.shellCommand(deviceSelector, "getprop")
+                .withTextCollector()
+                .allowStripCrLfForLegacyShell(false)
+                .execute()
+                .first()
+                .stdout
+        }
+
+        // Assert
+        val expectedOutput = """
+            # This is some build info
+            # This is more build info
+
+            [ro.build.version.release]: [model]
+            [ro.build.version.sdk]: [19]
+            [ro.product.cpu.abi]: [x86_64]
+            [ro.product.manufacturer]: [test1]
+            [ro.product.model]: [test2]
+
+        """.trimIndent().replace("\n", "\r\n")
+        Assert.assertEquals(expectedOutput, output)
     }
 
     // Checks public contract of the ShellCommandOutputElement.*.toString methods.

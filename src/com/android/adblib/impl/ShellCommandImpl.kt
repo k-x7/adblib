@@ -45,6 +45,7 @@ internal class ShellCommandImpl<T>(
 
     private val logger = thisLogger(session)
 
+    private var _allowStripCrLfForLegacyShell: Boolean = true
     private var _allowLegacyShell: Boolean = true
     private var _allowLegacyExec: Boolean = true
     private var _allowShellV2: Boolean = true
@@ -106,6 +107,11 @@ internal class ShellCommandImpl<T>(
         return this
     }
 
+    override fun allowStripCrLfForLegacyShell(value: Boolean): ShellCommand<T> {
+        this._allowStripCrLfForLegacyShell = value
+        return this
+    }
+
     override fun withCommandOverride(commandOverride: (String, Protocol) -> String): ShellCommand<T> {
         this.commandOverride = commandOverride
         return this
@@ -123,6 +129,11 @@ internal class ShellCommandImpl<T>(
         val protocol = pickProtocol()
         val commandOutputTimeout = this.commandOutputTimeout
         val command = commandOverride?.invoke(command, protocol) ?: command
+        val stripCrLf = SuspendingLazy {
+            (protocol == Protocol.SHELL) &&
+                    _allowStripCrLfForLegacyShell &&
+                    (session.deviceServices.deviceProperties(device).api() <= 23)
+        }
         return if (commandOutputTimeout != null) {
             logger.debug { "Executing command with protocol=$protocol and commandOutputTimeout=$commandOutputTimeout: $command" }
             when (protocol) {
@@ -136,7 +147,8 @@ internal class ShellCommandImpl<T>(
                             stdinChannel = stdinChannel,
                             commandTimeout = commandTimeout,
                             commandOutputTimeout = commandOutputTimeout,
-                            bufferSize = bufferSize
+                            bufferSize = bufferSize,
+                            stripCrLf = false
                         )
                     ).createFlow()
                 }
@@ -150,7 +162,8 @@ internal class ShellCommandImpl<T>(
                             stdinChannel = stdinChannel,
                             commandTimeout = commandTimeout,
                             commandOutputTimeout = commandOutputTimeout,
-                            bufferSize = bufferSize
+                            bufferSize = bufferSize,
+                            stripCrLf = false
                         )
                     ).createFlow()
                 }
@@ -164,7 +177,8 @@ internal class ShellCommandImpl<T>(
                             stdinChannel = stdinChannel,
                             commandTimeout = commandTimeout,
                             commandOutputTimeout = commandOutputTimeout,
-                            bufferSize = bufferSize
+                            bufferSize = bufferSize,
+                            stripCrLf = stripCrLf.value()
                         )
                     ).createFlow()
                 }
@@ -199,7 +213,8 @@ internal class ShellCommandImpl<T>(
                         shellCollector = mapToLegacyCollector(collector),
                         stdinChannel = stdinChannel,
                         commandTimeout = commandTimeout,
-                        bufferSize = bufferSize
+                        bufferSize = bufferSize,
+                        stripCrLf = stripCrLf.value()
                     )
                 }
             }

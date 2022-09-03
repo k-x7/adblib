@@ -110,6 +110,15 @@ interface ShellCommand<T> {
     fun allowLegacyShell(value: Boolean): ShellCommand<T>
 
     /**
+     * When [execute] falls back to using the [AdbDeviceServices.shell] service,
+     * and when the device API <= 23, this option allows [execute] to automatically
+     * convert '\r\n' newlines (as emitted by [AdbDeviceServices.shell]) to '\n'.
+     *
+     * The default value is `true`.
+     */
+    fun allowStripCrLfForLegacyShell(value: Boolean): ShellCommand<T>
+
+    /**
      * Allows overriding the shell command to [execute] on the device just before
      * execution starts, when the [Protocol] to be used is known.
      *
