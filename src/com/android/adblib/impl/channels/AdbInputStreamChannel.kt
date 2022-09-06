@@ -33,7 +33,7 @@ internal class AdbInputStreamChannel(
     override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
         //TODO: Implement timeout
         // Note: Since InputStream.read is a blocking I/O operation, we use the IO dispatcher
-        return withContext(host.ioDispatcher) {
+        return withContext(host.blockingIoDispatcher) {
             // Suppress: IJ marks the "read" call as inappropriate, but we are running this code
             //           within the context of the IO dispatcher, so we are ok.
             @Suppress("BlockingMethodInNonBlockingContext")

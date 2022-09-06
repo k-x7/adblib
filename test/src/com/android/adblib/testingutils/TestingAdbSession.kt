@@ -13,40 +13,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.adblib.testing
+package com.android.adblib.testingutils
 
 import com.android.adblib.AdbChannelFactory
+import com.android.adblib.AdbDeviceServices
+import com.android.adblib.AdbHostServices
 import com.android.adblib.AdbSession
 import com.android.adblib.AdbSessionHost
 import com.android.adblib.CoroutineScopeCache
-import com.android.adblib.impl.CoroutineScopeCacheImpl
 import com.android.adblib.impl.channels.AdbChannelFactoryImpl
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 
-/**
- * A fake implementation of [FakeAdbSession] for tests.
- */
-class FakeAdbSession : AdbSession {
+class TestingAdbSession : AdbSession {
 
-    override val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    override val cache: CoroutineScopeCache = CoroutineScopeCacheImpl(scope)
-
-    override fun throwIfClosed() {
-        // Not yet implemented
-    }
-
-    override val hostServices = FakeAdbHostServices(this)
-
-    override val deviceServices = FakeAdbDeviceServices(this)
-
-    override val host: AdbSessionHost = FakeAdbSessionHost()
+    override val host: AdbSessionHost = TestingAdbSessionHost()
 
     override val channelFactory: AdbChannelFactory = AdbChannelFactoryImpl(this)
 
+    override val hostServices: AdbHostServices
+        get() = todo()
+
+    override val deviceServices: AdbDeviceServices
+        get() = todo()
+
+    override val scope: CoroutineScope
+        get() = todo()
+
+    override val cache: CoroutineScopeCache
+        get() = todo()
+
+    override fun throwIfClosed() {
+        todo()
+    }
+
     override fun close() {
-        (cache as CoroutineScopeCacheImpl).close()
+    }
+
+    private fun todo(): Nothing {
+        TODO("This test class is for wrapping AdbSessionHost only.  " +
+                     "Use FakeAdbSession instead for additional functionality.")
     }
 }

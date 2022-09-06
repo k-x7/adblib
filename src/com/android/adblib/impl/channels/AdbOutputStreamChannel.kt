@@ -33,7 +33,7 @@ internal class AdbOutputStreamChannel(
     }
 
     override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
-        return withContext(host.ioDispatcher) {
+        return withContext(host.blockingIoDispatcher) {
             val deferredCount = async {
                 val count = buffer.remaining()
                 buffer.get(bytes, 0, count)

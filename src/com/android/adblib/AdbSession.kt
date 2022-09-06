@@ -25,6 +25,7 @@ import com.android.adblib.impl.TrackerConnecting
 import com.android.adblib.impl.TrackerDisconnected
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
@@ -100,6 +101,27 @@ interface AdbSession : AutoCloseable {
      * @throws ClosedSessionException if this [AdbSession] has been [closed][close].
      */
     val cache: CoroutineScopeCache
+
+    /**
+     * The coroutine dispatcher to use to execute asynchronous I/O and
+     * compute intensive operations.
+     *
+     * The default value is [Dispatchers.Default]
+     *
+     * @see AdbSessionHost.ioDispatcher
+     */
+    val ioDispatcher
+        get() = host.ioDispatcher
+
+    /**
+     * The coroutine dispatcher to use to execute blocking I/O blocking operations.
+     *
+     * The default value is [Dispatchers.IO]
+     *
+     * @see AdbSessionHost.blockingIoDispatcher
+     */
+    val blockingIoDispatcher
+        get() = host.blockingIoDispatcher
 
     /**
      * Throws [ClosedSessionException] if this [AdbSession] has been [closed][close].

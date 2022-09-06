@@ -17,8 +17,8 @@ package com.android.adblib.impl.channels
 
 import com.android.adblib.writeExactly
 import com.android.adblib.testingutils.CloseablesRule
-import com.android.adblib.testingutils.TestingAdbSessionHost
 import com.android.adblib.impl.TimeoutTracker
+import com.android.adblib.testingutils.TestingAdbSession
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
 import org.junit.Rule
@@ -44,8 +44,8 @@ class AdbOutputFileChannelTest {
     @Test
     fun testWriteToCreateNew() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.delete(path) // Delete file, since we are about to create a new one
 
@@ -70,8 +70,8 @@ class AdbOutputFileChannelTest {
     @Test
     fun testWriteToCreate() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
 
         // Act

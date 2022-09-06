@@ -46,11 +46,21 @@ open class AdbSessionHost : AutoCloseable {
     open val asynchronousChannelGroup: AsynchronousChannelGroup? = null
 
     /**
-     * The coroutine dispatcher to use to execute I/O blocking operations.
+     * The coroutine dispatcher to use to execute asynchronous I/O and
+     * compute intensive operations.
+     *
+     * The default value is [Dispatchers.Default]
+     */
+    open val ioDispatcher
+        get() = Dispatchers.Default
+
+    /**
+     * The coroutine dispatcher to use to execute blocking I/O blocking operations.
      *
      * The default value is [Dispatchers.IO]
      */
-    open val ioDispatcher = Dispatchers.IO
+    open val blockingIoDispatcher
+        get() = Dispatchers.IO
 
     /**
      * Returns `true` if the current thread runs an event dispatching queue that should **not**

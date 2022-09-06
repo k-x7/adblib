@@ -20,9 +20,9 @@ import com.android.adblib.AdbChannelReader
 import com.android.adblib.read
 import com.android.adblib.readExactly
 import com.android.adblib.testingutils.CloseablesRule
-import com.android.adblib.testingutils.TestingAdbSessionHost
 import com.android.adblib.impl.TimeoutTracker
 import com.android.adblib.readLines
+import com.android.adblib.testingutils.TestingAdbSession
 import com.android.adblib.toChannelReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -61,8 +61,8 @@ class AdbInputFileChannelTest {
     @Test
     fun testReadWorks() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.write(path, ByteArray(20))
 
@@ -83,8 +83,8 @@ class AdbInputFileChannelTest {
     @Test
     fun testReadReturnsMinusOneOnEOF() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.write(path, ByteArray(5))
 
@@ -107,8 +107,8 @@ class AdbInputFileChannelTest {
     @Test
     fun testReadExactlyWorks() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.write(path, ByteArray(20))
 
@@ -131,8 +131,8 @@ class AdbInputFileChannelTest {
     @Test
     fun testReadExactlyThrowsIfFileTooShort() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.write(path, ByteArray(20))
 
@@ -152,8 +152,8 @@ class AdbInputFileChannelTest {
     @Test
     fun testChannelReaderWorks() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.write(path, "line 1\nline 2\nline 3\n".toByteArray(Charsets.UTF_8))
 
@@ -203,8 +203,8 @@ class AdbInputFileChannelTest {
     @Test
     fun testChannelReaderWorksWithCustomNewLines() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.write(path, "line 1\r\r\n\rline 2\r\r\n\rline 3\n".toByteArray(Charsets.UTF_8))
 
@@ -258,8 +258,8 @@ class AdbInputFileChannelTest {
     @Test
     fun testReadLinesWorks() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.write(path, "line 1\nline 2\nline 3".toByteArray(Charsets.UTF_8))
 
@@ -281,8 +281,8 @@ class AdbInputFileChannelTest {
     @Test
     fun testReadLinesWorksWithCustomNewLines() {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val path = folder.newFile("foo-bar.txt").toPath()
         Files.write(path, "line 1\r\r\n\rline 2\r\r\n\rline 3\n".toByteArray(Charsets.UTF_8))
 

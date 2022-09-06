@@ -15,14 +15,15 @@
  */
 package com.android.adblib
 
+import com.android.adblib.impl.channels.AdbInputChannelReader
 import com.android.adblib.impl.channels.AdbInputStreamChannel
 import com.android.adblib.impl.channels.AdbOutputStreamChannel
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
 import com.android.adblib.testingutils.CoroutineTestUtils.yieldUntil
 import com.android.adblib.testingutils.FakeAdbServerProvider
-import com.android.adblib.testingutils.TimeWaitSocketsThrottler
 import com.android.adblib.testingutils.TestingAdbSessionHost
+import com.android.adblib.testingutils.TimeWaitSocketsThrottler
 import com.android.adblib.testingutils.asAdbInputChannel
 import com.android.adblib.testingutils.setTestLoggerMinLevel
 import com.android.adblib.utils.AdbProtocolUtils
@@ -30,11 +31,13 @@ import com.android.adblib.utils.LineShellCollector
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.TextShellCollector
 import com.android.adblib.utils.TextShellV2Collector
+import com.android.adblib.utils.launchCancellable
 import com.android.fakeadbserver.ClientState
 import com.android.fakeadbserver.DeviceFileState
 import com.android.fakeadbserver.DeviceState
 import com.android.fakeadbserver.devicecommandhandlers.SyncCommandHandler
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -42,11 +45,13 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
 import org.junit.BeforeClass
@@ -866,6 +871,411 @@ class AdbDeviceServicesTest {
         Assert.assertEquals(expectedStdout, collectedStdout.joinToString(separator = "\n"))
         Assert.assertEquals(expectedStderr, collectedStderr.joinToString(separator = "\n"))
         Assert.assertEquals(10, collectedExitCode)
+    }
+
+    @Test
+    fun testShellInputChannelCollectorWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            stdout: split in multiple lines
+            stderr: and containing non-ascii
+            stdout: characters such as
+            stderr: - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+            stdout: - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        val collectedStdout = ArrayList<String>()
+        val collectedStderr = ArrayList<String>()
+        var collectedExitCode = -1
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "shell-protocol-echo")
+                .withStdin(input.asAdbInputChannel(deviceServices.session))
+                .withInputChannelCollector()
+                .executeAsSingleOutput { inputChannelOutput ->
+                    // The first element we collect is the only one.
+                    // We read data from stdin and stdout input channels until EOF
+                    // Then we get the exitCode
+                    val job1 = launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stdout).use { reader ->
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                collectedStdout.add(line)
+                            }
+                        }
+                    }
+
+                    val job2 = launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stderr).use { reader ->
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                collectedStderr.add(line)
+                            }
+                        }
+                    }
+
+                    joinAll(job1, job2)
+                    collectedExitCode = inputChannelOutput.exitCode.filterNotNull().first()
+                }
+        }
+
+        // Assert
+        val expectedStdout = """
+            This is some text with
+            split in multiple lines
+            characters such as
+            - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+        """.trimIndent()
+
+        val expectedStderr = """
+            and containing non-ascii
+            - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+        """.trimIndent()
+
+        Assert.assertEquals(expectedStdout, collectedStdout.joinToString(separator = "\n"))
+        Assert.assertEquals(expectedStderr, collectedStderr.joinToString(separator = "\n"))
+        Assert.assertEquals(10, collectedExitCode)
+    }
+
+    @Test
+    fun testShellInputChannelCollectorUseWorks() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            stdout: split in multiple lines
+            stderr: and containing non-ascii
+            stdout: characters such as
+            stderr: - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+            stdout: - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        val collectedStdout = ArrayList<String>()
+        val collectedStderr = ArrayList<String>()
+        var collectedExitCode = -1
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "shell-protocol-echo")
+                .withStdin(input.asAdbInputChannel(deviceServices.session))
+                .withInputChannelCollector()
+                .executeAsSingleOutput()
+                .use { firstCollecting ->
+                    val inputChannelOutput = firstCollecting.value()
+
+                    // The first element we collect is the only one.
+                    // We read data from stdin and stdout input channels until EOF
+                    // Then we get the exitCode
+                    val job1 = launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stdout).use { reader ->
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                collectedStdout.add(line)
+                            }
+                        }
+                    }
+
+                    val job2 = launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stderr).use { reader ->
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                collectedStderr.add(line)
+                            }
+                        }
+                    }
+
+                    joinAll(job1, job2)
+                    collectedExitCode = inputChannelOutput.exitCode.filterNotNull().first()
+                }
+        }
+
+        // Assert
+        val expectedStdout = """
+            This is some text with
+            split in multiple lines
+            characters such as
+            - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+        """.trimIndent()
+
+        val expectedStderr = """
+            and containing non-ascii
+            - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+        """.trimIndent()
+
+        Assert.assertEquals(expectedStdout, collectedStdout.joinToString(separator = "\n"))
+        Assert.assertEquals(expectedStderr, collectedStderr.joinToString(separator = "\n"))
+        Assert.assertEquals(10, collectedExitCode)
+    }
+
+    @Test
+    fun testShellCommandExecuteSingleOutputIsTransparentToExceptions() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            stdout: split in multiple lines
+            stderr: and containing non-ascii
+            stdout: characters such as
+            stderr: - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+            stdout: - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        exceptionRule.expect(Exception::class.java)
+        exceptionRule.expectMessage("My Message")
+        val collectedStdout = ArrayList<String>()
+        val collectedStderr = ArrayList<String>()
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "shell-protocol-echo")
+                .withStdin(input.asAdbInputChannel(deviceServices.session))
+                .withInputChannelCollector()
+                .executeAsSingleOutput<Int> { inputChannelOutput ->
+                    // The first element we collect is the only one.
+                    // We read data from stdin and stdout input channels until EOF
+                    // Then we get the exitCode
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stdout).use { reader ->
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                collectedStdout.add(line)
+                            }
+                        }
+                    }
+
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stderr).use { reader ->
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                collectedStderr.add(line)
+                            }
+                        }
+                    }
+                    throw Exception("My Message")
+                }
+        }
+
+        // Assert
+        Assert.fail("Should not reach")
+    }
+
+    @Test
+    fun testShellCommandExecuteSingleOutputIsTransparentToExceptionsInStdoutReader() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        exceptionRule.expect(Exception::class.java)
+        exceptionRule.expectMessage("My Message")
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "shell-protocol-echo")
+                .withStdin(input.asAdbInputChannel(deviceServices.session))
+                .withInputChannelCollector()
+                .executeAsSingleOutput { inputChannelOutput ->
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stdout).use {
+                            throw Exception("My Message")
+                        }
+                    }
+
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stderr).use {
+                        }
+                    }
+                }
+        }
+
+        // Assert
+        Assert.fail("Should not reach")
+    }
+
+    @Test
+    fun testShellCommandExecuteSingleOutputIsTransparentToExceptionsInStderrReader() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        exceptionRule.expect(Exception::class.java)
+        exceptionRule.expectMessage("My Message")
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "shell-protocol-echo")
+                .withStdin(input.asAdbInputChannel(deviceServices.session))
+                .withInputChannelCollector()
+                .executeAsSingleOutput { inputChannelOutput ->
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stdout).use {
+                        }
+                    }
+
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stderr).use {
+                            throw Exception("My Message")
+                        }
+                    }
+                }
+        }
+
+        // Assert
+        Assert.fail("Should not reach")
+    }
+
+    @Test
+    fun testShellCommandExecuteSingleOutputAllowsCancellation() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            stdout: split in multiple lines
+            stderr: and containing non-ascii
+            stdout: characters such as
+            stderr: - ඒ (SINHALA LETTER EEYANNA (U+0D92))
+            stdout: - ⿉ (KANGXI RADICAL MILLET (U+2FC9))
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        exceptionRule.expect(CancellationException::class.java)
+        exceptionRule.expectMessage("My Message")
+        val collectedStdout = ArrayList<String>()
+        val collectedStderr = ArrayList<String>()
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "shell-protocol-echo")
+                .withStdin(input.asAdbInputChannel(deviceServices.session))
+                .withInputChannelCollector()
+                .executeAsSingleOutput { inputChannelOutput ->
+                    // The first element we collect is the only one.
+                    // We read data from stdin and stdout input channels until EOF
+                    // Then we get the exitCode
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stdout).use { reader ->
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                collectedStdout.add(line)
+                            }
+                        }
+                    }
+
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stderr).use { reader ->
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                collectedStderr.add(line)
+                            }
+                        }
+                    }
+                    cancel("My Message")
+                }
+        }
+
+        // Assert
+        Assert.fail("Should not reach")
+    }
+
+    @Test
+    fun testShellCommandExecuteSingleOutputAllowsCancellationInStdoutReader() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        exceptionRule.expect(CancellationException::class.java)
+        exceptionRule.expectMessage("My Message")
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "shell-protocol-echo")
+                .withStdin(input.asAdbInputChannel(deviceServices.session))
+                .withInputChannelCollector()
+                .executeAsSingleOutput { inputChannelOutput ->
+                    // The first element we collect is the only one.
+                    // We read data from stdin and stdout input channels until EOF
+                    // Then we get the exitCode
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stdout).use {
+                            throw CancellationException("My Message")
+                        }
+                    }
+
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stderr).use {
+                        }
+                    }
+                }
+        }
+
+        // Assert
+        Assert.fail("Should not reach")
+    }
+
+    @Test
+    fun testShellCommandExecuteSingleOutputAllowsCancellationInStderrReader() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+        val input = """
+            stdout: This is some text with
+            stderr: This is some stderr
+            exit: 10
+        """.trimIndent()
+
+        // Act
+        exceptionRule.expect(CancellationException::class.java)
+        exceptionRule.expectMessage("My Message")
+        runBlocking {
+            deviceServices.shellCommand(deviceSelector, "shell-protocol-echo")
+                .withStdin(input.asAdbInputChannel(deviceServices.session))
+                .withInputChannelCollector()
+                .executeAsSingleOutput { inputChannelOutput ->
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stdout).use {
+                        }
+                    }
+
+                    launchCancellable {
+                        AdbInputChannelReader(inputChannelOutput.stderr).use {
+                            throw CancellationException("My Message")
+                        }
+                    }
+                }
+        }
+
+        // Assert
+        Assert.fail("Should not reach")
     }
 
     @Test

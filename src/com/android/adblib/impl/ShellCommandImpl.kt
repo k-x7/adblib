@@ -38,7 +38,7 @@ import java.nio.ByteBuffer
 import java.time.Duration
 
 internal class ShellCommandImpl<T>(
-  private val session: AdbSession,
+  override val session: AdbSession,
   private val device: DeviceSelector,
   private val command: String,
 ) : ShellCommand<T> {

@@ -32,11 +32,24 @@ object CoroutineTestUtils {
         block: suspend CoroutineScope.() -> T
     ): T {
         return runBlocking {
+            // The goal with "blockTimeoutException" is to make sure "block" can throw a
+            // TimeoutCancellationException to the caller of this method.
+            var blockTimeoutException: TimeoutCancellationException?  = null
             try {
                 withTimeout(timeout.toMillis()) {
-                    block(this)
+                    try {
+                        block(this)
+                    } catch(e: TimeoutCancellationException) {
+                        blockTimeoutException = e
+                        throw e
+                    }
                 }
             } catch (e: TimeoutCancellationException) {
+                blockTimeoutException?.also {
+                    // If "block" threw a timeout exception, then rethrow it, as the exception
+                    // has nothing to do with our "withTimeout" wrapper
+                    throw it
+                }
                 throw AssertionError(
                     "A test did not terminate within the specified timeout ($timeout), " +
                             "there is a bug somewhere (in the test or in the tested code)", e

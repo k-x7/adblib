@@ -15,9 +15,13 @@
  */
 package com.android.adblib
 
+import com.android.adblib.utils.FirstCollecting
+import com.android.adblib.utils.InputChannelShellCollector
+import com.android.adblib.utils.InputChannelShellOutput
 import com.android.adblib.utils.LineBatchShellV2Collector
 import com.android.adblib.utils.LineShellV2Collector
 import com.android.adblib.utils.TextShellV2Collector
+import com.android.adblib.utils.firstCollecting
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.time.Duration
@@ -37,6 +41,8 @@ import java.util.concurrent.TimeoutException
  * @see [AdbDeviceServices.shell]
  */
 interface ShellCommand<T> {
+
+    val session: AdbSession
 
     /**
      * Applies a [ShellV2Collector] to transfer the raw binary shell command output.
@@ -127,9 +133,40 @@ interface ShellCommand<T> {
     fun execute(): Flow<T>
 
     /**
+     * Execute the shell command on the device, assuming there is a single output
+     * emitted by [ShellCommand.withCollector]. The single output is passed as
+     * an argument to [block].
+     *
+     * Note: Unlike [execute].[first()][Flow.first], which terminates the shell command
+     *  when returning the single output of the command, the shell command is still active
+     *  when [block] is called.
+     *
+     * Note: This operator is reserved for [ShellV2Collector] that collect a single value.
+     *
+     * @see [Flow.firstCollecting]
+     */
+    suspend fun <R> executeAsSingleOutput(block: suspend (T) -> R): R {
+        return execute().firstCollecting(session.scope, block)
+    }
+
+    /**
+     * Execute the shell command on the device, and returns a [ShellSingleOutput] instance
+     * that gives access to the single output of the command. The shell command is active
+     * until [ShellSingleOutput.close] is called.
+     *
+     * Note: This operator is reserved for [ShellV2Collector] that collect a single value.
+     *
+     * @see [Flow.firstCollecting]
+     */
+    suspend fun executeAsSingleOutput(): ShellSingleOutput<T> {
+        return ShellSingleOutput(execute().firstCollecting(session.scope))
+    }
+
+    /**
      * The protocol used for [executing][execute] a [ShellCommand]
      */
     enum class Protocol {
+
         SHELL_V2,
         SHELL,
         EXEC
@@ -147,3 +184,16 @@ fun <T> ShellCommand<T>.withLineBatchCollector(): ShellCommand<BatchShellCommand
 fun <T> ShellCommand<T>.withTextCollector(): ShellCommand<ShellCommandOutput> {
     return this.withCollector(TextShellV2Collector())
 }
+
+fun <T> ShellCommand<T>.withInputChannelCollector(): ShellCommand<InputChannelShellOutput> {
+    return this.withCollector(InputChannelShellCollector(this.session))
+}
+
+/**
+ * Provides access to the [single output][value] of a shell command.
+ *
+ * @see ShellCommand.executeAsSingleOutput
+ */
+class ShellSingleOutput<out T>(
+    firstCollecting: FirstCollecting<T>
+) : FirstCollecting<T> by firstCollecting

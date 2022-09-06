@@ -18,6 +18,7 @@ package com.android.adblib
 import com.android.adblib.impl.channels.AdbInputChannelSliceImpl
 import com.android.adblib.impl.channels.ByteBufferAdbInputChannelImpl
 import com.android.adblib.impl.channels.ByteBufferAdbOutputChannelImpl
+import com.android.adblib.impl.channels.DEFAULT_CHANNEL_BUFFER_SIZE
 import com.android.adblib.impl.channels.EmptyAdbInputChannelImpl
 import com.android.adblib.utils.ResizableBuffer
 import java.io.IOException
@@ -78,6 +79,16 @@ interface AdbChannelFactory {
      * @see AsynchronousServerSocketChannel.open
      */
     suspend fun createServerSocket(): AdbServerSocket
+
+    /**
+     * Creates an [AdbPipedInputChannel] that can be fed data in a thread-safe way from
+     * an [AdbOutputChannel], i.e. write operations to the [AdbOutputChannel]
+     * end up feeding pending (or future) [read] operations on this [AdbPipedInputChannel].
+     *
+     * @see java.io.PipedInputStream
+     * @see java.io.PipedOutputStream
+     */
+    fun createPipedChannel(bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE): AdbPipedInputChannel
 }
 
 /**
@@ -119,5 +130,4 @@ fun ByteBufferAdbInputChannel(buffer: ByteBuffer): AdbInputChannel {
 fun ByteBufferAdbOutputChannel(buffer: ResizableBuffer): AdbOutputChannel {
     return ByteBufferAdbOutputChannelImpl(buffer)
 }
-
 

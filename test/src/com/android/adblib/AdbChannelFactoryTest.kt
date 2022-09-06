@@ -18,7 +18,7 @@ package com.android.adblib
 import com.android.adblib.impl.channels.AdbChannelFactoryImpl
 import com.android.adblib.testingutils.CloseablesRule
 import com.android.adblib.testingutils.CoroutineTestUtils.runBlockingWithTimeout
-import com.android.adblib.testingutils.TestingAdbSessionHost
+import com.android.adblib.testingutils.TestingAdbSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -56,8 +56,8 @@ class AdbChannelFactoryTest {
     @Test
     fun testConnectSocketWorks() = runBlockingWithTimeout {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
         val serverAddress = serverSocket.bind()
 
@@ -83,8 +83,8 @@ class AdbChannelFactoryTest {
     //@Test // Disabled for now, because server socket backlog behavior is platform dependent
     fun testConnectSocketWithTimeoutWorks() = runBlocking {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
         val serverAddress = serverSocket.bind(backLog = 1)
 
@@ -100,8 +100,8 @@ class AdbChannelFactoryTest {
     @Test
     fun testConnectSocketReadIsClosedWhenPendingReadReachesTimeout() = runBlocking {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
         val serverAddress = serverSocket.bind()
 
@@ -130,8 +130,8 @@ class AdbChannelFactoryTest {
     @Test
     fun testConnectSocketReadIsClosedWhenPendingReadIsCancelled() = runBlocking {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
         val serverAddress = serverSocket.bind()
 
@@ -159,8 +159,8 @@ class AdbChannelFactoryTest {
     @Test
     fun testConnectSocketReadTimeoutWorks() = runBlocking {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
         val serverAddress = serverSocket.bind()
 
@@ -184,8 +184,8 @@ class AdbChannelFactoryTest {
     @Test
     fun testServerSocketHasNullLocalAddressByDefault() = runBlockingWithTimeout {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
 
         // Act
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
@@ -198,8 +198,8 @@ class AdbChannelFactoryTest {
     @Test
     fun testServerSocketBindWorks() = runBlockingWithTimeout {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
 
         // Act
@@ -213,7 +213,7 @@ class AdbChannelFactoryTest {
     @Test
     fun testServerSocketAcceptWorks() = runBlockingWithTimeout {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
+        val host = registerCloseable(TestingAdbSession())
         val channelFactory = AdbChannelFactoryImpl(host)
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
         val serverAddress = serverSocket.bind()
@@ -243,8 +243,8 @@ class AdbChannelFactoryTest {
     @Test
     fun testServerSocketCancellationOfPendingAcceptClosesSocket() = runBlockingWithTimeout {
         // Prepare
-        val host = registerCloseable(TestingAdbSessionHost())
-        val channelFactory = AdbChannelFactoryImpl(host)
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
         val serverSocket = registerCloseable(channelFactory.createServerSocket())
         serverSocket.bind()
 
