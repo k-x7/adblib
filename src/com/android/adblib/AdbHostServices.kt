@@ -164,6 +164,16 @@ interface AdbHostServices {
      * Closes all previously created forward socket connections for the given [device].
      */
     suspend fun killForwardAll(device: DeviceSelector)
+
+    /**
+     * Connects to the specified device ("host:connect:$deviceAddress").
+     */
+    suspend fun connect(deviceAddress: DeviceAddress)
+
+    /**
+     * Disconnects the specified device ("host:disconnect:$deviceAddress").
+     */
+    suspend fun disconnect(deviceAddress: DeviceAddress)
 }
 
 /**

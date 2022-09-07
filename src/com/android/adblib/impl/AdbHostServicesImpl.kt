@@ -230,4 +230,17 @@ internal class AdbHostServicesImpl(
             OkayDataExpectation.NOT_EXPECTED
         )
     }
+
+    override suspend fun connect(deviceAddress: DeviceAddress) {
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "host:connect:$deviceAddress"
+        serviceRunner.runHostQuery(service, tracker, OkayDataExpectation.NOT_EXPECTED)
+
+    }
+
+    override suspend fun disconnect(deviceAddress: DeviceAddress) {
+        val tracker = TimeoutTracker(host.timeProvider, timeout, unit)
+        val service = "host:disconnect:$deviceAddress"
+        serviceRunner.runHostQuery(service, tracker, OkayDataExpectation.NOT_EXPECTED)
+    }
 }

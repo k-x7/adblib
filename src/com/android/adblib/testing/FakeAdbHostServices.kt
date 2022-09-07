@@ -219,6 +219,14 @@ class FakeAdbHostServices(override val session: AdbSession) : AdbHostServices, C
         TODO("Not yet implemented")
     }
 
+    override suspend fun connect(s: DeviceAddress) {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun disconnect(s: DeviceAddress) {
+        TODO("Not yet implemented")
+    }
+
     private fun <T> MutableSharedFlow<T>.emitOrThrow(value: T) {
         if (!tryEmit(value)) {
             throw IllegalStateException(

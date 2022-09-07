@@ -113,6 +113,25 @@ class FakeAdbServerProvider : AutoCloseable {
         )?.get(FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS, TimeUnit.MILLISECONDS) ?: throw IllegalArgumentException()
     }
 
+    fun registerNetworkDevice(
+        address: String,
+        deviceId: String,
+        manufacturer: String,
+        deviceModel: String,
+        release: String,
+        sdk: String
+    ) {
+        server?.registerNetworkDevice(
+            address,
+            deviceId,
+            manufacturer,
+            deviceModel,
+            release,
+            sdk,
+            HostConnectionType.NETWORK
+        )
+    }
+
     fun addMdnsService(service: MdnsService) {
         server?.addMdnsService(service)?.get(FAKE_ADB_SERVER_EXECUTOR_TIMEOUT_MS, TimeUnit.MILLISECONDS)
     }

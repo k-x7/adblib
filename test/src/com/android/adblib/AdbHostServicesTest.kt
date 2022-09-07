@@ -60,6 +60,59 @@ class AdbHostServicesTest {
     }
 
     @Test
+    fun testConnect() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val hostServices = createHostServices(fakeAdb)
+        fakeAdb.registerNetworkDevice("localhost:12345",
+                                      "1234",
+                                      "test1",
+                                      "test2",
+                                      "model",
+                                      "sdk")
+
+        // Act
+        val result = runBlocking { hostServices.connect(DeviceAddress("localhost:12345")) }
+
+        // Assert
+        runBlocking {
+            Assert.assertEquals(
+                ONLINE,
+                hostServices.getState(DeviceSelector.fromSerialNumber("1234"))
+            )
+        }
+    }
+
+    @Test
+    fun testDisconnect() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val hostServices = createHostServices(fakeAdb)
+        fakeAdb.registerNetworkDevice("localhost:12345",
+                                      "1234",
+                                      "test1",
+                                      "test2",
+                                      "model",
+                                      "sdk")
+        runBlocking { hostServices.connect(DeviceAddress("localhost:12345")) }
+
+        // Act
+        runBlocking { hostServices.disconnect(DeviceAddress("localhost:12345")) }
+
+        // Assert
+        runBlocking {
+            try {
+                hostServices.getState(DeviceSelector.fromSerialNumber("1234"))
+            } catch (expected: AdbFailResponseException) {
+                Assert.assertEquals(
+                    "No device with serial: '1234' is connected.",
+                    expected.failMessage
+                )
+            }
+        }
+    }
+
+    @Test
     fun testVersion() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
@@ -276,7 +329,7 @@ class AdbHostServicesTest {
         // Note: We need to for the server to terminate before verifying sending another
         //       command fails, because the current implementation of "kill" in fakeAdbServer
         //       does not wait for the server to be fully shutdown before sending and
-        //       'OKAY response.
+        //       'OKAY' response.
         fakeAdb.awaitTermination()
 
         exceptionRule.expect(IOException::class.java)
