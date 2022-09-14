@@ -36,6 +36,7 @@ import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
 import com.android.adblib.impl.services.TrackJdwpService
 import com.android.adblib.thisLogger
+import com.android.adblib.utils.AdbProtocolUtils.bufferToByteDumpString
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.launchCancellable
 import kotlinx.coroutines.flow.Flow
@@ -318,7 +319,7 @@ internal class AdbDeviceServicesImpl(
             val buffer = workBuffer.afterChannelRead()
             assert(buffer.remaining() == byteCount)
 
-            logger.verbose { "\"${service}\" - Emitting packet of $byteCount bytes" }
+            logger.verbose { "\"${service}\" - Emitting packet of $byteCount bytes: ${bufferToByteDumpString(buffer)}" }
             val outputBuffer = bufferProcessor.convertBuffer(buffer)
             shellCollector.collect(flowCollector, outputBuffer)
         }

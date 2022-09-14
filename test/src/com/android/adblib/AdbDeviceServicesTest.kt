@@ -113,6 +113,25 @@ class AdbDeviceServicesTest {
     }
 
     @Test
+    fun testShellAllowsNonAscii() {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
+        val device = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(device.deviceId)
+        val collector = TextShellCollector()
+
+        // Act
+        val text = runBlocking {
+            deviceServices.shell(deviceSelector, "echo sh -c 'test -e Аудиокнига'", collector).first()
+        }
+
+        // Assert
+        val expectedOutput = "sh -c 'test -e Аудиокнига'\n"
+        Assert.assertEquals(expectedOutput, text)
+    }
+
+    @Test
     fun testShellCanStripCrLf() {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())

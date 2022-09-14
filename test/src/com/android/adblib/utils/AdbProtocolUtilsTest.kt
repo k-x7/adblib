@@ -18,11 +18,17 @@ package com.android.adblib.utils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ExpectedException
 import java.nio.ByteBuffer
 import java.nio.file.attribute.FileTime
 
 class AdbProtocolUtilsTest {
+    @JvmField
+    @Rule
+    var exceptionRule: ExpectedException = ExpectedException.none()
 
     @Test
     fun bufferToByteDumpStringShouldWorkForSmallStrings() {
@@ -192,6 +198,87 @@ class AdbProtocolUtilsTest {
 
         // Assert
         assertEquals(-1_000, result)
+    }
+
+    @Test
+    fun encodePrefixLengthWorksForSmallValue() {
+        // Prepare
+        val length = 10
+
+        // Act
+        val result = AdbProtocolUtils.encodeLengthPrefix(length)
+
+        // Assert
+        assertEquals(protocolLengthValue("000A"), result)
+    }
+
+    @Test
+    fun encodePrefixLengthWorksForLargeValue() {
+        // Prepare
+        val length = 30000
+
+        // Act
+        val result = AdbProtocolUtils.encodeLengthPrefix(length)
+
+        // Assert
+        assertEquals(protocolLengthValue("7530"), result)
+    }
+
+    @Test
+    fun encodePrefixLengthWorksForMinValue() {
+        // Prepare
+        val length = 0
+
+        // Act
+        val result = AdbProtocolUtils.encodeLengthPrefix(length)
+
+        // Assert
+        assertEquals(protocolLengthValue("0000"), result)
+    }
+
+    @Test
+    fun encodePrefixLengthWorksForMaxValue() {
+        // Prepare
+        val length = 65_535
+
+        // Act
+        val result = AdbProtocolUtils.encodeLengthPrefix(length)
+
+        // Assert
+        assertEquals(protocolLengthValue("FFFF"), result)
+    }
+
+    @Test
+    fun encodePrefixLengthThrowsForInvalidSmallValue() {
+        // Prepare
+        val length = -1
+
+        // Act
+        exceptionRule.expect(IllegalArgumentException::class.java)
+        val result = AdbProtocolUtils.encodeLengthPrefix(length)
+
+        // Assert
+        fail("Should not reach")
+    }
+
+    @Test
+    fun encodePrefixLengthThrowsForInvalidLargeValue() {
+        // Prepare
+        val length = 100_000
+
+        // Act
+        exceptionRule.expect(IllegalArgumentException::class.java)
+        val result = AdbProtocolUtils.encodeLengthPrefix(length)
+
+        // Assert
+        fail("Should not reach")
+    }
+
+    private fun protocolLengthValue(value: String): Int {
+        return (value[0].code shl 24) +
+               (value[1].code shl 16) +
+               (value[2].code shl 8) +
+               (value[3].code)
     }
 
     private fun createBuffer(value: String): ByteBuffer {

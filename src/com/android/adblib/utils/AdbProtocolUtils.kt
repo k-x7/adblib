@@ -35,6 +35,30 @@ object AdbProtocolUtils {
         return is4Letters(buffer, "DONE")
     }
 
+    /**
+     * Encode an integer value into a 4 byte integer representing the hexadecimal
+     * string of that value.
+     *
+     * E.g. 1000 decimal -> "03E8" hex. string represented as integer ->
+     */
+    fun encodeLengthPrefix(length: Int): Int {
+        if (length !in 0..0xFFFF) {
+            throw IllegalArgumentException("ADB length values are limited to ${0..0xFFFF}")
+        }
+
+        return (digitToHexValue((length and 0xF000) shr 12) shl 24) +
+               (digitToHexValue((length and 0x0F00) shr 8) shl 16) +
+               (digitToHexValue((length and 0x00F0) shr 4) shl 8) +
+               (digitToHexValue(length and 0x000F))
+    }
+
+    private fun digitToHexValue(digit: Int): Int {
+        return when(digit) {
+            in 0..9 -> '0'.code + digit
+            else -> 'A'.code + digit - 10
+        }
+    }
+
     private fun is4Letters(buffer: ByteBuffer, letters: String): Boolean {
         if (buffer.remaining() < letters.length) {
             return false;

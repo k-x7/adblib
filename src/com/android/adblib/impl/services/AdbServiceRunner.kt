@@ -189,11 +189,13 @@ internal class AdbServiceRunner(val session: AdbSession, private val channelProv
         service: String,
         timeout: TimeoutTracker
     ) {
-        // Create length prefix (4 characters) + service name
-        val serviceRequest = String.format("%04X%s", service.length, service)
-
         workBuffer.clear()
-        workBuffer.appendString(serviceRequest, AdbProtocolUtils.ADB_CHARSET)
+        workBuffer.appendInt(0) // Append 4 bytes we will fix later with the service length
+        workBuffer.appendString(service, AdbProtocolUtils.ADB_CHARSET)
+
+        // Fix up the service length
+        val encodedServiceLength = workBuffer.position - 4
+        workBuffer.setInt(0, AdbProtocolUtils.encodeLengthPrefix(encodedServiceLength))
 
         logger.debug { "\"${service}\" - sending service request string, timeout=$timeout" }
         return channel.writeExactly(workBuffer.forChannelWrite(), timeout)
