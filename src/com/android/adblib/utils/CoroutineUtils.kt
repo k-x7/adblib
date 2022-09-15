@@ -19,12 +19,18 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
@@ -37,7 +43,7 @@ import kotlin.coroutines.EmptyCoroutineContext
  * * The parent coroutine fails with an exception if the child coroutine [block] throws
  *   an exception.
  */
-internal inline fun CoroutineScope.launchCancellable(
+inline fun CoroutineScope.launchCancellable(
     context: CoroutineContext = EmptyCoroutineContext,
     start: CoroutineStart = CoroutineStart.DEFAULT,
     crossinline block: suspend CoroutineScope.() -> Unit
@@ -127,3 +133,46 @@ internal class FirstCollectingImpl<T>(
         (item as? AutoCloseable)?.close()
     }
 }
+
+/**
+ * Creates a child [CoroutineScope] of this scope.
+ *
+ * @param isSupervisor whether to use a regular [Job] or a [SupervisorJob]
+ * @param context [CoroutineContext] to apply in addition to the parent scope [CoroutineContext]
+ */
+fun CoroutineScope.createChildScope(
+    isSupervisor: Boolean = false,
+    context: CoroutineContext = EmptyCoroutineContext
+): CoroutineScope {
+    val newJob = if (isSupervisor) {
+        SupervisorJob(this.coroutineContext.job)
+    } else {
+        Job(this.coroutineContext.job)
+    }
+    return CoroutineScope(this.coroutineContext + newJob + context)
+}
+
+/**
+ * Re-entrant version of [Mutex.lock]
+ *
+ * See [Phantom of the Coroutine](https://elizarov.medium.com/phantom-of-the-coroutine-afc63b03a131)
+ * See [Reentrant lock #1686](https://github.com/Kotlin/kotlinx.coroutines/issues/1686#issuecomment-777357672)
+ * See [ReentrantMutex implementation for Kotlin Coroutines](https://gist.github.com/elizarov/9a48b9709ffd508909d34fab6786acfe)
+ */
+suspend fun <T> Mutex.withReentrantLock(block: suspend () -> T): T {
+    val key = ReentrantMutexContextKey(this)
+    // call block directly when this mutex is already locked in the context
+    if (currentCoroutineContext()[key] != null) return block()
+    // otherwise add it to the context and lock the mutex
+    return withContext(ReentrantMutexContextElement(key)) {
+        withLock(null) { block() }
+    }
+}
+
+private class ReentrantMutexContextElement(
+    override val key: ReentrantMutexContextKey
+) : CoroutineContext.Element
+
+private data class ReentrantMutexContextKey(
+    val mutex: Mutex
+) : CoroutineContext.Key<ReentrantMutexContextElement>

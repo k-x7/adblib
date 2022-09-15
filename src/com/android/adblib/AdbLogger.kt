@@ -87,8 +87,30 @@ fun AdbLogger.withPrefix(prefix: String): AdbLogger {
 }
 
 /**
+ * Returns an [AdbLogger] that overrides the [AdbLogger.minLevel] of this [AdbLogger].
+ *
+ * Note: Use for debugging purposes only
+ */
+@Suppress("unused")
+fun AdbLogger.withMinLevel(minLevel: AdbLogger.Level): AdbLogger {
+    return object : AdbLogger() {
+        override val minLevel: Level
+            get() = minLevel
+
+        override fun log(level: Level, message: String) {
+            this@withMinLevel.log(level, message)
+        }
+
+        override fun log(level: Level, exception: Throwable?, message: String) {
+            this@withMinLevel.log(level, exception, message)
+        }
+    }
+}
+
+/**
  * Creates an [AdbLogger] for the class of this instance.
  */
+@Suppress("unused") // "T" is reified
 inline fun <reified T : Any> T.thisLogger(loggerFactory: AdbLoggerFactory): AdbLogger {
     return loggerFactory.createLogger(T::class.java)
 }
