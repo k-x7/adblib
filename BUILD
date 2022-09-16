@@ -30,6 +30,7 @@ kotlin_library(
         "//tools/base/adblib-ddmlibcompatibility:__subpackages__",
         "//tools/base/adblib-tools:__subpackages__",
         "//tools/base/deploy/deployer:__subpackages__",
+        "//tools/vendor/google/directaccess-client:__subpackages__",
     ],
     deps = [
         "@maven//:org.jetbrains.kotlin.kotlin-stdlib-jdk8",
