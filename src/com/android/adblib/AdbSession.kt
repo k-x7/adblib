@@ -149,6 +149,10 @@ interface AdbSession : AutoCloseable {
     }
 }
 
+suspend fun <R> AdbSession.withErrorTimeout(timeout: Duration, block: suspend CoroutineScope.() -> R): R {
+    return host.timeProvider.withErrorTimeout(timeout, block)
+}
+
 /**
  * Exception thrown when accessing services of an [AdbSession] that has been closed.
  */
