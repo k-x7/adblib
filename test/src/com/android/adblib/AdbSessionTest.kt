@@ -86,6 +86,8 @@ class AdbSessionTest {
         Assert.assertFalse(session.scope.coroutineContext.job.isCompleted)
         Assert.assertTrue(session.scope.coroutineContext.job.isActive)
         Assert.assertEquals("A test string",  job2.await())
+        Assert.assertEquals(1, host.uncaughtExceptions.size)
+        Assert.assertEquals("MyException", host.uncaughtExceptions[0].message)
     }
 
     @Test

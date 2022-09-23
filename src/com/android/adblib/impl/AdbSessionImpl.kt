@@ -29,6 +29,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.EmptyCoroutineContext
 
 internal class AdbSessionImpl(
     override val host: AdbSessionHost,
@@ -40,7 +41,8 @@ internal class AdbSessionImpl(
 
     private var closed = false
 
-    override val scope = CoroutineScope(SupervisorJob() + host.ioDispatcher)
+    override val scope =
+        CoroutineScope(host.parentContext + SupervisorJob() + host.ioDispatcher)
 
     override val channelFactory: AdbChannelFactory = AdbChannelFactoryImpl(this)
         get() {

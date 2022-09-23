@@ -17,9 +17,13 @@ package com.android.adblib
 
 import com.android.adblib.utils.JdkLoggerFactory
 import com.android.adblib.utils.SystemNanoTime
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
 import java.nio.channels.AsynchronousChannelGroup
 import javax.swing.SwingUtilities
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /**
  * The host of a single ADB instance. Calling the [.close] method on the host
@@ -44,6 +48,15 @@ open class AdbSessionHost : AutoCloseable {
      * The default value (`null`) corresponds to the default JVM value.
      */
     open val asynchronousChannelGroup: AsynchronousChannelGroup? = null
+
+    /**
+     * CoroutineContext elements to include in the scope, such as [CoroutineExceptionHandler] and
+     * [CoroutineName].
+     *
+     * Note that any [CoroutineDispatcher] or [Job] in this context will not be used; [ioDispatcher]
+     * and a new [SupervisorJob] will be used instead.
+     */
+    open val parentContext: CoroutineContext = EmptyCoroutineContext
 
     /**
      * The coroutine dispatcher to use to execute asynchronous I/O and

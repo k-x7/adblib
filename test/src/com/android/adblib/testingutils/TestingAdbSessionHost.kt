@@ -18,13 +18,22 @@ package com.android.adblib.testingutils
 import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbLogger
 import com.android.adblib.impl.TimeoutTracker
+import kotlinx.coroutines.CoroutineExceptionHandler
 import java.util.concurrent.TimeUnit
 
 class TestingAdbSessionHost : AdbSessionHost() {
 
+    val uncaughtExceptions = mutableListOf<Throwable>()
+
     override val loggerFactory: TestingAdbLoggerFactory by lazy {
         TestingAdbLoggerFactory()
     }
+
+    override val parentContext =
+        CoroutineExceptionHandler { ctx, exception ->
+            uncaughtExceptions.add(exception)
+            logger.error(exception, "Unhandled exception in $ctx")
+        }
 
     override fun close() {
         logger.debug { "Testing AbbListHost closed" }
