@@ -27,6 +27,7 @@ kotlin_library(
     ]),
     resource_strip_prefix = "tools/base/adblib",
     visibility = [
+        "//tools/base/adb-proxy:__subpackages__",
         "//tools/base/adblib-ddmlibcompatibility:__subpackages__",
         "//tools/base/adblib-tools:__subpackages__",
         "//tools/base/deploy/deployer:__subpackages__",
