@@ -49,18 +49,31 @@ interface ConnectedDevice {
 
 /**
  * A [CoroutineScope] tied to this [ConnectedDevice] instance. The scope is cancelled
- * when the device is disconnected, when the [session] is closed or when the ADB server
- * is restarted.
+ * when the device is disconnected, when the [ConnectedDevice.session] is closed or when
+ * the ADB server is restarted.
  */
 val ConnectedDevice.scope: CoroutineScope
     get() = cache.scope
 
 /**
- * The "serial number" of this device, used to identify a device with the ADB server
- * as long as the device is connected.
+ * The "serial number" of this [device][ConnectedDevice], used to identify a device with
+ * the ADB server as long as the device is connected.
  */
 val ConnectedDevice.serialNumber: String
     get() = deviceInfoFlow.value.serialNumber
+
+/**
+ * The [DeviceSelector] of this [device][ConnectedDevice], used to identify a device with
+ * the ADB server as long as the device is connected.
+ */
+val ConnectedDevice.selector: DeviceSelector
+    get() = DeviceSelector.fromSerialNumber(serialNumber)
+
+/**
+ * Whether the device is [DeviceState.ONLINE], i.e. ready to be used.
+ */
+val ConnectedDevice.isOnline: Boolean
+    get() = deviceInfoFlow.value.deviceState == DeviceState.ONLINE
 
 /**
  * The current (or last known) [DeviceInfo] for this [ConnectedDevice].
