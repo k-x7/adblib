@@ -18,6 +18,7 @@ package com.android.adblib.utils
 import com.android.adblib.BatchShellCommandOutputElement
 import com.android.adblib.BatchShellCommandOutputElement.StderrLine
 import com.android.adblib.BatchShellCommandOutputElement.StdoutLine
+import com.android.adblib.LineBatchShellV2Collector
 import com.android.adblib.testingutils.ByteBufferUtils
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.runBlocking
@@ -185,10 +186,10 @@ class LineBatchShellV2CollectorTest {
     }
 
     private fun collectStrings(
-        linesCollector: LineBatchShellV2Collector,
-        flowCollector: FlowCollector<BatchShellCommandOutputElement>,
-        stdout: List<String>,
-        stderr: List<String>,
+      linesCollector: LineBatchShellV2Collector,
+      flowCollector: FlowCollector<BatchShellCommandOutputElement>,
+      stdout: List<String>,
+      stderr: List<String>,
     ) {
         runBlocking {
             linesCollector.start(flowCollector)
@@ -203,17 +204,17 @@ class LineBatchShellV2CollectorTest {
     }
 
     private fun collectStdout(
-        linesCollector: LineBatchShellV2Collector,
-        flowCollector: FlowCollector<BatchShellCommandOutputElement>,
-        vararg value: String
+      linesCollector: LineBatchShellV2Collector,
+      flowCollector: FlowCollector<BatchShellCommandOutputElement>,
+      vararg value: String
     ) {
         collectStrings(linesCollector, flowCollector, value.toList(), emptyList())
     }
 
     private fun collectStderr(
-        linesCollector: LineBatchShellV2Collector,
-        flowCollector: FlowCollector<BatchShellCommandOutputElement>,
-        vararg value: String
+      linesCollector: LineBatchShellV2Collector,
+      flowCollector: FlowCollector<BatchShellCommandOutputElement>,
+      vararg value: String
     ) {
         collectStrings(linesCollector, flowCollector, emptyList(), value.toList())
     }

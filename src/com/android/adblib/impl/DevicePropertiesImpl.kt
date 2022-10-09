@@ -26,9 +26,9 @@ import com.android.adblib.DeviceSelector
 import com.android.adblib.ShellCommandOutputElement
 import com.android.adblib.availableFeatures
 import com.android.adblib.thisLogger
-import com.android.adblib.utils.LineShellCollector
-import com.android.adblib.utils.LineShellV2Collector
-import com.android.adblib.utils.TextShellCollector
+import com.android.adblib.LineShellCollector
+import com.android.adblib.LineShellV2Collector
+import com.android.adblib.TextShellCollector
 import com.android.adblib.utils.rethrowCancellation
 import com.android.adblib.utils.toImmutableMap
 import kotlinx.coroutines.flow.first

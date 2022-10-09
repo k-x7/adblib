@@ -15,6 +15,7 @@
  */
 package com.android.adblib.utils
 
+import com.android.adblib.LineShellCollector
 import com.android.adblib.testingutils.ByteBufferUtils
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.runBlocking
@@ -102,9 +103,9 @@ class LineShellCollectorTest {
     }
 
     private fun collectStrings(
-        linesCollector: LineShellCollector,
-        flowCollector: FlowCollector<String>,
-        vararg values: String
+      linesCollector: LineShellCollector,
+      flowCollector: FlowCollector<String>,
+      vararg values: String
     ) {
         runBlocking {
             linesCollector.start(flowCollector)

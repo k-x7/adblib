@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.adblib.utils
+package com.android.adblib.impl
 
+import com.android.adblib.utils.AdbProtocolUtils
 import java.nio.CharBuffer
 
 /**

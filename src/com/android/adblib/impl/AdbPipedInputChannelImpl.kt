@@ -13,8 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.adblib
+package com.android.adblib.impl
 
+import com.android.adblib.AdbOutputChannel
+import com.android.adblib.AdbPipedInputChannel
+import com.android.adblib.AdbSession
+import com.android.adblib.thisLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext

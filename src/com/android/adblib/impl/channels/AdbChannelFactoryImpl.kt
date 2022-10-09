@@ -18,7 +18,7 @@ package com.android.adblib.impl.channels
 import com.android.adblib.AdbChannel
 import com.android.adblib.AdbChannelFactory
 import com.android.adblib.AdbInputChannel
-import com.android.adblib.AdbPipedInputChannelImpl
+import com.android.adblib.impl.AdbPipedInputChannelImpl
 import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbOutputChannel
 import com.android.adblib.AdbPipedInputChannel

@@ -15,6 +15,7 @@
  */
 package com.android.adblib.utils
 
+import com.android.adblib.LineShellV2Collector
 import com.android.adblib.ShellCommandOutputElement
 import com.android.adblib.ShellCommandOutputElement.StderrLine
 import com.android.adblib.ShellCommandOutputElement.StdoutLine
@@ -201,10 +202,10 @@ class LineShellV2CollectorTest {
     }
 
     private fun collectStrings(
-        linesCollector: LineShellV2Collector,
-        flowCollector: FlowCollector<ShellCommandOutputElement>,
-        stdout: List<String>,
-        stderr: List<String>,
+      linesCollector: LineShellV2Collector,
+      flowCollector: FlowCollector<ShellCommandOutputElement>,
+      stdout: List<String>,
+      stderr: List<String>,
     ) {
         runBlocking {
             linesCollector.start(flowCollector)
@@ -219,17 +220,17 @@ class LineShellV2CollectorTest {
     }
 
     private fun collectStdout(
-        linesCollector: LineShellV2Collector,
-        flowCollector: FlowCollector<ShellCommandOutputElement>,
-        vararg value: String
+      linesCollector: LineShellV2Collector,
+      flowCollector: FlowCollector<ShellCommandOutputElement>,
+      vararg value: String
     ) {
         collectStrings(linesCollector, flowCollector, value.toList(), emptyList())
     }
 
     private fun collectStderr(
-        linesCollector: LineShellV2Collector,
-        flowCollector: FlowCollector<ShellCommandOutputElement>,
-        vararg value: String
+      linesCollector: LineShellV2Collector,
+      flowCollector: FlowCollector<ShellCommandOutputElement>,
+      vararg value: String
     ) {
         collectStrings(linesCollector, flowCollector, emptyList(), value.toList())
     }

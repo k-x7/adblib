@@ -27,10 +27,7 @@ import com.android.adblib.testingutils.TimeWaitSocketsThrottler
 import com.android.adblib.testingutils.asAdbInputChannel
 import com.android.adblib.testingutils.setTestLoggerMinLevel
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.LineShellCollector
 import com.android.adblib.utils.ResizableBuffer
-import com.android.adblib.utils.TextShellCollector
-import com.android.adblib.utils.TextShellV2Collector
 import com.android.adblib.utils.launchCancellable
 import com.android.fakeadbserver.ClientState
 import com.android.fakeadbserver.DeviceFileState
@@ -426,10 +423,10 @@ class AdbDeviceServicesTest {
         exceptionRule.expect(MyTestException::class.java)
         /*val ignored = */runBlocking {
             deviceServices.shell(
-                deviceSelector,
-                "cat",
-                TextShellCollector(),
-                stdinChannel = errorInputChannel
+              deviceSelector,
+              "cat",
+              TextShellCollector(),
+              stdinChannel = errorInputChannel
             ).first()
         }
 
@@ -467,10 +464,10 @@ class AdbDeviceServicesTest {
         exceptionRule.expect(CancellationException::class.java)
         /*val ignored = */runBlocking {
             deviceServices.shell(
-                deviceSelector,
-                "cat",
-                TextShellCollector(),
-                stdinChannel = errorInputChannel
+              deviceSelector,
+              "cat",
+              TextShellCollector(),
+              stdinChannel = errorInputChannel
             ).first()
         }
 

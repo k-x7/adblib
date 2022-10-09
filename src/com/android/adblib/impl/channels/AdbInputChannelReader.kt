@@ -19,7 +19,7 @@ import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbChannelReader
 import com.android.adblib.utils.AdbBufferDecoder
 import com.android.adblib.utils.AdbProtocolUtils
-import com.android.adblib.utils.LineCollector
+import com.android.adblib.impl.LineCollector
 import com.android.adblib.utils.ResizableBuffer
 import java.nio.charset.Charset
 

@@ -15,15 +15,19 @@
  */
 package com.android.adblib
 
+import com.android.adblib.impl.InputChannelShellOutputImpl
+import com.android.adblib.impl.LineCollector
+import com.android.adblib.utils.AdbBufferDecoder
+import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.FirstCollecting
-import com.android.adblib.utils.InputChannelShellCollector
-import com.android.adblib.utils.InputChannelShellOutput
-import com.android.adblib.utils.LineBatchShellV2Collector
-import com.android.adblib.utils.LineShellV2Collector
-import com.android.adblib.utils.TextShellV2Collector
 import com.android.adblib.utils.firstCollecting
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.Charset
 import java.time.Duration
 import java.util.concurrent.TimeoutException
 
@@ -182,6 +186,16 @@ interface ShellCommand<T> {
     }
 }
 
+/**
+ * Provides access to the [single output][value] of a shell command.
+ *
+ * @see ShellCommand.executeAsSingleOutput
+ */
+class ShellSingleOutput<out T>(
+    firstCollecting: FirstCollecting<T>
+) : FirstCollecting<T> by firstCollecting
+
+
 fun <T> ShellCommand<T>.withLineCollector(): ShellCommand<ShellCommandOutputElement> {
     return this.withCollector(LineShellV2Collector())
 }
@@ -199,10 +213,450 @@ fun <T> ShellCommand<T>.withInputChannelCollector(): ShellCommand<InputChannelSh
 }
 
 /**
- * Provides access to the [single output][value] of a shell command.
+ * A [ShellCollector] implementation that concatenates the entire `stdout` into a single [String].
  *
- * @see ShellCommand.executeAsSingleOutput
+ * Note: This should be used only if the output of a shell command is expected to be somewhat
+ *       small and can easily fit into memory.
  */
-class ShellSingleOutput<out T>(
-    firstCollecting: FirstCollecting<T>
-) : FirstCollecting<T> by firstCollecting
+class TextShellCollector(bufferCapacity: Int = 256) : ShellCollector<String> {
+
+    private val decoder = AdbBufferDecoder(bufferCapacity)
+
+    /**
+     * Characters accumulated during calls to [collectCharacters]
+     */
+    private val stringBuilder = StringBuilder()
+
+    /**
+     * We store the lambda in a field to avoid allocating an new lambda instance for every
+     * invocation of [AdbBufferDecoder.decodeBuffer]
+     */
+    private val characterCollector = this::collectCharacters
+
+    override suspend fun start(collector: FlowCollector<String>) {
+        // Nothing to do
+    }
+
+    override suspend fun collect(collector: FlowCollector<String>, stdout: ByteBuffer) {
+        decoder.decodeBuffer(stdout, characterCollector)
+    }
+
+    override suspend fun end(collector: FlowCollector<String>) {
+        collector.emit(stringBuilder.toString())
+    }
+
+    private fun collectCharacters(charBuffer: CharBuffer) {
+        stringBuilder.append(charBuffer)
+    }
+}
+
+/**
+ * A [ShellV2Collector] implementation that concatenates the entire output (and `stderr`) of
+ * the command execution into a single [ShellCommandOutput] instance
+ *
+ * Note: This should be used only if the output of a shell command is expected to be somewhat
+ *       small and can easily fit into memory.
+ */
+class TextShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<ShellCommandOutput> {
+
+    private val stdoutCollector = TextShellCollector(bufferCapacity)
+    private val stderrCollector = TextShellCollector(bufferCapacity)
+    private val stdoutFlowCollector = StringFlowCollector()
+    private val stderrFlowCollector = StringFlowCollector()
+
+    override suspend fun start(collector: FlowCollector<ShellCommandOutput>) {
+        stdoutCollector.start(stdoutFlowCollector)
+        stderrCollector.start(stderrFlowCollector)
+    }
+
+    override suspend fun collectStdout(
+        collector: FlowCollector<ShellCommandOutput>,
+        stdout: ByteBuffer
+    ) {
+        stdoutCollector.collect(stdoutFlowCollector, stdout)
+    }
+
+    override suspend fun collectStderr(
+        collector: FlowCollector<ShellCommandOutput>,
+        stderr: ByteBuffer
+    ) {
+        stderrCollector.collect(stderrFlowCollector, stderr)
+    }
+
+    override suspend fun end(collector: FlowCollector<ShellCommandOutput>, exitCode: Int) {
+        stdoutCollector.end(stdoutFlowCollector)
+        stderrCollector.end(stderrFlowCollector)
+
+        val result = ShellCommandOutput(
+            stdoutFlowCollector.value ?: "",
+            stderrFlowCollector.value ?: "",
+            exitCode
+        )
+        collector.emit(result)
+    }
+
+    class StringFlowCollector : FlowCollector<String> {
+
+        var value: String? = null
+
+        override suspend fun emit(value: String) {
+            this.value = value
+        }
+    }
+}
+
+/**
+ * The result of [AdbDeviceServices.shellAsText]
+ */
+class ShellCommandOutput(
+    /**
+     * The shell command output ("stdout") captured as a single string.
+     */
+    val stdout: String,
+    /**
+     * The shell command error output ("stderr") captured as a single string, only set if
+     * [ShellCommand.Protocol] is [ShellCommand.Protocol.SHELL_V2].
+     *
+     * @see ShellCommand.Protocol
+     */
+    val stderr: String,
+    /**
+     * The shell command exit code, only set if [ShellCommand.Protocol] is
+     * [ShellCommand.Protocol.SHELL_V2].
+     */
+    val exitCode: Int
+)
+
+/**
+ * A [ShellCollector] implementation that collects `stdout` as a sequence of lines
+ */
+class LineShellCollector(bufferCapacity: Int = 256) : ShellCollector<String> {
+
+    private val decoder = AdbBufferDecoder(bufferCapacity)
+
+    private val lineCollector = LineCollector()
+
+    /**
+     * We store the lambda in a field to avoid allocating a new lambda instance for every
+     * invocation of [AdbBufferDecoder.decodeBuffer]
+     */
+    private val lineCollectorLambda: (CharBuffer) -> Unit = { lineCollector.collectLines(it) }
+
+    override suspend fun start(collector: FlowCollector<String>) {
+        // Nothing to do
+    }
+
+    override suspend fun collect(collector: FlowCollector<String>, stdout: ByteBuffer) {
+        decoder.decodeBuffer(stdout, lineCollectorLambda)
+
+        val lines = lineCollector.getLines()
+        if (lines.isNotEmpty()) {
+            for (line in lines) {
+                collector.emit(line)
+            }
+            lineCollector.clear()
+        }
+    }
+
+    override suspend fun end(collector: FlowCollector<String>) {
+        collector.emit(lineCollector.getLastLine())
+    }
+
+}
+
+/**
+ * A [ShellV2Collector] implementation that collects `stdout` and `stderr` as sequences of
+ * [text][String] lines
+ */
+class LineShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<ShellCommandOutputElement> {
+
+    private val stdoutCollector = LineShellCollector(bufferCapacity)
+    private val stderrCollector = LineShellCollector(bufferCapacity)
+    private val stdoutFlowCollector = LineFlowCollector { line ->
+        ShellCommandOutputElement.StdoutLine(
+            line
+        )
+    }
+    private val stderrFlowCollector = LineFlowCollector { line ->
+        ShellCommandOutputElement.StderrLine(
+            line
+        )
+    }
+
+    override suspend fun start(collector: FlowCollector<ShellCommandOutputElement>) {
+        stdoutFlowCollector.forwardingFlowCollector = collector
+        stdoutCollector.start(stdoutFlowCollector)
+
+        stderrFlowCollector.forwardingFlowCollector = collector
+        stderrCollector.start(stderrFlowCollector)
+    }
+
+    override suspend fun collectStdout(
+        collector: FlowCollector<ShellCommandOutputElement>,
+        stdout: ByteBuffer
+    ) {
+        stdoutFlowCollector.forwardingFlowCollector = collector
+        stdoutCollector.collect(stdoutFlowCollector, stdout)
+    }
+
+    override suspend fun collectStderr(
+        collector: FlowCollector<ShellCommandOutputElement>,
+        stderr: ByteBuffer
+    ) {
+        stderrFlowCollector.forwardingFlowCollector = collector
+        stderrCollector.collect(stderrFlowCollector, stderr)
+    }
+
+    override suspend fun end(collector: FlowCollector<ShellCommandOutputElement>, exitCode: Int) {
+        stdoutFlowCollector.forwardingFlowCollector = collector
+        stdoutCollector.end(stdoutFlowCollector)
+
+        stderrFlowCollector.forwardingFlowCollector = collector
+        stderrCollector.end(stderrFlowCollector)
+
+        collector.emit(ShellCommandOutputElement.ExitCode(exitCode))
+    }
+
+    class LineFlowCollector(
+        private val builder: (String) -> ShellCommandOutputElement
+    ) : FlowCollector<String> {
+
+        var forwardingFlowCollector: FlowCollector<ShellCommandOutputElement>? = null
+
+        override suspend fun emit(value: String) {
+            forwardingFlowCollector?.emit(builder(value))
+        }
+    }
+}
+
+/**
+ * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellAsLines].
+ */
+sealed class ShellCommandOutputElement {
+
+    /**
+     * A `stdout` text line of the shell command.
+     */
+    class StdoutLine(val contents: String) : ShellCommandOutputElement() {
+
+        // Returns the contents of the stdout line.
+        override fun toString(): String = contents
+    }
+
+    /**
+     * A `stderr` text line of the shell command.
+     */
+    class StderrLine(val contents: String) : ShellCommandOutputElement() {
+
+        // Returns the contents of the stdout line.
+        override fun toString(): String = contents
+    }
+
+    /**
+     * The exit code of the shell command. This is always the last entry of the [Flow] returned by
+     * [AdbDeviceServices.shellAsLines].
+     */
+    class ExitCode(val exitCode: Int) : ShellCommandOutputElement() {
+
+        // Returns the exit code in a text form.
+        override fun toString(): String = exitCode.toString()
+    }
+}
+
+/**
+ * A [ShellCollector] implementation that collects `stdout` as a sequence of lists of lines
+ */
+class LineBatchShellCollector(bufferCapacity: Int = 256) : ShellCollector<List<String>> {
+
+    private val decoder = AdbBufferDecoder(bufferCapacity)
+
+    private val lineCollector = LineCollector()
+
+    /**
+     * We store the lambda in a field to avoid allocating a new lambda instance for every
+     * invocation of [AdbBufferDecoder.decodeBuffer]
+     */
+    private val lineCollectorLambda: (CharBuffer) -> Unit = { lineCollector.collectLines(it) }
+
+    override suspend fun start(collector: FlowCollector<List<String>>) {
+        // Nothing to do
+    }
+
+    override suspend fun collect(collector: FlowCollector<List<String>>, stdout: ByteBuffer) {
+        decoder.decodeBuffer(stdout, lineCollectorLambda)
+        val lines = lineCollector.getLines()
+        if (lines.isNotEmpty()) {
+            collector.emit(lines.toList())
+            lineCollector.clear()
+        }
+    }
+
+    override suspend fun end(collector: FlowCollector<List<String>>) {
+        collector.emit(listOf(lineCollector.getLastLine()))
+    }
+}
+
+/**
+ * A [ShellV2Collector] implementation that collects `stdout` and `stderr` as sequences of
+ * [text][String] lines
+ */
+class LineBatchShellV2Collector(bufferCapacity: Int = 256) : ShellV2Collector<BatchShellCommandOutputElement> {
+
+    private val stdoutCollector = LineBatchShellCollector(bufferCapacity)
+    private val stderrCollector = LineBatchShellCollector(bufferCapacity)
+    private val stdoutFlowCollector = LineBatchFlowCollector { lines ->
+        BatchShellCommandOutputElement.StdoutLine(
+            lines
+        )
+    }
+    private val stderrFlowCollector = LineBatchFlowCollector { lines ->
+        BatchShellCommandOutputElement.StderrLine(
+            lines
+        )
+    }
+
+    override suspend fun start(collector: FlowCollector<BatchShellCommandOutputElement>) {
+        stdoutFlowCollector.forwardingFlowCollector = collector
+        stdoutCollector.start(stdoutFlowCollector)
+
+        stderrFlowCollector.forwardingFlowCollector = collector
+        stderrCollector.start(stderrFlowCollector)
+    }
+
+    override suspend fun collectStdout(
+        collector: FlowCollector<BatchShellCommandOutputElement>,
+        stdout: ByteBuffer
+    ) {
+        stdoutFlowCollector.forwardingFlowCollector = collector
+        stdoutCollector.collect(stdoutFlowCollector, stdout)
+    }
+
+    override suspend fun collectStderr(
+        collector: FlowCollector<BatchShellCommandOutputElement>,
+        stderr: ByteBuffer
+    ) {
+        stderrFlowCollector.forwardingFlowCollector = collector
+        stderrCollector.collect(stderrFlowCollector, stderr)
+    }
+
+    override suspend fun end(
+        collector: FlowCollector<BatchShellCommandOutputElement>,
+        exitCode: Int
+    ) {
+        stdoutFlowCollector.forwardingFlowCollector = collector
+        stdoutCollector.end(stdoutFlowCollector)
+
+        stderrFlowCollector.forwardingFlowCollector = collector
+        stderrCollector.end(stderrFlowCollector)
+
+        collector.emit(BatchShellCommandOutputElement.ExitCode(exitCode))
+    }
+
+    class LineBatchFlowCollector(
+        private val builder: (List<String>) -> BatchShellCommandOutputElement
+    ) : FlowCollector<List<String>> {
+
+        var forwardingFlowCollector: FlowCollector<BatchShellCommandOutputElement>? = null
+
+        override suspend fun emit(value: List<String>) {
+            forwardingFlowCollector?.emit(builder(value))
+        }
+    }
+}
+
+/**
+ * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellAsLineBatches].
+ */
+sealed class BatchShellCommandOutputElement {
+
+    /**
+     * A `stdout` text lines of the shell command.
+     */
+    class StdoutLine(val lines: List<String>) : BatchShellCommandOutputElement()
+
+    /**
+     * A `stderr` text lines of the shell command.
+     */
+    class StderrLine(val lines: List<String>) : BatchShellCommandOutputElement()
+
+    /**
+     * The exit code of the shell command. This is always the last entry of the [Flow] returned by
+     * [AdbDeviceServices.shellAsLineBatches].
+     */
+    class ExitCode(val exitCode: Int) : BatchShellCommandOutputElement() {
+
+        // Returns the exit code in a text form.
+        override fun toString(): String = exitCode.toString()
+    }
+}
+
+/**
+ * A [ShellV2Collector] that exposes the output of a [shellCommand] as a [InputChannelShellOutput],
+ * itself exposing `stdout`, `stderr` as [AdbInputChannel] instances.
+ */
+class InputChannelShellCollector(
+    session: AdbSession,
+    bufferSize: Int = DEFAULT_BUFFER_SIZE
+) : ShellV2Collector<InputChannelShellOutput> {
+
+    private val logger = thisLogger(session)
+
+    private val shellOutput = InputChannelShellOutputImpl(session, bufferSize)
+
+    override suspend fun start(collector: FlowCollector<InputChannelShellOutput>) {
+        collector.emit(shellOutput)
+    }
+
+    override suspend fun collectStdout(
+        collector: FlowCollector<InputChannelShellOutput>,
+        stdout: ByteBuffer
+    ) {
+        while (stdout.remaining() > 0) {
+            logger.verbose { "collectStdout(${stdout.remaining()})" }
+            shellOutput.writeStdout(stdout)
+        }
+        logger.verbose { "collectStdout: done" }
+    }
+
+    override suspend fun collectStderr(
+        collector: FlowCollector<InputChannelShellOutput>,
+        stderr: ByteBuffer
+    ) {
+        while (stderr.remaining() > 0) {
+            logger.verbose { "collectStderr(${stderr.remaining()})" }
+            shellOutput.writeStderr(stderr)
+        }
+        logger.verbose { "collectStderr: done" }
+    }
+
+    override suspend fun end(collector: FlowCollector<InputChannelShellOutput>, exitCode: Int) {
+        logger.verbose { "end(exitCode=$exitCode)" }
+        shellOutput.end(exitCode)
+    }
+}
+
+/**
+ * The [shellCommand] output when using the [InputChannelShellCollector] collector.
+ */
+interface InputChannelShellOutput {
+
+    /**
+     * An [AdbInputChannel] to read the contents of `stdout`. Once the shell command
+     * terminates, [stdout] reaches EOF.
+     */
+    val stdout: AdbInputChannel
+
+    /**
+     * An [AdbInputChannel] to read the contents of `stdout`. Once the shell command
+     * terminates, [stdout] reaches EOF.
+     */
+    val stderr: AdbInputChannel
+
+    /**
+     * A [StateFlow] for the exit code of the shell command.
+     * * While the command is still running, the value is `null`.
+     * * Once the command terminates, the value is set to the actual
+     *   (and final) exit code.
+     */
+    val exitCode: StateFlow<Int?>
+}

@@ -16,6 +16,7 @@
 package com.android.adblib.utils
 
 import com.android.adblib.ShellCollector
+import com.android.adblib.TextShellCollector
 import com.android.adblib.testingutils.ByteBufferUtils
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.runBlocking

@@ -4,6 +4,7 @@ import com.android.adblib.impl.DevicePropertiesImpl
 import com.android.adblib.impl.ShellCommandImpl
 import com.android.adblib.utils.AdbProtocolUtils
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.first
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -371,6 +372,94 @@ typealias ProcessIdList = ListWithErrors<Int>
 fun emptyProcessIdList(): ProcessIdList = emptyListWithErrors()
 
 /**
+ * A [ShellCollector] is responsible for mapping raw binary output of a shell command,
+ * provided as [ByteBuffer] instances, and emit mapped value to a [FlowCollector] of
+ * type [T].
+ *
+ * @see [AdbDeviceServices.shellCommand]
+ * @see [AdbDeviceServices.shell]
+ * @see [AdbDeviceServices.exec]
+ * @see [AdbDeviceServices.abb_exec]
+ */
+interface ShellCollector<T> {
+
+    /**
+     * Invoked by [AdbDeviceServices.shell] as soon as the shell command execution has started
+     * on the device, but before any output from `stdout` has been processed.
+     *
+     * [collector] The [FlowCollector] where flow elements should be emitted, if any.
+     */
+    suspend fun start(collector: FlowCollector<T>)
+
+    /**
+     * Process a single [ByteBuffer] received from `stdout` of the shell command.
+     *
+     * [collector] The [FlowCollector] where flow elements should be emitted, if any.
+     *
+     * [stdout] The [ByteBuffer] containing a chunk of bytes collected from `stdout`.
+     * For performance reasons, the buffer is only valid during the method call so the data must
+     * be consumed directly in this method implementation.
+     */
+    suspend fun collect(collector: FlowCollector<T>, stdout: ByteBuffer)
+
+    /**
+     * Invoked when `stdout` from the command shell has reached EOF, i.e. when the command
+     * execution has ended.
+     *
+     * [collector] The [FlowCollector] where leftover flow elements should be emitted, if any.
+     */
+    suspend fun end(collector: FlowCollector<T>)
+}
+
+/**
+ * A [ShellV2Collector] is responsible for mapping raw binary output of a shell command,
+ * provided as [ByteBuffer] instances, and emit mapped value to a [FlowCollector] of
+ * type [T].
+ *
+ * @see [AdbDeviceServices.shellCommand]
+ * @see [AdbDeviceServices.shellV2]
+ * @see [AdbDeviceServices.abb]
+ */
+interface ShellV2Collector<T> {
+
+    /**
+     * Invoked by [AdbDeviceServices.shellV2] as soon as the shell command execution has started
+     * on the device, but before any output from `stdout` has been processed.
+     *
+     * @param collector The [FlowCollector] where flow elements should be emitted, if any.
+     */
+    suspend fun start(collector: FlowCollector<T>)
+
+    /**
+     * Process a single [ByteBuffer] received from `stdout` of the shell command.
+     *
+     * @param collector The [FlowCollector] where flow elements should be emitted, if any.
+     * @param stdout The [ByteBuffer] containing a chunk of bytes collected from `stdout`.
+     *         For performance reasons, the buffer is only valid during the method
+     *         call so the data must be consumed directly in this method implementation.
+     */
+    suspend fun collectStdout(collector: FlowCollector<T>, stdout: ByteBuffer)
+
+    /**
+     * Process a single [ByteBuffer] received from `stderr` of the shell command.
+     *
+     * @param collector The [FlowCollector] where flow elements should be emitted, if any.
+     * @param stderr The [ByteBuffer] containing a chunk of bytes collected from `stderr`.
+     *         For performance reasons, the buffer is only valid during the method call so
+     *         the data must be consumed directly in this method implementation.
+     */
+    suspend fun collectStderr(collector: FlowCollector<T>, stderr: ByteBuffer)
+
+    /**
+     * Invoked when the shell command has exited
+     *
+     * @param collector The [FlowCollector] where flow elements should be emitted, if any.
+     * @param exitCode The exit code of the command
+     */
+    suspend fun end(collector: FlowCollector<T>, exitCode: Int)
+}
+
+/**
  * Creates a [ShellCommand] to [execute][ShellCommand.execute] a shell [command] on a
  * given [device], taking advantage of features available only on more recent devices
  * (e.g. [AdbDeviceServices.shellV2]), in addition to other customization such as
@@ -428,28 +517,6 @@ suspend fun AdbDeviceServices.shellAsText(
 }
 
 /**
- * The result of [AdbDeviceServices.shellAsText]
- */
-class ShellCommandOutput(
-    /**
-     * The shell command output ("stdout") captured as a single string.
-     */
-    val stdout: String,
-    /**
-     * The shell command error output ("stderr") captured as a single string, only set if
-     * [ShellCommand.Protocol] is [ShellCommand.Protocol.SHELL_V2].
-     *
-     * @see ShellCommand.Protocol
-     */
-    val stderr: String,
-    /**
-     * The shell command exit code, only set if [ShellCommand.Protocol] is
-     * [ShellCommand.Protocol.SHELL_V2].
-     */
-    val exitCode: Int
-)
-
-/**
  * Use [shellCommand] to capture the command output as a [Flow] of [ShellCommandOutputElement],
  * typically one entry per line of `stdout` or `stderr`.
  *
@@ -474,40 +541,6 @@ fun AdbDeviceServices.shellAsLines(
         .withCommandTimeout(commandTimeout)
         .withBufferSize(bufferSize)
         .execute()
-}
-
-/**
- * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellAsLines].
- */
-sealed class ShellCommandOutputElement {
-
-    /**
-     * A `stdout` text line of the shell command.
-     */
-    class StdoutLine(val contents: String) : ShellCommandOutputElement() {
-
-        // Returns the contents of the stdout line.
-        override fun toString(): String = contents
-    }
-
-    /**
-     * A `stderr` text line of the shell command.
-     */
-    class StderrLine(val contents: String) : ShellCommandOutputElement() {
-
-        // Returns the contents of the stdout line.
-        override fun toString(): String = contents
-    }
-
-    /**
-     * The exit code of the shell command. This is always the last entry of the [Flow] returned by
-     * [AdbDeviceServices.shellAsLines].
-     */
-    class ExitCode(val exitCode: Int) : ShellCommandOutputElement() {
-
-        // Returns the exit code in a text form.
-        override fun toString(): String = exitCode.toString()
-    }
 }
 
 /**
@@ -538,32 +571,6 @@ fun AdbDeviceServices.shellAsLineBatches(
         .withCommandTimeout(commandTimeout)
         .withBufferSize(bufferSize)
         .execute()
-}
-
-/**
- * The base class of each entry of the [Flow] returned by [AdbDeviceServices.shellAsLineBatches].
- */
-sealed class BatchShellCommandOutputElement {
-
-    /**
-     * A `stdout` text lines of the shell command.
-     */
-    class StdoutLine(val lines: List<String>) : BatchShellCommandOutputElement()
-
-    /**
-     * A `stderr` text lines of the shell command.
-     */
-    class StderrLine(val lines: List<String>) : BatchShellCommandOutputElement()
-
-    /**
-     * The exit code of the shell command. This is always the last entry of the [Flow] returned by
-     * [AdbDeviceServices.shellAsLineBatches].
-     */
-    class ExitCode(val exitCode: Int) : BatchShellCommandOutputElement() {
-
-        // Returns the exit code in a text form.
-        override fun toString(): String = exitCode.toString()
-    }
 }
 
 /**
