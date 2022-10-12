@@ -19,111 +19,157 @@ import com.android.adblib.AdbOutputChannel
 import com.android.adblib.AdbPipedInputChannel
 import com.android.adblib.AdbSession
 import com.android.adblib.thisLogger
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.runInterruptible
-import kotlinx.coroutines.withContext
+import com.android.adblib.utils.CircularByteBuffer
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeout
-import java.io.InterruptedIOException
-import java.io.PipedInputStream
-import java.io.PipedOutputStream
 import java.nio.ByteBuffer
+import java.nio.channels.ClosedChannelException
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.EmptyCoroutineContext
-import kotlin.math.min
 
-/**
- * An [AdbInputChannel] that can be fed data in a thread-safe way from
- * an [AdbPipedOutputChannel], i.e. write operation to the [AdbPipedOutputChannel]
- * end up feeding pending (or future) [read] operations on this [AdbPipedInputChannelImpl].
- *
- * @see java.io.PipedInputStream
- * @see java.io.PipedOutputStream
- */
-internal class AdbPipedInputChannelImpl(private val session: AdbSession, bufferSize: Int = 4_096) :
-    AdbPipedInputChannel {
+internal class AdbPipedInputChannelImpl(
+    session: AdbSession,
+    bufferSize: Int = DEFAULT_BUFFER_SIZE
+) : AdbPipedInputChannel {
 
     private val logger = thisLogger(session)
 
     /**
-     * TODO: Replace [PipedOutputStream] implementation with a coroutine based
-     *       implementation to avoid issues with blocking thread I/O operations
-     *       that are non-cancellable (and inefficient use of threads).
+     * Guard access to [circularBuffer]
      */
-    private val outputStream = PipedOutputStream()
-    private val inputStream = PipedInputStream(outputStream, bufferSize)
-    private val readBytes = ByteArray(bufferSize)
-    private val receiveBytes = ByteArray(bufferSize)
+    private val circularBufferLock = Any()
+
+    /**
+     * The circular buffer used to store bytes for [read] and [receive] operations
+     */
+    private val circularBuffer = CircularByteBuffer(bufferSize)
+
+    /**
+     * Lock to use when updating the value of [state]
+     */
+    private val stateLock = Any()
+
+    /**
+     * [StateFlow] of [State] used to coordinate calls to [read], [receive], [close] and
+     * [closeWriter]. The intent is to make sure any state change will wake up a pending
+     * [read] or [receive] waiting on the [StateFlow].
+     */
+    private val state = MutableStateFlow(
+        State(
+            receivedBytes = circularBuffer.size,
+            freeBytes = circularBuffer.remaining,
+            closed = false,
+            pipeSourceClosed = false
+        )
+    )
 
     override val pipeSource: AdbOutputChannel = AdbPipedOutputChannel(session, this)
 
     override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
         return withTimeout(unit.toMillis(timeout)) {
-            withContext(session.blockingIoDispatcher) {
-                val bytesToRead = min(buffer.remaining(), readBytes.size)
-                if (bytesToRead == 0) {
-                    0
-                } else {
-                    // Note: "runInterruptible" ensures the blocking I/O is interrupted
-                    // by a "Thread.interrupt()" call if this read operation is cancelled
-                    // (e.g. by a timeout or by a parent job cancellation).
-                    val byteCount = runInterruptibleIO {
-                        inputStream.read(readBytes, 0, bytesToRead)
-                    }
-                    if (byteCount > 0) {
-                        buffer.put(readBytes, 0, byteCount)
-                    }
-                    logger.verbose { "read(): $byteCount bytes read" }
-                    byteCount
+            readImpl(buffer)
+        }
+    }
+
+    private suspend fun readImpl(buffer: ByteBuffer): Int {
+        logger.verbose { "read(${buffer.remaining()})" }
+        while (true) {
+            synchronized(circularBufferLock) {
+                // If close has been called, fail immediately
+                if (state.value.closed) {
+                    throw ClosedChannelException()
+                }
+                // No-op if empty target buffer
+                if (buffer.remaining() == 0) {
+                    return 0
+                }
+                // Move bytes from the circular buffer to the target buffer
+                val byteCount = circularBuffer.read(buffer)
+                updateState {
+                    it.copy(
+                        receivedBytes = circularBuffer.size,
+                        freeBytes = circularBuffer.remaining
+                    )
+                }
+                if (byteCount > 0) {
+                    logger.verbose { "read: $byteCount bytes read" }
+                    return byteCount
+                }
+
+                // If output has closed and there are no available bytes, we reached EOF
+                if (state.value.pipeSourceClosed) {
+                    logger.verbose { "read(): EOF reached" }
+                    return -1
                 }
             }
+
+            // Wait until bytes are received, or close is called
+            state.waitUntil { it.closed || it.pipeSourceClosed || it.receivedBytes > 0 }
         }
     }
 
     override fun close() {
         logger.debug { "close()" }
-        inputStream.close()
-    }
-
-    fun closeWriter() {
-        logger.debug { "closeWriter()" }
-        outputStream.close()
-    }
-
-    suspend fun receive(buffer: ByteBuffer): Int {
-        logger.verbose { "receive(${buffer.remaining()})" }
-        return withContext(session.blockingIoDispatcher) {
-            val byteCount = min(buffer.remaining(), receiveBytes.size)
-            if (byteCount > 0) {
-                // Move buffer data to intermediate buffer for sending to output stream
-                buffer.get(receiveBytes, 0, byteCount)
-
-                // Note: "runInterruptible" ensures the blocking I/O is interrupted
-                // by a "Thread.interrupt()" call if this read operation is cancelled
-                // (e.g. by a timeout or by a parent job cancellation).
-                runInterruptibleIO {
-                    outputStream.write(receiveBytes, 0, byteCount)
-                }
-            }
-            logger.verbose { "receive(): $byteCount bytes received" }
-            byteCount
+        updateState {
+            it.copy(closed = true)
         }
     }
 
     /**
-     * Similar to [runInterruptible], but handles [InterruptedIOException] in addition to
-     * [InterruptedException].
+     * Appends the contents of [sourceBuffer] to the list of bytes available for [read].
+     * Suspends until there is enough room in the internal buffer to write at least one byte.
      */
-    private suspend fun <T> runInterruptibleIO(
-        context: CoroutineContext = EmptyCoroutineContext,
-        block: () -> T
-    ): T {
-        return try {
-            runInterruptible(context, block)
-        } catch (e: InterruptedIOException) {
-            throw CancellationException("Blocking call was interrupted due to parent cancellation").initCause(
-                e
-            )
+    private suspend fun receive(sourceBuffer: ByteBuffer): Int {
+        logger.verbose { "receive(${sourceBuffer.remaining()})" }
+        while (true) {
+            synchronized(circularBufferLock) {
+                // If closeWriter has been called, fail immediately
+                if (state.value.pipeSourceClosed) {
+                    throw ClosedChannelException()
+                }
+                // No-op if empty source buffer
+                if (sourceBuffer.remaining() == 0) {
+                    return 0
+                }
+                // Move bytes from the source buffer to the circular buffer
+                val byteCount = circularBuffer.add(sourceBuffer)
+                updateState {
+                    it.copy(
+                        receivedBytes = circularBuffer.size,
+                        freeBytes = circularBuffer.remaining
+                    )
+                }
+                if (byteCount > 0) {
+                    logger.verbose { "receive(): $byteCount bytes received" }
+                    return byteCount
+                }
+            }
+
+            // There was no room in circular buffer, wait until close is called
+            // or a "read" operation frees up room from the circular buffer.
+            state.waitUntil { it.closed || it.pipeSourceClosed || it.freeBytes > 0 }
+        }
+    }
+
+    /**
+     * Notification from the associated [AdbPipedOutputChannel] that is has been closed,
+     * i.e. no more bytes will be sent to [receive].
+     */
+    private fun closeWriter() {
+        logger.debug { "closeWriter()" }
+        updateState { it.copy(pipeSourceClosed = true) }
+    }
+
+    private fun updateState(block: (State) -> State) {
+        synchronized(stateLock) {
+            state.value = block(state.value)
+        }
+    }
+
+    private suspend fun <T> StateFlow<T>.waitUntil(predicate: (T) -> Boolean) {
+        if (!predicate(value)) {
+            first { predicate(it) }
         }
     }
 
@@ -146,4 +192,22 @@ internal class AdbPipedInputChannelImpl(private val session: AdbSession, bufferS
             input.closeWriter()
         }
     }
+
+    private data class State(
+        /**
+         * The number of in-use bytes in [circularBuffer] (i.e. [CircularByteBuffer.size])
+         */
+        val receivedBytes: Int,
+        /**
+         * The number of unused bytes in [circularBuffer] (i.e. [CircularByteBuffer.remaining])
+         */
+        val freeBytes: Int,
+        /**
+         * Whether [close] has been called
+         */
+        val closed: Boolean,
+        /**
+         * Whether [closeWriter] has been called
+         */
+        val pipeSourceClosed: Boolean)
 }

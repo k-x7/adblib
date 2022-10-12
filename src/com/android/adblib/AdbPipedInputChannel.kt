@@ -20,13 +20,12 @@ package com.android.adblib
  * an [AdbOutputChannel] implementation that writes data for use by [read] operations
  * on this [AdbPipedInputChannel].
  *
- * @see java.io.PipedInputStream
- * @see java.io.PipedOutputStream
+ * Note: Implementations are guaranteed to be thread-safe.
  */
 interface AdbPipedInputChannel : AdbInputChannel {
 
     /**
-     * The [AdbOutputChannel] to use to send data to the input pipe
+     * The [AdbOutputChannel] used to [send][AdbOutputChannel.write] data to this input pipe
      */
     val pipeSource: AdbOutputChannel
 }
