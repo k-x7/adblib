@@ -28,6 +28,7 @@ import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExpectedException
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
 
@@ -46,7 +47,7 @@ class AdbPipedInputChannelTest {
     }
 
     @Test
-    fun testReadingWritingAndClosingWorks() = runBlockingWithTimeout {
+    fun testReadingWritingAndClosingWorks(): Unit = runBlockingWithTimeout {
         // Prepare
         val session = registerCloseable(TestingAdbSession())
         val channelFactory = AdbChannelFactoryImpl(session)
@@ -76,7 +77,41 @@ class AdbPipedInputChannelTest {
     }
 
     @Test
-    fun testCancellationWorks() = runBlockingWithTimeout {
+    fun testReportErrorToPipeSourceWorks(): Unit = runBlockingWithTimeout {
+        // Prepare
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
+        val pipedChannel = channelFactory.createPipedChannel(15)
+
+        // Act
+        val deferredResult = async {
+            var total = 0
+            val buffer = ByteBuffer.allocate(10)
+            while(true) {
+                buffer.clear()
+                val count = try {
+                    pipedChannel.read(buffer)
+                } catch (t: Throwable) {
+                    return@async Pair(total, t)
+                }
+                total += count
+            }
+            throw IllegalStateException()
+        }
+
+        pipedChannel.pipeSource.writeNBytes(count = 100, times = 15)
+        pipedChannel.pipeSource.error(IOException("My Error"))
+        val (byteCount, throwable) = deferredResult.await()
+
+        // Assert
+        Assert.assertEquals(1500, byteCount)
+        exceptionRule.expect(IOException::class.java)
+        exceptionRule.expectMessage("My Error")
+        throw throwable
+    }
+
+    @Test
+    fun testCancellationWorks(): Unit = runBlockingWithTimeout {
         // Prepare
         val session = registerCloseable(TestingAdbSession())
         val channelFactory = AdbChannelFactoryImpl(session)
@@ -103,7 +138,6 @@ class AdbPipedInputChannelTest {
         job.cancel(CancellationException("My Cancellation"))
 
         exceptionRule.expect(CancellationException::class.java)
-        @Suppress("DeferredResultUnused")
         job.await()
 
         // Assert
@@ -111,7 +145,7 @@ class AdbPipedInputChannelTest {
     }
 
     @Test
-    fun testReadTimeoutWorks() = runBlockingWithTimeout {
+    fun testReadTimeoutWorks(): Unit = runBlockingWithTimeout {
         // Prepare
         val session = registerCloseable(TestingAdbSession())
         val channelFactory = AdbChannelFactoryImpl(session)

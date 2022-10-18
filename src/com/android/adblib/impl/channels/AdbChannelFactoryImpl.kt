@@ -24,6 +24,7 @@ import com.android.adblib.AdbOutputChannel
 import com.android.adblib.AdbPipedInputChannel
 import com.android.adblib.AdbServerSocket
 import com.android.adblib.AdbSession
+import com.android.adblib.impl.AdbReadAheadInputChannel
 import com.android.adblib.utils.closeOnException
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
@@ -87,6 +88,13 @@ internal class AdbChannelFactoryImpl(private val session: AdbSession) : AdbChann
 
     override fun createPipedChannel(bufferSize: Int): AdbPipedInputChannel {
         return AdbPipedInputChannelImpl(session, bufferSize)
+    }
+
+    override fun createReadAheadChannel(
+        input: AdbInputChannel,
+        bufferSize: Int
+    ): AdbInputChannel {
+        return AdbReadAheadInputChannel(session, input, bufferSize)
     }
 
     private suspend fun openOutput(

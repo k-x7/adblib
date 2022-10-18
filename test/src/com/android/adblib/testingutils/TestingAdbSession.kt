@@ -36,8 +36,7 @@ class TestingAdbSession : AdbSession {
     override val deviceServices: AdbDeviceServices
         get() = todo()
 
-    override val scope: CoroutineScope
-        get() = todo()
+    override val scope: CoroutineScope = CoroutineScope(host.parentContext + host.ioDispatcher)
 
     override val cache: CoroutineScopeCache
         get() = todo()

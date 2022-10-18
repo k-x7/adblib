@@ -89,6 +89,19 @@ interface AdbChannelFactory {
      * @see java.io.PipedOutputStream
      */
     fun createPipedChannel(bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE): AdbPipedInputChannel
+
+    /**
+     * Creates an [AdbInputChannel] that eagerly reads data from [input], i.e. starts a
+     * coroutine that reads data from [input] concurrently with calls to [AdbInputChannel.read],
+     * so that data is available as fast as possible. [bufferSize] is the size of the
+     * read-ahead buffer.
+     *
+     * The [input] channel is closed when this channel is [closed][AdbInputChannel.close].
+     */
+    fun createReadAheadChannel(
+        input: AdbInputChannel,
+        bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
+    ): AdbInputChannel
 }
 
 /**

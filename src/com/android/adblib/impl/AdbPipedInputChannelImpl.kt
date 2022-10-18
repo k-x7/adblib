@@ -15,8 +15,8 @@
  */
 package com.android.adblib.impl
 
-import com.android.adblib.AdbOutputChannel
 import com.android.adblib.AdbPipedInputChannel
+import com.android.adblib.AdbPipedOutputChannel
 import com.android.adblib.AdbSession
 import com.android.adblib.thisLogger
 import com.android.adblib.utils.CircularByteBuffer
@@ -60,11 +60,12 @@ internal class AdbPipedInputChannelImpl(
             receivedBytes = circularBuffer.size,
             freeBytes = circularBuffer.remaining,
             closed = false,
-            pipeSourceClosed = false
+            pipeSourceClosed = false,
+            pipeSourceError = null
         )
     )
 
-    override val pipeSource: AdbOutputChannel = AdbPipedOutputChannel(session, this)
+    override val pipeSource: AdbPipedOutputChannel = AdbPipedOutputChannelImpl(session, this)
 
     override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
         return withTimeout(unit.toMillis(timeout)) {
@@ -97,6 +98,12 @@ internal class AdbPipedInputChannelImpl(
                     return byteCount
                 }
 
+                // If output had an error and there are no available bytes, rethrow error
+                state.value.pipeSourceError?.also {
+                    logger.verbose { "read(): error from pipe source: '$it'" }
+                    throw it
+                }
+
                 // If output has closed and there are no available bytes, we reached EOF
                 if (state.value.pipeSourceClosed) {
                     logger.verbose { "read(): EOF reached" }
@@ -105,7 +112,7 @@ internal class AdbPipedInputChannelImpl(
             }
 
             // Wait until bytes are received, or close is called
-            state.waitUntil { it.closed || it.pipeSourceClosed || it.receivedBytes > 0 }
+            state.waitUntil { closed || pipeSourceClosed || pipeSourceError != null || receivedBytes > 0 }
         }
     }
 
@@ -124,8 +131,8 @@ internal class AdbPipedInputChannelImpl(
         logger.verbose { "receive(${sourceBuffer.remaining()})" }
         while (true) {
             synchronized(circularBufferLock) {
-                // If closeWriter has been called, fail immediately
-                if (state.value.pipeSourceClosed) {
+                // If "closeWriter" (or "close") has been called, fail immediately
+                if (state.value.closed || state.value.pipeSourceClosed || state.value.pipeSourceError != null) {
                     throw ClosedChannelException()
                 }
                 // No-op if empty source buffer
@@ -148,8 +155,16 @@ internal class AdbPipedInputChannelImpl(
 
             // There was no room in circular buffer, wait until close is called
             // or a "read" operation frees up room from the circular buffer.
-            state.waitUntil { it.closed || it.pipeSourceClosed || it.freeBytes > 0 }
+            state.waitUntil { closed || pipeSourceClosed || pipeSourceError != null || freeBytes > 0 }
         }
+    }
+
+    /**
+     * Notify an error was emitted from [pipeSource]
+     */
+    private fun receiveError(throwable: Throwable) {
+        logger.verbose { "receiveError($throwable)" }
+        updateState { it.copy(pipeSourceError = throwable) }
     }
 
     /**
@@ -167,18 +182,23 @@ internal class AdbPipedInputChannelImpl(
         }
     }
 
-    private suspend fun <T> StateFlow<T>.waitUntil(predicate: (T) -> Boolean) {
-        if (!predicate(value)) {
-            first { predicate(it) }
+    private suspend fun <T> StateFlow<T>.waitUntil(predicate: T.() -> Boolean) {
+        if (!value.predicate()) {
+            first { it.predicate() }
         }
     }
 
-    private class AdbPipedOutputChannel(
+    private class AdbPipedOutputChannelImpl(
         session: AdbSession,
         val input: AdbPipedInputChannelImpl
-    ) : AdbOutputChannel {
+    ) : AdbPipedOutputChannel {
 
         private val logger = thisLogger(session)
+
+        override suspend fun error(throwable: Throwable) {
+            logger.verbose { "error($throwable)" }
+            input.receiveError(throwable)
+        }
 
         override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
             logger.verbose { "write(${buffer.remaining()})" }
@@ -209,5 +229,9 @@ internal class AdbPipedInputChannelImpl(
         /**
          * Whether [closeWriter] has been called
          */
-        val pipeSourceClosed: Boolean)
+        val pipeSourceClosed: Boolean,
+        /**
+         * Error reported from [AdbPipedOutputChannel.error]
+         */
+        val pipeSourceError: Throwable?)
 }

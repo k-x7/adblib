@@ -27,5 +27,9 @@ interface AdbPipedInputChannel : AdbInputChannel {
     /**
      * The [AdbOutputChannel] used to [send][AdbOutputChannel.write] data to this input pipe
      */
-    val pipeSource: AdbOutputChannel
+    val pipeSource: AdbPipedOutputChannel
+}
+
+interface AdbPipedOutputChannel : AdbOutputChannel {
+    suspend fun error(throwable: Throwable)
 }
