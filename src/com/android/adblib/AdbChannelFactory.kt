@@ -102,6 +102,32 @@ interface AdbChannelFactory {
         input: AdbInputChannel,
         bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
     ): AdbInputChannel
+
+    /**
+     * Creates an [AdbBufferedOutputChannel] that caches [AdbOutputChannel.write] write operations
+     * to an in-memory buffer of [bufferSize] bytes, so that multiple successive write operations
+     * of a small amount of data can potentially be combined into larger "write-back"
+     * write operations.
+     *
+     * Actual writes to [output] are performed by a "write-back" coroutine
+     * running concurrently with calls to [AdbOutputChannel.write]. If the in-memory cache is
+     * full when [write] is called, the [write] operation waits for the "write-back" coroutine
+     * to make room available in the in-memory cache.
+     *
+     * * [AdbBufferedOutputChannel.shutdown] should be called before
+     * [closing][AdbBufferedOutputChannel.close] so that the "write-back" finishes flushing
+     * the in-memory cache to [output].
+     *
+     * * Calling [AdbBufferedOutputChannel.close] without [AdbBufferedOutputChannel.shutdown]
+     * may result in data loss. This should be done only in cases where "prompt cancellation"
+     * is warranted.
+     *
+     * * The [output] channel is closed when this channel is [closed][AdbOutputChannel.close].
+     */
+    fun createWriteBackChannel(
+        output: AdbOutputChannel,
+        bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
+    ): AdbBufferedOutputChannel
 }
 
 /**

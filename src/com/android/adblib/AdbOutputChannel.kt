@@ -68,3 +68,11 @@ internal suspend fun AdbOutputChannel.write(buffer: ByteBuffer, timeout: Timeout
 internal suspend fun AdbOutputChannel.writeExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
     writeExactly(buffer, timeout.remainingNanos, TimeUnit.NANOSECONDS)
 }
+
+interface AdbBufferedOutputChannel : AdbOutputChannel {
+
+    /**
+     * Invoke this method to ensure all buffered bytes are written to their destination
+     */
+    suspend fun shutdown()
+}
