@@ -56,7 +56,7 @@ internal class AdbWriteBackOutputChannel(
         // coroutine cancels this "write" operation with the "write-back" failure.
         return writeBackWorker.withWriteBackContext {
             pipe.pipeSource.write(buffer, timeout, unit).also {
-                logger.verbose { "write: Wrote $it bytes to in-memory pipe" }
+                logger.verbose { "write: Wrote $it bytes to pipe '$pipe'" }
             }
         }
     }
@@ -70,8 +70,8 @@ internal class AdbWriteBackOutputChannel(
 
     override fun close() {
         logger.debug { "Closing write-back output channel" }
-        writeBackWorker.close()
         pipe.pipeSource.close()
+        writeBackWorker.close()
         pipe.close()
         output.close()
     }

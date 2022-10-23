@@ -175,6 +175,36 @@ class AdbWriteBackOutputChannelTest {
     }
 
     @Test
+    fun writeBackCloseDoesNotThrowIfNotShutDown(): Unit = runBlockingWithTimeout {
+        // Prepare
+        val session = registerCloseable(TestingAdbSession())
+        val channelFactory = AdbChannelFactoryImpl(session)
+        val output = object: AdbOutputChannel {
+            var closeCalled = false
+
+            override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+                // This delay should be cancelled right away by `writeBackChannel.close`
+                delay(1_000)
+                return 0
+            }
+
+            override fun close() {
+                closeCalled = true
+            }
+        }
+
+        val writeBackChannel = channelFactory.createWriteBackChannel(output, 1_000)
+
+        // Act
+        val buffer = ByteBuffer.allocate(10)
+        writeBackChannel.write(buffer)
+        writeBackChannel.close()
+
+        // Assert
+        Assert.assertTrue(output.closeCalled)
+    }
+
+    @Test
     fun writeBackRethrowsCancellationException(): Unit = runBlockingWithTimeout {
         // Prepare
         val session = registerCloseable(TestingAdbSession())

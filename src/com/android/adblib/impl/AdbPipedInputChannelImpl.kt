@@ -73,6 +73,10 @@ internal class AdbPipedInputChannelImpl(
         }
     }
 
+    override fun toString(): String {
+        return "AdbPipeInputChannel(id=${this.hashCode()}, state=${state.value})"
+    }
+
     private suspend fun readImpl(buffer: ByteBuffer): Int {
         logger.verbose { "read(${buffer.remaining()})" }
         while (true) {

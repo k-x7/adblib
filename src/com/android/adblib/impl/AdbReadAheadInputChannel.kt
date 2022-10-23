@@ -60,7 +60,7 @@ internal class AdbReadAheadInputChannel(
 
     override suspend fun read(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
         return pipe.read(buffer, timeout, unit).also {
-            logger.verbose { "read: Read $it bytes from pipe" }
+            logger.verbose { "read: Read $it bytes from pipe '$pipe'" }
         }
     }
 
@@ -85,7 +85,7 @@ internal class AdbReadAheadInputChannel(
             }
             buffer.flip() // [position=byteCount, limit=capacity] -> [position=0, limit]
             pipe.pipeSource.writeExactly(buffer)
-            logger.verbose { "readAhead: Written $byteCount bytes to pipe" }
+            logger.verbose { "readAhead: Written $byteCount bytes to pipe '$pipe'" }
         }
     }
 }
