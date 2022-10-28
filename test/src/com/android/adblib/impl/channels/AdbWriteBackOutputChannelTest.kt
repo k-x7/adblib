@@ -22,6 +22,7 @@ import com.android.adblib.testingutils.TestingAdbSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
 import org.junit.Assert
 import org.junit.Rule
 import org.junit.Test
@@ -146,8 +147,11 @@ class AdbWriteBackOutputChannelTest {
         // Prepare
         val session = registerCloseable(TestingAdbSession())
         val channelFactory = AdbChannelFactoryImpl(session)
+        val writeMutex = Mutex()
+        writeMutex.lock()
         val output = object: AdbOutputChannel {
             override suspend fun write(buffer: ByteBuffer, timeout: Long, unit: TimeUnit): Int {
+                writeMutex.lock() // Wait for "shutdown" to be called
                 throw IOException("Fake I/O error")
             }
 
@@ -163,6 +167,7 @@ class AdbWriteBackOutputChannelTest {
 
         exceptionRule.expect(IOException::class.java)
         exceptionRule.expectMessage("Fake I/O error")
+        writeMutex.unlock() // Wake up "write" operation on underlying "output" channel
         writeBackChannel.shutdown()
 
         // Assert
