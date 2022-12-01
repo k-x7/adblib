@@ -18,6 +18,7 @@ package com.android.adblib.testing
 import com.android.adblib.AdbHostServices
 import com.android.adblib.AdbSession
 import com.android.adblib.DeviceAddress
+import com.android.adblib.DeviceInfo
 import com.android.adblib.DeviceList
 import com.android.adblib.DeviceSelector
 import com.android.adblib.DeviceState
@@ -219,12 +220,12 @@ class FakeAdbHostServices(override val session: AdbSession) : AdbHostServices, C
         TODO("Not yet implemented")
     }
 
-    override suspend fun connect(s: DeviceAddress) {
-        TODO("Not yet implemented")
+    override suspend fun connect(deviceAddress: DeviceAddress) {
+        devices = DeviceList(devices + DeviceInfo(serialNumber=deviceAddress.address, deviceState=DeviceState.ONLINE), devices.errors)
     }
 
-    override suspend fun disconnect(s: DeviceAddress) {
-        TODO("Not yet implemented")
+    override suspend fun disconnect(deviceAddress: DeviceAddress) {
+        devices = DeviceList(devices - DeviceInfo(serialNumber=deviceAddress.address, deviceState=DeviceState.ONLINE), devices.errors)
     }
 
     private fun <T> MutableSharedFlow<T>.emitOrThrow(value: T) {
