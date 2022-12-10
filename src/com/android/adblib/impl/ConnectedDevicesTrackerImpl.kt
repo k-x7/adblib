@@ -34,22 +34,22 @@ internal class ConnectedDevicesTrackerImpl(override val session: AdbSession) :
 
     private val connectedDevicesStateFlow = MutableStateFlow(emptyList<ConnectedDevice>())
 
+    private val monitorJob: Job by lazy {
+        launchDeviceTracking()
+    }
+
     override val connectedDevices = connectedDevicesStateFlow.asStateFlow()
+        get() {
+            // Note: We rely on "lazy" to ensure the tracking coroutine is launched only once
+            monitorJob
+            return field
+        }
 
     private val deviceMapLock = Any()
 
     //TODO: Add annotation when/if this library has the corresponding dependency
     //@GuardedBy("deviceMapLock")
     private val deviceMap = HashMap<String, ConnectedDeviceImpl>()
-
-    private val monitorJob: Job by lazy {
-        launchDeviceTracking()
-    }
-
-    fun start() {
-        // Note: We rely on "lazy" to ensure the tracking coroutine is launched only once
-        monitorJob
-    }
 
     private fun launchDeviceTracking(): Job {
         return session.scope.launch {

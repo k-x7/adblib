@@ -85,7 +85,7 @@ class ConnectedDevicesTrackerTest {
         val session = createSession(fakeAdb)
 
         // Act
-        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
         yieldUntil {
             deviceCacheManager.connectedDevices.value.isNotEmpty()
         }
@@ -110,7 +110,7 @@ class ConnectedDevicesTrackerTest {
         val session = createSession(fakeAdb)
 
         // Act
-        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
         yieldUntil {
             deviceCacheManager.connectedDevices.value.isNotEmpty()
         }
@@ -140,7 +140,7 @@ class ConnectedDevicesTrackerTest {
         val session = createSession(fakeAdb)
 
         // Act
-        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
         yieldUntil {
             deviceCacheManager.connectedDevices.value.isNotEmpty()
         }
@@ -172,7 +172,7 @@ class ConnectedDevicesTrackerTest {
 
         // Act
         val deviceInfoList = mutableListOf<DeviceInfo>()
-        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
         yieldUntil {
             deviceCacheManager.connectedDevices.value.isNotEmpty()
         }
@@ -224,7 +224,7 @@ class ConnectedDevicesTrackerTest {
         val session = createSession(fakeAdb)
 
         // Act
-        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
         yieldUntil {
             deviceCacheManager.connectedDevices.value.isNotEmpty()
         }
@@ -260,7 +260,7 @@ class ConnectedDevicesTrackerTest {
         )
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
         val session = createSession(fakeAdb)
-        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
         val key = TestKey("foo")
 
         // Act
@@ -283,7 +283,7 @@ class ConnectedDevicesTrackerTest {
         // Prepare
         val fakeAdb = registerCloseable(FakeAdbServerProvider().buildDefault().start())
         val session = createSession(fakeAdb)
-        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
         val key = TestKey("foo")
 
         // Act
@@ -312,7 +312,7 @@ class ConnectedDevicesTrackerTest {
         )
         fakeDevice.deviceStatus = DeviceState.DeviceStatus.ONLINE
         val session = createSession(fakeAdb)
-        val deviceCacheManager = ConnectedDevicesTrackerImpl(session).also { it.start() }
+        val deviceCacheManager = ConnectedDevicesTrackerImpl(session)
         val key = TestKey("foo")
         val closeable = object : AutoCloseable {
             var closed = false

@@ -317,10 +317,6 @@ val AdbSession.connectedDevicesTracker: ConnectedDevicesTracker
     get() {
         return this.cache.getOrPut(ConnectedDevicesManagerKey) {
             ConnectedDevicesTrackerImpl(this)
-        }.also {
-            // Note: We do this outside of the cache lookup to ensure `start`
-            // is called only on the instance stored in the cache.
-            (it as ConnectedDevicesTrackerImpl).start()
         }
     }
 
