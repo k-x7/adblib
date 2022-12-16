@@ -31,7 +31,6 @@ import com.android.adblib.SocketSpec
 import com.android.adblib.forwardTo
 import com.android.adblib.impl.StdoutByteBufferProcessor.DirectProcessor
 import com.android.adblib.impl.StdoutByteBufferProcessor.StripCrLfProcessor
-import com.android.adblib.impl.TimeoutTracker.Companion.INFINITE
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
 import com.android.adblib.impl.services.TrackJdwpService
@@ -336,12 +335,14 @@ internal class AdbDeviceServicesImpl(
     ) {
         logger.debug { "\"${service}\" - Waiting for next shell protocol packet" }
         shellCollector.start(flowCollector)
-        val shellProtocol = ShellV2ProtocolHandler(channel, workBuffer)
+        val shellProtocol = ShellV2ProtocolReader(channel, workBuffer)
 
         while (true) {
             // Note: We use an infinite timeout here, as the only wait to end this request is to close
             //       the underlying ADB socket channel. This is by design.
-            val (packetKind, packetBuffer) = shellProtocol.readPacket(INFINITE)
+            val packet = shellProtocol.readPacket()
+            val packetKind = packet.kind
+            val packetBuffer = packet.payload
             when (packetKind) {
                 ShellV2PacketKind.STDOUT -> {
                     logger.debug { "Received stdout buffer of ${packetBuffer.remaining()} bytes" }
@@ -391,7 +392,7 @@ internal class AdbDeviceServicesImpl(
         bufferSize: Int
     ) {
         val workBuffer = serviceRunner.newResizableBuffer(bufferSize)
-        val shellProtocol = ShellV2ProtocolHandler(deviceChannel, workBuffer)
+        val shellProtocol = ShellV2ProtocolWriter(deviceChannel, workBuffer)
 
         while (true) {
             // Reserve the bytes needed for the packet header

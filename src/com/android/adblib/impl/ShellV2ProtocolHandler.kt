@@ -15,8 +15,9 @@
  */
 package com.android.adblib.impl
 
-import com.android.adblib.AdbChannel
 import com.android.adblib.AdbDeviceServices
+import com.android.adblib.AdbInputChannel
+import com.android.adblib.AdbOutputChannel
 import com.android.adblib.utils.ResizableBuffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -28,17 +29,18 @@ import java.util.concurrent.TimeUnit
 private const val SHELL_PACKET_HEADER_SIZE = 5
 
 /**
- * Helper class to handle the shell v2 protocol
+ * Helper class to handle reading packets conforming to the shell v2 protocol
  *
  * See [ADB source code](https://cs.android.com/android/platform/superproject/+/master:packages/modules/adb/shell_protocol.h)
  * for inspiration for this class.
  *
  * @see [AdbDeviceServices.shellV2]
  */
-internal class ShellV2ProtocolHandler(
-    private val deviceChannel: AdbChannel,
+internal class ShellV2ProtocolReader(
+    private val deviceChannel: AdbInputChannel,
     private val workBuffer: ResizableBuffer
 ) {
+    private val packet = ShellV2PacketImpl()
 
     init {
         // The "shell" protocol uses little endian order for serializing packet sizes
@@ -46,17 +48,15 @@ internal class ShellV2ProtocolHandler(
     }
 
     /**
-     * Reads a shell packet and returns its length and payload as a [ByteBuffer] extracted
-     * from [workBuffer]
+     * Reads a shell [ShellV2Packet] from [workBuffer] and returns its length and payload
+     * as a [ShellV2Packet].
+     *
+     * Note: The returned [ShellV2Packet] instance if valid only until the next call to [readPacket].
      */
-    suspend fun readPacket(timeout: TimeoutTracker): Pair<ShellV2PacketKind, ByteBuffer> {
+    suspend fun readPacket(): ShellV2Packet {
         // Read header (1 byte for id, 4 bytes for data length)
         workBuffer.clear()
-        deviceChannel.readExactly(
-            workBuffer.forChannelRead(SHELL_PACKET_HEADER_SIZE),
-            timeout.remainingNanos,
-            TimeUnit.NANOSECONDS
-        )
+        deviceChannel.readExactly(workBuffer.forChannelRead(SHELL_PACKET_HEADER_SIZE))
         val buffer = workBuffer.afterChannelRead()
         assert(buffer.remaining() == SHELL_PACKET_HEADER_SIZE)
 
@@ -68,12 +68,35 @@ internal class ShellV2ProtocolHandler(
 
         // Packet data is next "length" bytes
         workBuffer.clear()
-        deviceChannel.readExactly(
-            workBuffer.forChannelRead(packetLength),
-            timeout.remainingNanos,
-            TimeUnit.NANOSECONDS
-        )
-        return Pair(packetKind, workBuffer.afterChannelRead())
+        deviceChannel.readExactly(workBuffer.forChannelRead(packetLength))
+
+        packet.kind = packetKind
+        packet.payload = workBuffer.afterChannelRead()
+        return packet
+    }
+
+    private class ShellV2PacketImpl : ShellV2Packet {
+        override var kind: ShellV2PacketKind = ShellV2PacketKind.INVALID
+        override var payload: ByteBuffer = ByteBuffer.allocate(0)
+    }
+}
+
+/**
+ * Helper class to handle writing packets conforming to the shell v2 protocol
+ *
+ * See [ADB source code](https://cs.android.com/android/platform/superproject/+/master:packages/modules/adb/shell_protocol.h)
+ * for inspiration for this class.
+ *
+ * @see [AdbDeviceServices.shellV2]
+ */
+internal class ShellV2ProtocolWriter(
+    private val deviceChannel: AdbOutputChannel,
+    private val workBuffer: ResizableBuffer
+) {
+
+    init {
+        // The "shell" protocol uses little endian order for serializing packet sizes
+        workBuffer.order(ByteOrder.LITTLE_ENDIAN)
     }
 
     /**
@@ -106,7 +129,15 @@ internal class ShellV2ProtocolHandler(
 }
 
 /**
- * Value of the "packet kind" byte in a shell v2 packet
+ * A shell V2 packet as read by [ShellV2ProtocolReader.readPacket]
+ */
+internal interface ShellV2Packet {
+    val kind: ShellV2PacketKind
+    val payload: ByteBuffer
+}
+
+/**
+ * Value of the "packet kind" byte in a [shell v2 packet][ShellV2Packet]
  */
 internal enum class ShellV2PacketKind(val value: Int) {
 
@@ -120,8 +151,13 @@ internal enum class ShellV2PacketKind(val value: Int) {
 
     companion object {
 
+        /**
+         * Note: Cache [values] as each invocation allocates a new array
+         */
+        private val enumValues = values()
+
         fun fromValue(id: Int): ShellV2PacketKind {
-            return values().firstOrNull { it.value == id } ?: INVALID
+            return enumValues.firstOrNull { it.value == id } ?: INVALID
         }
     }
 }
