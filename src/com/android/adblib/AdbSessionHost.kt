@@ -17,9 +17,12 @@ package com.android.adblib
 
 import com.android.adblib.utils.JdkLoggerFactory
 import com.android.adblib.utils.SystemNanoTime
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import java.nio.channels.AsynchronousChannelGroup
 import javax.swing.SwingUtilities
 import kotlin.coroutines.CoroutineContext
@@ -31,8 +34,7 @@ import kotlin.coroutines.EmptyCoroutineContext
  */
 open class AdbSessionHost : AutoCloseable {
 
-    open val timeProvider: SystemNanoTimeProvider
-        get() = SystemNanoTime()
+    open val timeProvider: SystemNanoTimeProvider = SystemNanoTime()
 
     /**
      * The "main" or "root" logger from the [loggerFactory]
