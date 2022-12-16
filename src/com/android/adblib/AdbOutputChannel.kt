@@ -48,10 +48,10 @@ interface AdbOutputChannel : AutoCloseable {
      * Throws a [TimeoutException] in case the data cannot be written before the timeout expires.
      */
     suspend fun writeExactly(buffer: ByteBuffer, timeout: Long = Long.MAX_VALUE, unit: TimeUnit = TimeUnit.MILLISECONDS) {
-        val tracker = TimeoutTracker(timeout, unit)
+        val tracker = TimeoutTracker.fromTimeout(unit, timeout)
         tracker.throwIfElapsed()
 
-        // This default implementation is sub-optimal and can be optimized by implementers
+        // This default implementation is suboptimal and can be optimized by implementers
         while (buffer.hasRemaining()) {
             val count = write(buffer, tracker)
             if (count <= 0) {

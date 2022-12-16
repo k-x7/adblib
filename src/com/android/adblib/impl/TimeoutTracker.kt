@@ -112,6 +112,13 @@ internal class TimeoutTracker(
     companion object {
 
         val INFINITE = TimeoutTracker(INFINITE_TIMEOUT, TimeUnit.NANOSECONDS)
+
+        fun fromTimeout(unit: TimeUnit, timeout: Long): TimeoutTracker {
+            return if (timeout == Long.MAX_VALUE)
+                INFINITE
+            else
+                TimeoutTracker(timeout, unit)
+        }
     }
 }
 

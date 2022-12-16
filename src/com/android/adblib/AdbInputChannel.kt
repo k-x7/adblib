@@ -60,10 +60,10 @@ interface AdbInputChannel : AutoCloseable {
         timeout: Long = Long.MAX_VALUE,
         unit: TimeUnit = TimeUnit.MILLISECONDS
     ) {
-        val tracker = TimeoutTracker(timeout, unit)
+        val tracker = TimeoutTracker.fromTimeout(unit, timeout)
         tracker.throwIfElapsed()
 
-        // This default implementation is sub-optimal and can be optimized by implementers
+        // This default implementation is suboptimal and can be optimized by implementers
         while (buffer.hasRemaining()) {
             val count = read(buffer, tracker)
             if (count == -1) {
@@ -73,11 +73,11 @@ interface AdbInputChannel : AutoCloseable {
     }
 }
 
-internal suspend fun AdbInputChannel.read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
+internal suspend inline fun AdbInputChannel.read(buffer: ByteBuffer, timeout: TimeoutTracker): Int {
     return read(buffer, timeout.remainingNanos, TimeUnit.NANOSECONDS)
 }
 
-internal suspend fun AdbInputChannel.readExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
+internal suspend inline fun AdbInputChannel.readExactly(buffer: ByteBuffer, timeout: TimeoutTracker) {
     readExactly(buffer, timeout.remainingNanos, TimeUnit.NANOSECONDS)
 }
 
