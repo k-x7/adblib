@@ -335,40 +335,45 @@ internal class AdbDeviceServicesImpl(
     ) {
         logger.debug { "\"${service}\" - Waiting for next shell protocol packet" }
         shellCollector.start(flowCollector)
-        val shellProtocol = ShellV2ProtocolReader(channel, workBuffer)
+        session.channelFactory.createBufferedInputChannel(channel).use { bufferInputChannel ->
+            val shellProtocol = ShellV2ProtocolReader(bufferInputChannel, workBuffer)
 
-        while (true) {
-            // Note: We use an infinite timeout here, as the only wait to end this request is to close
-            //       the underlying ADB socket channel. This is by design.
-            val packet = shellProtocol.readPacket()
-            val packetKind = packet.kind
-            val packetBuffer = packet.payload
-            when (packetKind) {
-                ShellV2PacketKind.STDOUT -> {
-                    logger.debug { "Received stdout buffer of ${packetBuffer.remaining()} bytes" }
-                    shellCollector.collectStdout(flowCollector, packetBuffer)
-                }
-                ShellV2PacketKind.STDERR -> {
-                    logger.debug { "Received stderr buffer of ${packetBuffer.remaining()} bytes" }
-                    shellCollector.collectStderr(flowCollector, packetBuffer)
-                }
-                ShellV2PacketKind.EXIT_CODE -> {
-                    // Ensure value is unsigned
-                    val exitCode = packetBuffer.get().toInt() and 0xFF
-                    logger.debug { "Received shell command exit code=${exitCode}" }
-                    shellCollector.end(flowCollector, exitCode)
+            while (true) {
+                // Note: We use an infinite timeout here, as the only wait to end this request is to close
+                //       the underlying ADB socket channel. This is by design.
+                val packet = shellProtocol.readPacket()
+                val packetKind = packet.kind
+                val packetBuffer = packet.payload
+                when (packetKind) {
+                    ShellV2PacketKind.STDOUT -> {
+                        logger.debug { "Received stdout buffer of ${packetBuffer.remaining()} bytes" }
+                        shellCollector.collectStdout(flowCollector, packetBuffer)
+                    }
 
-                    // There should be no messages after the exit code
-                    break
+                    ShellV2PacketKind.STDERR -> {
+                        logger.debug { "Received stderr buffer of ${packetBuffer.remaining()} bytes" }
+                        shellCollector.collectStderr(flowCollector, packetBuffer)
+                    }
+
+                    ShellV2PacketKind.EXIT_CODE -> {
+                        // Ensure value is unsigned
+                        val exitCode = packetBuffer.get().toInt() and 0xFF
+                        logger.debug { "Received shell command exit code=${exitCode}" }
+                        shellCollector.end(flowCollector, exitCode)
+
+                        // There should be no messages after the exit code
+                        break
+                    }
+
+                    ShellV2PacketKind.STDIN,
+                    ShellV2PacketKind.CLOSE_STDIN,
+                    ShellV2PacketKind.WINDOW_SIZE_CHANGE,
+                    ShellV2PacketKind.INVALID -> {
+                        logger.warn("Skipping shell protocol packet (kind=\"${packetKind}\")")
+                    }
                 }
-                ShellV2PacketKind.STDIN,
-                ShellV2PacketKind.CLOSE_STDIN,
-                ShellV2PacketKind.WINDOW_SIZE_CHANGE,
-                ShellV2PacketKind.INVALID -> {
-                    logger.warn("Skipping shell protocol packet (kind=\"${packetKind}\")")
-                }
+                logger.debug { "\"${service}\" - packet processed successfully" }
             }
-            logger.debug { "\"${service}\" - packet processed successfully" }
         }
     }
 

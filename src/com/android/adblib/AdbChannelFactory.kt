@@ -21,7 +21,9 @@ import com.android.adblib.impl.channels.ByteBufferAdbOutputChannelImpl
 import com.android.adblib.impl.channels.DEFAULT_CHANNEL_BUFFER_SIZE
 import com.android.adblib.impl.channels.EmptyAdbInputChannelImpl
 import com.android.adblib.utils.ResizableBuffer
+import java.io.BufferedInputStream
 import java.io.IOException
+import java.io.InputStream
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousServerSocketChannel
@@ -91,6 +93,20 @@ interface AdbChannelFactory {
     fun createPipedChannel(bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE): AdbPipedInputChannel
 
     /**
+     * Creates an [AdbInputChannel] that reads data from another [AdbInputChannel] using an
+     * internal [ByteBuffer] of the given [bufferSize].
+     *
+     * This class is similar to [BufferedInputStream], but for [AdbInputChannel] instead of
+     * [InputStream].
+     *
+     * The [input] channel is closed when this channel is [closed][AdbInputChannel.close].
+     */
+    fun createBufferedInputChannel(
+        input: AdbInputChannel,
+        bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
+    ): AdbInputChannel
+
+    /**
      * Creates an [AdbInputChannel] that eagerly reads data from [input], i.e. starts a
      * coroutine that reads data from [input] concurrently with calls to [AdbInputChannel.read],
      * so that data is available as fast as possible. [bufferSize] is the size of the
@@ -128,6 +144,7 @@ interface AdbChannelFactory {
         output: AdbOutputChannel,
         bufferSize: Int = DEFAULT_CHANNEL_BUFFER_SIZE
     ): AdbBufferedOutputChannel
+
 }
 
 /**
