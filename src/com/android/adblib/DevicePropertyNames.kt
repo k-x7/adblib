@@ -19,9 +19,12 @@ package com.android.adblib
 object DevicePropertyNames {
     const val RO_BOOT_QEMU_AVD_NAME = "ro.boot.qemu.avd_name"
     const val RO_BUILD_CHARACTERISTICS = "ro.build.characteristics"
+    const val RO_BUILD_VERSION_CODENAME = "ro.build.version.codename"
     const val RO_BUILD_VERSION_RELEASE = "ro.build.version.release"
     const val RO_BUILD_VERSION_SDK = "ro.build.version.sdk"
-    const val RO_KERNEL_QEMU_AVD_NAME = "ro.kernel.qemu.avd_name"
+    const val RO_KERNEL_QEMU_AVD_NAME = "ro.kernel.qemu.avd_name" // Older version of RO_BOOT_QEMU_AVD_NAME
+    const val RO_MANUFACTURER = "ro.manufacturer" // Older version of RO_PRODUCT_MANUFACTURER
+    const val RO_MODEL = "ro.model" // Older version of RO_PRODUCT_MODEL
     const val RO_PRODUCT_CPU_ABI = "ro.product.cpu.abi"
     const val RO_PRODUCT_MANUFACTURER = "ro.product.manufacturer"
     const val RO_PRODUCT_MODEL = "ro.product.model"
