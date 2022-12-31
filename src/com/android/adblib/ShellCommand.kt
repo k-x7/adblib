@@ -18,7 +18,6 @@ package com.android.adblib
 import com.android.adblib.impl.InputChannelShellOutputImpl
 import com.android.adblib.impl.LineCollector
 import com.android.adblib.utils.AdbBufferDecoder
-import com.android.adblib.utils.AdbProtocolUtils
 import com.android.adblib.utils.FirstCollecting
 import com.android.adblib.utils.firstCollecting
 import kotlinx.coroutines.flow.Flow
@@ -27,7 +26,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
-import java.nio.charset.Charset
 import java.time.Duration
 import java.util.concurrent.TimeoutException
 
@@ -350,12 +348,20 @@ class LineShellCollector(bufferCapacity: Int = 256) : ShellCollector<String> {
         decoder.decodeBuffer(stdout, lineCollectorLambda)
 
         val lines = lineCollector.getLines()
-        if (lines.isNotEmpty()) {
-            for (line in lines) {
-                collector.emit(line)
-            }
-            lineCollector.clear()
+        if (lines.isEmpty()) {
+            return
         }
+
+        // The following is intentionally a tail-call so that the current method does not need to allocate
+        // a continuation state.
+        emitLines(lines, collector)
+    }
+
+    private suspend fun emitLines(lines: List<String>, collector: FlowCollector<String>) {
+        for (line in lines) {
+            collector.emit(line)
+        }
+        lineCollector.clear()
     }
 
     override suspend fun end(collector: FlowCollector<String>) {
