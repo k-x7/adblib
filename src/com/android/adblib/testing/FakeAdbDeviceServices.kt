@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.flow
 import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.LinkedBlockingDeque
+import java.util.concurrent.TimeoutException
 import kotlin.math.min
 
 /**
@@ -59,6 +60,14 @@ class FakeAdbDeviceServices(override val session: AdbSession) : AdbDeviceService
      * A record of all calls to [shellV2]
      */
     val shellV2Requests = LinkedBlockingDeque<ShellRequest>()
+
+    /**
+     * Simulate a timeout.
+     *
+     * The functions [shell] and [shellV2] will throw a [TimeoutException] this number of times
+     * before returning a valid result.
+     */
+    var shellNumTimeouts = 0
 
     /**
      * Configures device properties for the given device, such that [AdbDeviceServices.deviceProperties]
@@ -139,13 +148,18 @@ class FakeAdbDeviceServices(override val session: AdbSession) : AdbDeviceService
         shutdownOutput : Boolean,
         stripCrLf: Boolean,
     ): Flow<T> {
-        shellRequests.add(ShellRequest(device.toString(), command, commandTimeout, bufferSize))
-        val output = shellCommands[device.transportPrefix]?.get(command)
-            ?: throw IllegalStateException("""Command not setup for $device: "$command"""")
-        return flow {
-            shellCollector.start(this)
-            output.split(bufferSize) { shellCollector.collect(this, it) }
-            shellCollector.end(this)
+        if (shellNumTimeouts <= 0) {
+            shellRequests.add(ShellRequest(device.toString(), command, commandTimeout, bufferSize))
+            val output = shellCommands[device.transportPrefix]?.get(command)
+                ?: throw IllegalStateException("""Command not setup for $device: "$command"""")
+            return flow {
+                shellCollector.start(this)
+                output.split(bufferSize) { shellCollector.collect(this, it) }
+                shellCollector.end(this)
+            }
+        } else {
+            shellNumTimeouts--
+            throw TimeoutException()
         }
     }
 
@@ -169,14 +183,19 @@ class FakeAdbDeviceServices(override val session: AdbSession) : AdbDeviceService
         commandTimeout: Duration,
         bufferSize: Int,
     ): Flow<T> {
-        shellV2Requests.add(ShellRequest(device.toString(), command, commandTimeout, bufferSize))
-        val output = shellV2Commands[device.transportPrefix]?.get(command)
-            ?: throw IllegalStateException("""Command not setup for $device: "$command"""")
-        return flow {
-            shellCollector.start(this)
-            output.stdout.split(bufferSize) { shellCollector.collectStdout(this, it) }
-            output.stderr.split(bufferSize) { shellCollector.collectStderr(this, it) }
-            shellCollector.end(this, output.exitCode)
+        if (shellNumTimeouts <= 0) {
+            shellV2Requests.add(ShellRequest(device.toString(), command, commandTimeout, bufferSize))
+            val output = shellV2Commands[device.transportPrefix]?.get(command)
+                ?: throw IllegalStateException("""Command not setup for $device: "$command"""")
+            return flow {
+                shellCollector.start(this)
+                output.stdout.split(bufferSize) { shellCollector.collectStdout(this, it) }
+                output.stderr.split(bufferSize) { shellCollector.collectStderr(this, it) }
+                shellCollector.end(this, output.exitCode)
+            }
+        } else {
+            shellNumTimeouts--
+            throw TimeoutException()
         }
     }
 
