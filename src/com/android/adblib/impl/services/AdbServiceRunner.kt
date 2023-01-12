@@ -72,7 +72,7 @@ internal class AdbServiceRunner(val session: AdbSession, private val channelProv
         logger.debug { "$logPrefix opening connection to ADB server, timeout=$timeout" }
         channelProvider.createChannel(timeout).closeOnException { channel ->
             logger.debug { "$logPrefix sending request to ADB server, timeout=$timeout" }
-            sendAbdServiceRequest(channel, workBuffer, service, timeout)
+            sendAdbServiceRequest(channel, workBuffer, service, timeout)
             logger.debug { "$logPrefix receiving response from ADB server, timeout=$timeout" }
             consumeOkayFailResponse(channel, workBuffer, timeout)
             workBuffer.clear()
@@ -183,7 +183,7 @@ internal class AdbServiceRunner(val session: AdbSession, private val channelProv
         }
     }
 
-    suspend fun sendAbdServiceRequest(
+    suspend fun sendAdbServiceRequest(
         channel: AdbOutputChannel,
         workBuffer: ResizableBuffer,
         service: String,
@@ -225,7 +225,7 @@ internal class AdbServiceRunner(val session: AdbSession, private val channelProv
         val workBuffer = newResizableBuffer()
         val channel = switchToTransport(device, workBuffer, timeout)
         return channel.use {
-            sendAbdServiceRequest(channel, workBuffer, query, timeout)
+            sendAdbServiceRequest(channel, workBuffer, query, timeout)
             consumeOkayFailResponse(channel, workBuffer, timeout)
             readOkayFailString(channel, workBuffer, query, timeout, okayData)
         }
@@ -243,7 +243,7 @@ internal class AdbServiceRunner(val session: AdbSession, private val channelProv
         val workBuffer = newResizableBuffer()
         val channel = switchToTransport(device, workBuffer, timeout)
         return channel.use {
-            sendAbdServiceRequest(channel, workBuffer, query, timeout)
+            sendAdbServiceRequest(channel, workBuffer, query, timeout)
             // We receive 2 OKAY answers from the ADB Host: 1st OKAY is connect, 2nd OKAY is status.
             // See https://cs.android.com/android/platform/superproject/+/3a52886262ae22477a7d8ffb12adba64daf6aafa:packages/modules/adb/adb.cpp;l=1058
             consumeOkayFailResponse(channel, workBuffer, timeout)
@@ -283,7 +283,7 @@ internal class AdbServiceRunner(val session: AdbSession, private val channelProv
         val channel = switchToTransport(device, workBuffer, timeout)
         channel.closeOnException {
             logger.debug { "\"$service\" - sending local service request to ADB daemon, timeout: $timeout" }
-            sendAbdServiceRequest(channel, workBuffer, service, timeout)
+            sendAdbServiceRequest(channel, workBuffer, service, timeout)
             consumeOkayFailResponse(channel, workBuffer, timeout)
         }
         return channel
