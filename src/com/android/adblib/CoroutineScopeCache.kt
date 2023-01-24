@@ -15,6 +15,7 @@
  */
 package com.android.adblib
 
+import com.android.adblib.impl.CoroutineScopeCacheImpl
 import kotlinx.coroutines.CoroutineScope
 import java.util.concurrent.ConcurrentMap
 
@@ -109,4 +110,11 @@ interface CoroutineScopeCache {
          */
         val name: String
     )
+
+
+    companion object {
+        fun create(parentScope: CoroutineScope): CoroutineScopeCache {
+            return CoroutineScopeCacheImpl(parentScope)
+        }
+    }
 }
