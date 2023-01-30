@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentMap
  * [closed][AutoCloseable.close] when removed from the cache or when the cache is
  * closed.
  */
-interface CoroutineScopeCache {
+interface CoroutineScopeCache : AutoCloseable {
 
     /**
      * The scope that defines the lifecycle of this cache, i.e. if the [scope] is

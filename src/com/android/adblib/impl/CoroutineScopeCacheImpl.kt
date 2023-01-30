@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 internal class CoroutineScopeCacheImpl(
     parentScope: CoroutineScope
-) : CoroutineScopeCache, AutoCloseable {
+) : CoroutineScopeCache {
 
     private val job = SupervisorJob(parentScope.coroutineContext.job)
 

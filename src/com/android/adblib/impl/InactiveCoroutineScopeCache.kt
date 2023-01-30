@@ -22,6 +22,7 @@ import com.android.adblib.deviceCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import java.util.concurrent.CancellationException
 
 /**
@@ -56,5 +57,9 @@ internal object InactiveCoroutineScopeCache : CoroutineScopeCache {
         defaultValue: suspend CoroutineScope.() -> T
     ): T {
         return fastDefaultValue()
+    }
+
+    override fun close() {
+        // Nothing to do: This is already a "no-op" cache
     }
 }
