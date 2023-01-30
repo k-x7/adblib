@@ -347,6 +347,18 @@ interface AdbDeviceServices {
     fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList>
 
     /**
+     * Returns a [Flow] that emits a new list of [AppProcessEntry] everytime the set of active
+     * processes on the device has changed ("`<device-transport>:track-app`" query).
+     *
+     * Once activated, the flow remains active until cancellation (exceptional or not) occurs from
+     * either the flow collector or the flow implementation, e.g. [IOException] from the
+     * underlying [AdbChannel].
+     *
+     * Note: This service was first available in Android `S` (i.e. [DeviceProperties.api] >= 31).
+     */
+    fun trackApp(device: DeviceSelector): Flow<List<AppProcessEntry>>
+
+    /**
      * Open a JDWP connection to the [process ID][pid] and returns an [AdbChannel] for
      * that connection ("`<device-transport>:jdwp:<pid>`" query).
      *
@@ -370,6 +382,16 @@ interface AdbDeviceServices {
 typealias ProcessIdList = ListWithErrors<Int>
 
 fun emptyProcessIdList(): ProcessIdList = emptyListWithErrors()
+
+/**
+ * A single process entry returned by [AdbDeviceServices.trackApp]
+ */
+data class AppProcessEntry(
+    val pid: Int,
+    val debuggable: Boolean,
+    val profileable: Boolean,
+    val architecture: String)
+
 
 /**
  * A [ShellCollector] is responsible for mapping raw binary output of a shell command,

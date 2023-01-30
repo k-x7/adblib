@@ -20,6 +20,7 @@ import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbSession
+import com.android.adblib.AppProcessEntry
 import com.android.adblib.DeviceSelector
 import com.android.adblib.INFINITE_DURATION
 import com.android.adblib.ProcessIdList
@@ -248,6 +249,10 @@ class FakeAdbDeviceServices(override val session: AdbSession) : AdbDeviceService
     }
 
     override fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList> {
+        TODO("Not yet implemented")
+    }
+
+    override fun trackApp(device: DeviceSelector): Flow<List<AppProcessEntry>> {
         TODO("Not yet implemented")
     }
 

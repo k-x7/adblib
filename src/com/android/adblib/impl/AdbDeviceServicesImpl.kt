@@ -22,6 +22,7 @@ import com.android.adblib.AdbDeviceSyncServices
 import com.android.adblib.AdbInputChannel
 import com.android.adblib.AdbSession
 import com.android.adblib.AdbSessionHost
+import com.android.adblib.AppProcessEntry
 import com.android.adblib.DeviceSelector
 import com.android.adblib.ProcessIdList
 import com.android.adblib.ReverseSocketList
@@ -33,6 +34,7 @@ import com.android.adblib.impl.StdoutByteBufferProcessor.DirectProcessor
 import com.android.adblib.impl.StdoutByteBufferProcessor.StripCrLfProcessor
 import com.android.adblib.impl.services.AdbServiceRunner
 import com.android.adblib.impl.services.OkayDataExpectation
+import com.android.adblib.impl.services.TrackAppService
 import com.android.adblib.impl.services.TrackJdwpService
 import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils.bufferToByteDumpString
@@ -61,6 +63,7 @@ internal class AdbDeviceServicesImpl(
 
     private val serviceRunner = AdbServiceRunner(session, channelProvider)
     private val trackJdwpService = TrackJdwpService(serviceRunner)
+    private val trackAppService = TrackAppService(serviceRunner)
     private val myReverseSocketListParser = ReverseSocketListParser()
 
     override fun <T> shell(
@@ -226,6 +229,10 @@ internal class AdbDeviceServicesImpl(
 
     override fun trackJdwp(device: DeviceSelector): Flow<ProcessIdList> {
         return trackJdwpService.invoke(device, timeout, unit)
+    }
+
+    override fun trackApp(device: DeviceSelector): Flow<List<AppProcessEntry>> {
+        return trackAppService.invoke(device, timeout, unit)
     }
 
     override suspend fun jdwp(device: DeviceSelector, pid: Int): AdbChannel {
