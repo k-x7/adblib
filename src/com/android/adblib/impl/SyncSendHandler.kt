@@ -95,8 +95,9 @@ internal class SyncSendHandler(
                 throw IllegalArgumentException("Remote paths are limited to $REMOTE_PATH_MAX_LENGTH characters")
             }
             val remoteFileEpoch =
-                if (remoteFileTime == null) (host.timeProvider.nanoTime() / 1_000_000_000L).toInt()
-                else AdbProtocolUtils.convertFileTimeToEpochSeconds(remoteFileTime)
+                AdbProtocolUtils.convertFileTimeToEpochSeconds(
+                    remoteFileTime ?: FileTime.from(host.utcNow())
+                )
 
             // Send the file using the "SEND" query
             startSendRequest(remoteFilePath, remoteFileMode, progress)

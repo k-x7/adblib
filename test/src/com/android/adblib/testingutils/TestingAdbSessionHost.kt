@@ -19,14 +19,20 @@ import com.android.adblib.AdbSessionHost
 import com.android.adblib.AdbLogger
 import com.android.adblib.impl.TimeoutTracker
 import kotlinx.coroutines.CoroutineExceptionHandler
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 class TestingAdbSessionHost : AdbSessionHost() {
 
     val uncaughtExceptions = mutableListOf<Throwable>()
+    var overrideUtcNow: Instant? = null
 
     override val loggerFactory: TestingAdbLoggerFactory by lazy {
         TestingAdbLoggerFactory()
+    }
+
+    override fun utcNow(): Instant {
+        return overrideUtcNow ?: Instant.now()
     }
 
     override val parentContext =

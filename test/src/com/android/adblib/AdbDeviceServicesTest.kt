@@ -63,6 +63,7 @@ import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.PosixFilePermission.OWNER_READ
 import java.nio.file.attribute.PosixFilePermission.OWNER_WRITE
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -1843,6 +1844,47 @@ class AdbDeviceServicesTest {
             Assert.assertEquals(fileMode2.modeBits, permission)
             Assert.assertEquals(fileDate2.toMillis() / 1_000, modifiedDate.toLong())
             Assert.assertArrayEquals(fileBytes2, bytes)
+        }
+    }
+
+    @Test
+    fun testSyncSendFileWithNoDateSetsModifiedDateToCurrentTime(): Unit = runBlockingWithTimeout {
+        // Prepare
+        val fakeAdb = registerCloseable(FakeAdbServerProvider())
+            .installDeviceHandler(SyncCommandHandler())
+            .build()
+            .start()
+        val fakeDevice = addFakeDevice(fakeAdb)
+        val deviceServices = createDeviceServices(fakeAdb)
+        val deviceSelector = DeviceSelector.fromSerialNumber(fakeDevice.deviceId)
+
+        val filePath = "/sdcard/foo/bar.bin"
+        val fileBytes = createFileBytes(1_024)
+        val fileMode = RemoteFileMode.fromPosixPermissions(OWNER_READ, OWNER_WRITE)
+        val progress = TestSyncProgress()
+
+        val currentTime = Instant.ofEpochSecond(1_234_567L)
+        (deviceServices.session.host as TestingAdbSessionHost).overrideUtcNow = currentTime
+
+        // Act
+        deviceServices.syncSend(
+            deviceSelector,
+            AdbInputStreamChannel(deviceServices.session.host, fileBytes.inputStream()),
+            filePath,
+            fileMode,
+            null,
+            progress,
+            bufferSize = 1_024
+        )
+
+        // Assert
+        Assert.assertTrue(progress.started)
+        Assert.assertTrue(progress.progress)
+        Assert.assertTrue(progress.done)
+
+        Assert.assertNotNull(fakeDevice.getFile(filePath))
+        fakeDevice.getFile(filePath)?.run {
+            Assert.assertEquals(currentTime.epochSecond, modifiedDate.toLong())
         }
     }
 

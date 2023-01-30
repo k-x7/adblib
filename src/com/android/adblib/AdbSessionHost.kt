@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import java.nio.channels.AsynchronousChannelGroup
+import java.time.Instant
 import javax.swing.SwingUtilities
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -35,6 +36,8 @@ import kotlin.coroutines.EmptyCoroutineContext
 open class AdbSessionHost : AutoCloseable {
 
     open val timeProvider: SystemNanoTimeProvider = SystemNanoTime()
+
+    open fun utcNow(): Instant = Instant.now()
 
     /**
      * The "main" or "root" logger from the [loggerFactory]
