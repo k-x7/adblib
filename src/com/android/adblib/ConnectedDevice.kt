@@ -16,7 +16,17 @@
 package com.android.adblib
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.isActive
+import java.time.Duration
 
 /**
  * Abstraction over a device currently connected to ADB. An instance of [ConnectedDevice] is
@@ -86,3 +96,31 @@ val ConnectedDevice.deviceInfo: DeviceInfo
  */
 suspend fun ConnectedDevice.deviceProperties(): DeviceProperties =
     session.deviceServices.deviceProperties(DeviceSelector.fromSerialNumber(serialNumber))
+
+/**
+ * When the device comes online, starts and returns the flow from [transform].
+ * Retries the flow if an exception occurs and the device is still connected.
+ */
+fun <R> ConnectedDevice.flowWhenOnline(
+    retryDelay: Duration,
+    transform: suspend (device: ConnectedDevice) -> Flow<R>
+): Flow<R> {
+    val device = this
+    return deviceInfoFlow
+        .map { it.deviceState }
+        .filter { it == DeviceState.ONLINE }
+        .distinctUntilChanged()
+        .flatMapConcat { transform(device) }
+        .retryWhen { throwable, _ ->
+            device.thisLogger(session).warn(
+                throwable,
+                "Device $device flow failed with error '${throwable.message}', " +
+                        "retrying in ${retryDelay.seconds} sec"
+            )
+            // We retry as long as the device is valid
+            if (device.scope.isActive) {
+                delay(retryDelay.toMillis())
+            }
+            device.scope.isActive
+        }.flowOn(session.host.ioDispatcher)
+}
