@@ -104,6 +104,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
@@ -149,6 +150,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
@@ -177,6 +179,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent().replace("\n", "\r\n")
         Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
@@ -203,6 +206,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput, commandOutput.stdout)
@@ -235,6 +239,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput.lines(), lines)
@@ -650,6 +655,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput, AdbProtocolUtils.byteBufferToString(bytes))
@@ -678,6 +684,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent()
         Assert.assertEquals(
@@ -1471,6 +1478,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent()
         Assert.assertEquals(expectedOutput, output)
@@ -1503,6 +1511,7 @@ class AdbDeviceServicesTest {
             [ro.product.cpu.abi]: [x86_64]
             [ro.product.manufacturer]: [test1]
             [ro.product.model]: [test2]
+            [ro.serialno]: [1234]
 
         """.trimIndent().replace("\n", "\r\n")
         Assert.assertEquals(expectedOutput, output)
