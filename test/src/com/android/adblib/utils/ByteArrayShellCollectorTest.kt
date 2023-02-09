@@ -15,8 +15,8 @@
  */
 package com.android.adblib.utils
 
-import com.android.adblib.ShellCollector
 import com.android.adblib.testingutils.ByteBufferUtils
+import com.android.adblib.utils.ByteArrayShellCollector.CommandResult
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert
@@ -37,7 +37,9 @@ class ByteArrayShellCollectorTest {
         collect(bytesCollector, flowCollector)
 
         // Assert
-        Assert.assertEquals(listOf(""), flowCollector.data)
+        Assert.assertEquals(listOf(""), flowCollector.stdout)
+        Assert.assertEquals(listOf(""), flowCollector.stderr)
+        Assert.assertEquals(0, flowCollector.exitCode)
     }
 
     @Test
@@ -50,85 +52,39 @@ class ByteArrayShellCollectorTest {
         collect(shellCollector, flowCollector, "")
 
         // Assert
-        Assert.assertEquals(listOf(""), flowCollector.data)
+        Assert.assertEquals(listOf(""), flowCollector.stdout)
+        Assert.assertEquals(listOf(""), flowCollector.stderr)
+        Assert.assertEquals(0, flowCollector.exitCode)
     }
 
     @Test
-    fun testCrLfWithoutRemoval() {
+    fun test_multipleBuffers() {
         // Prepare
-        val shellCollector = ByteArrayShellCollector(removeCarriageReturns = false)
+        val shellCollector = ByteArrayShellCollector()
         val flowCollector = BytesFlowCollector()
 
         // Act
-        collect(shellCollector, flowCollector, "abc\r\n")
+        collect(shellCollector, flowCollector, "a", "b", "c")
 
         // Assert
-        Assert.assertEquals(listOf("abc\r\n"), flowCollector.data)
+        Assert.assertEquals(listOf("abc"), flowCollector.stdout)
+        Assert.assertEquals(listOf(""), flowCollector.stderr)
+        Assert.assertEquals(0, flowCollector.exitCode)
     }
 
     @Test
-    fun testCrLfRemoval() {
+    fun test_error() {
         // Prepare
-        val shellCollector = ByteArrayShellCollector(removeCarriageReturns = true)
+        val shellCollector = ByteArrayShellCollector()
         val flowCollector = BytesFlowCollector()
 
         // Act
-        collect(shellCollector, flowCollector, "abc\r\n123\r\n", "\r\n", )
+        collectError(shellCollector, flowCollector, "a", "b", "c")
 
         // Assert
-        Assert.assertEquals(listOf("abc\n123\n\n"), flowCollector.data)
-    }
-
-    @Test
-    fun testCrLfRemovalInDifferentBuffers() {
-        // Prepare
-        val shellCollector = ByteArrayShellCollector(removeCarriageReturns = true)
-        val flowCollector = BytesFlowCollector()
-
-        // Act
-        collect(shellCollector, flowCollector, "abc\r", "\n", )
-
-        // Assert
-        Assert.assertEquals(listOf("abc\n"), flowCollector.data)
-    }
-
-    @Test
-    fun testCrLfRemovalLastByteIsCr() {
-        // Prepare
-        val shellCollector = ByteArrayShellCollector(removeCarriageReturns = true)
-        val flowCollector = BytesFlowCollector()
-
-        // Act
-        collect(shellCollector, flowCollector, "abc\r", )
-
-        // Assert
-        Assert.assertEquals(listOf("abc\r"), flowCollector.data)
-    }
-
-    @Test
-    fun testCrLfRemovalCrWithoutLf() {
-        // Prepare
-        val shellCollector = ByteArrayShellCollector(removeCarriageReturns = true)
-        val flowCollector = BytesFlowCollector()
-
-        // Act
-        collect(shellCollector, flowCollector, "abc\r123", )
-
-        // Assert
-        Assert.assertEquals(listOf("abc\r123"), flowCollector.data)
-    }
-
-    @Test
-    fun testCrLfRemovalCrWithoutLfInDifferentBuffers() {
-        // Prepare
-        val shellCollector = ByteArrayShellCollector(removeCarriageReturns = true)
-        val flowCollector = BytesFlowCollector()
-
-        // Act
-        collect(shellCollector, flowCollector, "abc\r", "123", )
-
-        // Assert
-        Assert.assertEquals(listOf("abc\r123"), flowCollector.data)
+        Assert.assertEquals(listOf(""), flowCollector.stdout)
+        Assert.assertEquals(listOf("abc"), flowCollector.stderr)
+        Assert.assertEquals(-1, flowCollector.exitCode)
     }
 
     private fun collect(
@@ -139,20 +95,44 @@ class ByteArrayShellCollectorTest {
         runBlocking {
             shellCollector.start(flowCollector)
             values.forEach { value ->
-                shellCollector.collect(flowCollector, ByteBufferUtils.stringToByteBuffer(value))
+                shellCollector.collectStdout(
+                    flowCollector,
+                    ByteBufferUtils.stringToByteBuffer(value)
+                )
             }
-            shellCollector.end(flowCollector)
+            shellCollector.end(flowCollector, 0)
         }
     }
 
-    private class BytesFlowCollector : FlowCollector<ByteArray> {
+    private fun collectError(
+        shellCollector: ByteArrayShellCollector,
+        flowCollector: BytesFlowCollector,
+        vararg errors: String
+    ) {
+        runBlocking {
+            shellCollector.start(flowCollector)
+            errors.forEach { value ->
+                shellCollector.collectStderr(
+                    flowCollector,
+                    ByteBufferUtils.stringToByteBuffer(value)
+                )
+            }
+            shellCollector.end(flowCollector, -1)
+        }
+    }
 
-        var data = mutableListOf<String>()
+    private class BytesFlowCollector : FlowCollector<CommandResult> {
 
-        override suspend fun emit(value: ByteArray) {
+        var stdout = mutableListOf<String>()
+        var stderr = mutableListOf<String>()
+        var exitCode: Int? = null
+
+        override suspend fun emit(value: CommandResult) {
             // ByteArray does not have equals() and it's also easier to read the test if we convert
             // them to strings.
-            data.add(String(value))
+            stdout.add(String(value.stdout))
+            stderr.add(value.stderr)
+            exitCode = value.exitCode
         }
     }
 
