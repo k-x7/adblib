@@ -17,7 +17,10 @@ package com.android.adblib.impl
 
 import com.android.adblib.AdbDeviceServices
 import com.android.adblib.AdbInputChannel
+import com.android.adblib.AdbInputChannelSlice
 import com.android.adblib.AdbOutputChannel
+import com.android.adblib.EmptyAdbInputChannel
+import com.android.adblib.skipRemaining
 import com.android.adblib.utils.ResizableBuffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -38,7 +41,8 @@ private const val SHELL_PACKET_HEADER_SIZE = 5
  */
 internal class ShellV2ProtocolReader(
     private val deviceChannel: AdbInputChannel,
-    private val workBuffer: ResizableBuffer
+    private val workBuffer: ResizableBuffer,
+    private val bufferSize: Int = DEFAULT_BUFFER_SIZE
 ) {
     private val packet = ShellV2PacketImpl()
 
@@ -54,6 +58,10 @@ internal class ShellV2ProtocolReader(
      * Note: The returned [ShellV2Packet] instance if valid only until the next call to [readPacket].
      */
     suspend fun readPacket(): ShellV2Packet {
+        // Ensure we finish reading previous packet in case caller did not use
+        // all bytes.
+        packet.payload.skipRemaining(workBuffer, bufferSize)
+
         // Read header (1 byte for id, 4 bytes for data length)
         workBuffer.clear()
         deviceChannel.readExactly(workBuffer.forChannelRead(SHELL_PACKET_HEADER_SIZE))
@@ -66,18 +74,17 @@ internal class ShellV2ProtocolReader(
         // Packet length is next 4 bytes (little endian)
         val packetLength = buffer.getInt()
 
-        // Packet data is next "length" bytes
-        workBuffer.clear()
-        deviceChannel.readExactly(workBuffer.forChannelRead(packetLength))
-
+        // Setup packet for caller
         packet.kind = packetKind
-        packet.payload = workBuffer.afterChannelRead()
+        packet.payloadLength = packetLength
+        packet.payload = AdbInputChannelSlice(deviceChannel, packetLength)
         return packet
     }
 
     private class ShellV2PacketImpl : ShellV2Packet {
         override var kind: ShellV2PacketKind = ShellV2PacketKind.INVALID
-        override var payload: ByteBuffer = ByteBuffer.allocate(0)
+        override var payloadLength: Int = 0
+        override var payload: AdbInputChannel = EmptyAdbInputChannel()
     }
 }
 
@@ -133,7 +140,8 @@ internal class ShellV2ProtocolWriter(
  */
 internal interface ShellV2Packet {
     val kind: ShellV2PacketKind
-    val payload: ByteBuffer
+    val payloadLength: Int
+    val payload: AdbInputChannel
 }
 
 /**

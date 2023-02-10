@@ -40,10 +40,12 @@ import com.android.adblib.thisLogger
 import com.android.adblib.utils.AdbProtocolUtils.bufferToByteDumpString
 import com.android.adblib.utils.ResizableBuffer
 import com.android.adblib.utils.launchCancellable
+import com.android.adblib.withPrefix
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import java.nio.ByteBuffer
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
@@ -161,6 +163,7 @@ internal class AdbDeviceServicesImpl(
                     workBuffer,
                     service,
                     shellCollector,
+                    bufferSize,
                     this@flow
                 )
             }
@@ -338,35 +341,44 @@ internal class AdbDeviceServicesImpl(
         workBuffer: ResizableBuffer,
         service: String,
         shellCollector: ShellV2Collector<T>,
+        bufferSize: Int,
         flowCollector: FlowCollector<T>
     ) {
-        logger.debug { "\"${service}\" - Waiting for next shell protocol packet" }
+        val logger = this.logger.withPrefix("\"${service}\" - ")
+        logger.debug { "Collecting shell protocol packets" }
         shellCollector.start(flowCollector)
-        session.channelFactory.createBufferedInputChannel(channel).use { bufferInputChannel ->
-            val shellProtocol = ShellV2ProtocolReader(bufferInputChannel, workBuffer)
+        session.channelFactory.createBufferedInputChannel(channel, bufferSize).use { bufferInputChannel ->
+            val shellProtocol = ShellV2ProtocolReader(bufferInputChannel, workBuffer, bufferSize)
 
             while (true) {
                 // Note: We use an infinite timeout here, as the only wait to end this request is to close
                 //       the underlying ADB socket channel. This is by design.
+                logger.debug { "Waiting for next shell protocol packet" }
                 val packet = shellProtocol.readPacket()
-                val packetKind = packet.kind
-                val packetBuffer = packet.payload
-                when (packetKind) {
+                when (packet.kind) {
                     ShellV2PacketKind.STDOUT -> {
-                        logger.debug { "Received stdout buffer of ${packetBuffer.remaining()} bytes" }
-                        shellCollector.collectStdout(flowCollector, packetBuffer)
+                        logger.verbose { "Received 'stdout' packet of ${packet.payloadLength} bytes" }
+                        processAdbInputChannelSplits(workBuffer, bufferSize, packet.payload) { byteBuffer ->
+                            logger.verbose { "Emitting ${byteBuffer.remaining()} bytes to 'stdout' flow collector" }
+                            shellCollector.collectStdout(flowCollector, byteBuffer)
+                        }
                     }
 
                     ShellV2PacketKind.STDERR -> {
-                        logger.debug { "Received stderr buffer of ${packetBuffer.remaining()} bytes" }
-                        shellCollector.collectStderr(flowCollector, packetBuffer)
+                        logger.verbose { "Received 'stderr' packet of ${packet.payloadLength} bytes" }
+                        processAdbInputChannelSplits(workBuffer, bufferSize, packet.payload) { byteBuffer ->
+                            logger.verbose { "Emitting ${byteBuffer.remaining()} bytes to 'stderr' flow collector" }
+                            shellCollector.collectStderr(flowCollector, byteBuffer)
+                        }
                     }
 
                     ShellV2PacketKind.EXIT_CODE -> {
-                        // Ensure value is unsigned
-                        val exitCode = packetBuffer.get().toInt() and 0xFF
-                        logger.debug { "Received shell command exit code=${exitCode}" }
-                        shellCollector.end(flowCollector, exitCode)
+                        processAdbInputChannelSplits(workBuffer, bufferSize, packet.payload) { byteBuffer ->
+                            // Ensure value is unsigned
+                            val exitCode = byteBuffer.get().toInt() and 0xFF
+                            logger.debug { "Received shell command exit code=${exitCode}, ending flow" }
+                            shellCollector.end(flowCollector, exitCode)
+                        }
 
                         // There should be no messages after the exit code
                         break
@@ -376,11 +388,27 @@ internal class AdbDeviceServicesImpl(
                     ShellV2PacketKind.CLOSE_STDIN,
                     ShellV2PacketKind.WINDOW_SIZE_CHANGE,
                     ShellV2PacketKind.INVALID -> {
-                        logger.warn("Skipping shell protocol packet (kind=\"${packetKind}\")")
+                        logger.warn("Skipping shell protocol packet (kind=\"${packet.kind}\")")
                     }
                 }
-                logger.debug { "\"${service}\" - packet processed successfully" }
             }
+        }
+        logger.debug { "Done collecting shell protocol packets" }
+    }
+
+    private suspend inline fun processAdbInputChannelSplits(
+        workBuffer: ResizableBuffer,
+        bufferSize: Int,
+        payload: AdbInputChannel,
+        block: (ByteBuffer) -> Unit
+    ) {
+        while (true) {
+            workBuffer.clear()
+            val count = payload.read(workBuffer.forChannelRead(bufferSize))
+            if (count <= 0) {
+                break
+            }
+            block(workBuffer.afterChannelRead())
         }
     }
 

@@ -14,7 +14,7 @@ import java.nio.file.attribute.FileTime
 import java.time.Duration
 import java.util.concurrent.TimeoutException
 
-const val DEFAULT_SHELL_BUFFER_SIZE = 8_192
+const val DEFAULT_SHELL_BUFFER_SIZE = DEFAULT_BUFFER_SIZE
 
 /**
  * Exposes services that are executed by the ADB daemon of a given device
