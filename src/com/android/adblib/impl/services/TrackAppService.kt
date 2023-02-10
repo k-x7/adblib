@@ -66,6 +66,7 @@ internal class TrackAppService(private val serviceRunner: AdbServiceRunner) {
             val processEntryList = parser.parse(buffer)
 
             logger.debug { "\"${service}\" - sending list of (${processEntryList.size} process ID(s))" }
+            logger.verbose { "\"${service}\" -    list elements: $processEntryList" }
             flowCollector.emit(processEntryList)
         }
     }

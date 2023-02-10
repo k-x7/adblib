@@ -26,6 +26,7 @@ import com.android.fakeadbserver.FakeAdbServer
 import com.android.fakeadbserver.MdnsService
 import com.android.fakeadbserver.devicecommandhandlers.DeviceCommandHandler
 import com.android.fakeadbserver.hostcommandhandlers.HostCommandHandler
+import kotlinx.coroutines.runInterruptible
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
@@ -56,6 +57,19 @@ class FakeAdbServerProvider : AutoCloseable {
 
     private val builder = FakeAdbServer.Builder()
     private var server: FakeAdbServer? = null
+
+    val fakeAdbServer: FakeAdbServer
+        get() = server ?: throw IllegalStateException("FakeAdbServer not initialized")
+
+    suspend fun device(serialNumber: String): DeviceState {
+        return runInterruptible {
+            fakeAdbServer.deviceListCopy
+                .get(5_000, TimeUnit.MILLISECONDS)
+                .first {
+                    it.deviceId == serialNumber
+                }
+        }
+    }
 
     fun buildDefault(): FakeAdbServerProvider {
         // Build the server and configure it to use the default ADB command handlers.
